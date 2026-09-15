@@ -26,6 +26,7 @@ import { Camera } from './render/Camera.js';
 import { UIManager } from './ui/UIManager.js';
 import { Tilemap } from './world/Tilemap.js';
 import { FoliageSystem } from './world/FoliageSystem.js';
+import { CinematicManager, PROLOGUE_CUTSCENE } from './cinematics/CinematicManager.js';
 
 // Capas de renderizado del Motor (Nativo 960x540 - Panorámico 16:9)
 const mainCanvas = document.getElementById('main-canvas');
@@ -56,6 +57,7 @@ const interactionSystem = new InteractionSystem(entityManager, inputManager, sta
 const renderer = new Renderer(mainCanvas);
 const lightManager = new LightManager(lightCanvas, false); // isInterior = false (Luz de día clara)
 const uiManager = new UIManager(); // Gestiona el DOM Overlay moderno
+const cinematicManager = new CinematicManager(stateManager); // Sistema de cinemáticas narrativas
 const camera = new Camera(mainCanvas.width, mainCanvas.height);
 
 // Sistema de físicas ambientales de vegetación reactiva
@@ -163,6 +165,10 @@ function update(deltaTime) {
   inputManager.update();
 
   const gameState = stateManager.get('game_state');
+  if (gameState === 'STATE_CINEMATIC') {
+    cinematicManager.update(deltaTime);
+    return;
+  }
   if (gameState !== 'STATE_PLAYING') {
     return;
   }
@@ -231,9 +237,13 @@ const DEBUG_MODE = false;
 // 11. Conexión de la Lógica de Estados y UI HTML
 btnPlay.addEventListener('click', () => {
   mainMenuEl.classList.add('hidden');
-  stateManager.set('game_state', 'STATE_PLAYING');
+
+  // Iniciar la cinemática del prólogo narrativo antes de la partida
   engine.resume();
-  if (DEBUG_MODE) console.log('[Game State] PLAYING');
+  cinematicManager.play(PROLOGUE_CUTSCENE, () => {
+    stateManager.set('game_state', 'STATE_PLAYING');
+    if (DEBUG_MODE) console.log('[Game State] PLAYING tras prólogo cinemático.');
+  });
 });
 
 function openPauseMenu() {
@@ -302,3 +312,9 @@ window.toggleCritical = () => {
   return c;
 };
 window.toggleMobileControls = () => inputManager.toggleTouchControls();
+window.playIntroCinematic = () => {
+  cinematicManager.play(PROLOGUE_CUTSCENE, () => {
+    stateManager.set('game_state', 'STATE_PLAYING');
+    engine.resume();
+  });
+};

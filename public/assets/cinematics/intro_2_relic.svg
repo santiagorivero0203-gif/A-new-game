@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <!-- Fondo íntimo y oscuro de ruinas crepusculares -->
+    <radialGradient id="ruinsBg" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1e162a" />
+      <stop offset="60%" stop-color="#0f0b17" />
+      <stop offset="100%" stop-color="#050308" />
+    </radialGradient>
+
+    <!-- Resplandor divino y cálido de la Reliquia -->
+    <radialGradient id="relicCoreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="25%" stop-color="#fef08a" />
+      <stop offset="60%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="rgba(245, 158, 11, 0)" />
+    </radialGradient>
+
+    <!-- Haces de luz sagrada -->
+    <radialGradient id="lightRays" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="rgba(253, 224, 71, 0.45)" />
+      <stop offset="50%" stop-color="rgba(245, 158, 11, 0.15)" />
+      <stop offset="100%" stop-color="rgba(0, 0, 0, 0)" />
+    </radialGradient>
+  </defs>
+
+  <!-- Fondo cinematográfico -->
+  <rect width="1920" height="1080" fill="url(#ruinsBg)" />
+
+  <!-- Estrellas y polvo mágico suspendido en el aire nocturno -->
+  <g fill="#cbd5e1" opacity="0.6">
+    <circle cx="280" cy="180" r="1.5" />
+    <circle cx="440" cy="120" r="2" />
+    <circle cx="680" cy="220" r="1" />
+    <circle cx="1280" cy="160" r="1.8" />
+    <circle cx="1520" cy="110" r="2.2" />
+    <circle cx="1720" cy="240" r="1.5" />
+  </g>
+
+  <!-- Paredes del santuario antiguo derruido -->
+  <path d="M0,0 L420,0 L320,680 L0,780 Z" fill="#120d1c" opacity="0.8" />
+  <path d="M1580,0 L1920,0 L1920,780 L1660,680 Z" fill="#120d1c" opacity="0.8" />
+
+  <!-- Silueta del Héroe Caído (Izquierda, apoyado en la piedra) -->
+  <g fill="#0b0814">
+    <!-- Hombro, armadura y capa azul descansando -->
+    <path d="M380,820 C420,680 500,600 620,580 C680,640 700,740 720,860 Z" />
+    <circle cx="560" cy="520" r="48" />
+    <!-- Brazo extendido entregando la reliquia -->
+    <path d="M640,640 C720,620 840,600 920,590 C930,620 880,660 780,690 Z" />
+  </g>
+  <!-- Capa azul desgarrada pero noble -->
+  <path d="M420,720 C480,680 540,690 580,780 C500,800 440,840 390,880 Z" fill="#1e3a8a" opacity="0.75" />
+
+  <!-- Silueta del Joven Protagonista (Derecha, arrodillado recibiendo la herencia) -->
+  <g fill="#0b0814">
+    <path d="M1280,860 C1240,710 1180,630 1080,610 C1030,660 1010,750 990,860 Z" />
+    <circle cx="1120" cy="540" r="42" />
+    <!-- Manos extendidas con devoción y asombro -->
+    <path d="M1060,660 C1010,640 980,620 940,610 C950,640 980,670 1020,690 Z" />
+  </g>
+  <!-- Túnica verde del joven aprendiz -->
+  <path d="M1120,680 C1180,720 1240,780 1260,880 C1200,880 1140,840 1080,780 Z" fill="#14532d" opacity="0.75" />
+
+  <!-- Gran Aura de Luz Sagrada en el Centro -->
+  <circle cx="960" cy="570" r="500" fill="url(#lightRays)" />
+  <circle cx="960" cy="570" r="220" fill="url(#relicCoreGlow)" />
+
+  <!-- Haces radiales de gloria divina -->
+  <g stroke="#fef08a" stroke-width="1.5" opacity="0.45">
+    <line x1="960" y1="570" x2="680" y2="380" />
+    <line x1="960" y1="570" x2="1240" y2="380" />
+    <line x1="960" y1="570" x2="720" y2="760" />
+    <line x1="960" y1="570" x2="1200" y2="760" />
+    <line x1="960" y1="570" x2="960" y2="280" />
+    <line x1="960" y1="570" x2="960" y2="860" />
+  </g>
+
+  <!-- LA RELIQUIA PRIMORDIAL (Cristal Rúnico Octogonal Sagrado) -->
+  <g transform="translate(960, 570)">
+    <!-- Aura exterior del cristal -->
+    <polygon points="0,-60 42,-42 60,0 42,42 0,60 -42,42 -60,0 -42,-42" fill="#facc15" filter="drop-shadow(0 0 25px #fbbf24)" />
+    <!-- Núcleo de diamante puro resplandeciente -->
+    <polygon points="0,-45 32,-32 45,0 32,32 0,45 -32,32 -45,0 -32,-32" fill="#ffffff" />
+    <!-- Facetas interiores talladas -->
+    <line x1="0" y1="-45" x2="0" y2="45" stroke="#fef08a" stroke-width="2" />
+    <line x1="-45" y1="0" x2="45" y2="0" stroke="#fef08a" stroke-width="2" />
+    <polygon points="0,-20 14,-14 20,0 14,14 0,20 -14,14 -20,0 -14,-14" fill="#ffffff" filter="drop-shadow(0 0 8px #ffffff)" />
+  </g>
+
+  <!-- 4 Glifos Elementales Flotantes en Órbita Alrededor de la Reliquia -->
+  <!-- 1. Fuego (Arriba) -->
+  <circle cx="960" cy="410" r="28" fill="rgba(251, 146, 60, 0.25)" filter="drop-shadow(0 0 14px #fb923c)" />
+  <text x="960" y="416" font-size="20" text-anchor="middle" fill="#fdba74">🔥</text>
+
+  <!-- 2. Embestida / Trueno (Derecha) -->
+  <circle cx="1120" cy="570" r="28" fill="rgba(56, 189, 248, 0.25)" filter="drop-shadow(0 0 14px #38bdf8)" />
+  <text x="1120" y="576" font-size="20" text-anchor="middle" fill="#7dd3fc">⚡</text>
+
+  <!-- 3. Raíces / Tierra (Abajo) -->
+  <circle cx="960" cy="730" r="28" fill="rgba(74, 222, 128, 0.25)" filter="drop-shadow(0 0 14px #4ade80)" />
+  <text x="960" y="736" font-size="20" text-anchor="middle" fill="#86efac">🌿</text>
+
+  <!-- 4. Curación / Agua (Izquierda) -->
+  <circle cx="800" cy="570" r="28" fill="rgba(244, 114, 182, 0.25)" filter="drop-shadow(0 0 14px #f472b6)" />
+  <text x="800" y="576" font-size="20" text-anchor="middle" fill="#f9a8d4">💚</text>
+
+  <!-- Brillos especulares y destellos cósmicos -->
+  <circle cx="920" cy="520" r="4" fill="#ffffff" filter="drop-shadow(0 0 6px #ffffff)" />
+  <circle cx="1010" cy="540" r="3" fill="#fef08a" />
+  <circle cx="970" cy="620" r="3" fill="#fef08a" />
+  <circle cx="890" cy="600" r="2.5" fill="#facc15" />
+</svg>

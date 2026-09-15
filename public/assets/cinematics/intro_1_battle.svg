@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <!-- Degradado del cielo tormentoso crepuscular -->
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0b0a1a" />
+      <stop offset="40%" stop-color="#1e1438" />
+      <stop offset="75%" stop-color="#3b1b4d" />
+      <stop offset="100%" stop-color="#120c1f" />
+    </linearGradient>
+
+    <!-- Resplandor del relámpago -->
+    <radialGradient id="lightningGlow" cx="65%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="rgba(192, 132, 252, 0.45)" />
+      <stop offset="60%" stop-color="rgba(147, 51, 234, 0.15)" />
+      <stop offset="100%" stop-color="rgba(0, 0, 0, 0)" />
+    </radialGradient>
+
+    <!-- Aura de la espada sagrada -->
+    <radialGradient id="bladeGlow" cx="40%" cy="55%" r="35%">
+      <stop offset="0%" stop-color="rgba(254, 240, 138, 0.85)" />
+      <stop offset="40%" stop-color="rgba(250, 204, 21, 0.35)" />
+      <stop offset="100%" stop-color="rgba(245, 158, 11, 0)" />
+    </radialGradient>
+
+    <!-- Aura del Titán de las Sombras -->
+    <radialGradient id="shadowLordGlow" cx="72%" cy="45%" r="45%">
+      <stop offset="0%" stop-color="rgba(239, 68, 68, 0.4)" />
+      <stop offset="50%" stop-color="rgba(136, 19, 55, 0.25)" />
+      <stop offset="100%" stop-color="rgba(0, 0, 0, 0)" />
+    </radialGradient>
+  </defs>
+
+  <!-- Cielo -->
+  <rect width="1920" height="1080" fill="url(#skyGrad)" />
+  <rect width="1920" height="1080" fill="url(#lightningGlow)" />
+
+  <!-- Nubes oscuras distantes -->
+  <path d="M0,500 Q300,380 650,440 T1300,410 T1920,460 L1920,1080 L0,1080 Z" fill="#130f24" opacity="0.7" />
+  <path d="M0,560 Q400,460 900,510 T1600,480 T1920,530 L1920,1080 L0,1080 Z" fill="#0f0c1c" opacity="0.85" />
+
+  <!-- Relámpagos rasgando el firmamento -->
+  <polyline points="1250,50 1210,220 1260,260 1200,420 1230,460 1180,620" fill="none" stroke="#e9d5ff" stroke-width="4" filter="drop-shadow(0 0 12px #c084fc)" />
+  <polyline points="1210,220 1150,290 1170,350" fill="none" stroke="#d8b4fe" stroke-width="2" opacity="0.7" />
+  <polyline points="1200,420 1140,510" fill="none" stroke="#d8b4fe" stroke-width="2" opacity="0.7" />
+
+  <!-- Montañas y ruinas distantes -->
+  <polygon points="150,750 350,580 550,750" fill="#181329" />
+  <polygon points="450,780 700,540 950,780" fill="#151024" />
+  <polygon points="1200,800 1450,590 1700,800" fill="#181329" />
+
+  <!-- Columnas y Arcos del Templo Milenario en Ruinas -->
+  <rect x="220" y="520" width="45" height="320" fill="#1c1630" rx="4" />
+  <rect x="340" y="480" width="50" height="360" fill="#161126" rx="4" />
+  <rect x="200" y="500" width="210" height="28" fill="#1c1630" rx="4" />
+  <rect x="1550" y="510" width="55" height="330" fill="#181229" rx="4" />
+  <rect x="1680" y="540" width="45" height="300" fill="#140e22" rx="4" />
+
+  <!-- Suelo de la colina en combate -->
+  <path d="M0,820 Q480,720 960,760 T1920,780 L1920,1080 L0,1080 Z" fill="#090611" />
+  <path d="M0,870 Q600,810 1200,840 T1920,850 L1920,1080 L0,1080 Z" fill="#05030a" />
+
+  <!-- Auras y Resplandores del Choque -->
+  <circle cx="1380" cy="580" r="420" fill="url(#shadowLordGlow)" />
+  <circle cx="750" cy="680" r="320" fill="url(#bladeGlow)" />
+
+  <!-- SILUETA: Soberano de las Sombras (Monstruoso y Colosal) -->
+  <g fill="#07040d">
+    <!-- Cuerpo y garras monstruosas -->
+    <path d="M1250,850 C1200,680 1260,450 1380,380 C1460,340 1560,380 1620,460 C1700,560 1740,720 1700,850 Z" />
+    <!-- Cuernos y espinas oscuras -->
+    <path d="M1360,400 Q1300,260 1240,220 Q1320,310 1370,360 Z" />
+    <path d="M1580,410 Q1680,270 1740,210 Q1670,320 1600,370 Z" />
+    <path d="M1480,350 Q1510,210 1500,160 Q1460,260 1450,340 Z" />
+    <!-- Brazo y garras extendidas atacando hacia el héroe -->
+    <path d="M1320,540 C1180,560 1020,620 960,660 C1010,670 1120,640 1280,610 Z" />
+  </g>
+  <!-- Ojos Carmesí del Soberano -->
+  <ellipse cx="1410" cy="440" rx="14" ry="7" fill="#ef4444" transform="rotate(-12, 1410, 440)" filter="drop-shadow(0 0 10px #ef4444)" />
+  <ellipse cx="1520" cy="445" rx="14" ry="7" fill="#ef4444" transform="rotate(10, 1520, 445)" filter="drop-shadow(0 0 10px #ef4444)" />
+
+  <!-- SILUETA: El Héroe Milenario (Capa ondeante y Espada Radiante) -->
+  <g>
+    <!-- Capa legendaria ondeante al viento -->
+    <path d="M600,750 C520,700 420,720 320,680 C360,760 440,820 620,820 Z" fill="#0284c7" opacity="0.9" />
+    <path d="M610,740 C550,680 460,690 380,660 C420,730 490,780 630,790 Z" fill="#38bdf8" opacity="0.6" />
+    <!-- Cuerpo del héroe en pose de estocada heroica -->
+    <path d="M620,830 L660,720 L710,700 L730,750 L770,830 Z" fill="#0f172a" />
+    <!-- Cabeza y casco -->
+    <circle cx="690" cy="670" r="22" fill="#0f172a" />
+    <!-- Espada Radiante Dorada (Impacto de Luz) -->
+    <line x1="720" y1="710" x2="980" y2="620" stroke="#fef08a" stroke-width="12" stroke-linecap="round" filter="drop-shadow(0 0 18px #facc15)" />
+    <line x1="720" y1="710" x2="980" y2="620" stroke="#ffffff" stroke-width="5" stroke-linecap="round" />
+    <!-- Empuñadura y guarda -->
+    <line x1="735" y1="695" x2="715" y2="735" stroke="#f59e0b" stroke-width="8" stroke-linecap="round" />
+  </g>
+
+  <!-- Punto de Choque Central (Chispas y Explosión Mágica) -->
+  <circle cx="970" cy="630" r="18" fill="#ffffff" filter="drop-shadow(0 0 35px #fbbf24)" />
+  <circle cx="970" cy="630" r="45" fill="none" stroke="#facc15" stroke-width="4" opacity="0.8" />
+  <circle cx="970" cy="630" r="85" fill="none" stroke="#f43f5e" stroke-width="2" opacity="0.5" />
+
+  <!-- Partículas incandescentes volando -->
+  <circle cx="920" cy="580" r="3" fill="#fef08a" />
+  <circle cx="1030" cy="600" r="4" fill="#fbbf24" />
+  <circle cx="890" cy="660" r="3" fill="#facc15" />
+  <circle cx="1060" cy="670" r="3" fill="#f87171" />
+  <circle cx="990" cy="530" r="3.5" fill="#fef08a" />
+</svg>

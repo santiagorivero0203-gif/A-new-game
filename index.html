@@ -73,6 +73,31 @@
       <!-- Viñeta Ambiental de Salud Crítica -->
       <div id="vignette-overlay" class="vignette-overlay"></div>
 
+      <!-- 0. Sistema de Cinemáticas Narrativas (DOM Overlay) -->
+      <div id="cinematic-overlay" class="cinematic-overlay hidden">
+        <div id="cinematic-image" class="cinematic-image-layer"></div>
+        <div class="cinematic-vignette"></div>
+
+        <!-- Botón de Salto Rápido -->
+        <button id="btn-skip-cinematic" class="btn-skip-cinematic" aria-label="Saltar cinemática">
+          <span>SALTAR</span>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+            <polygon points="5,4 15,12 5,20"/>
+            <rect x="16" y="5" width="3" height="14" rx="1"/>
+          </svg>
+        </button>
+
+        <!-- Caja de Subtítulos y Diálogo Cinematográfico -->
+        <div class="cinematic-caption-box">
+          <span id="cinematic-speaker" class="cinematic-speaker">LORE</span>
+          <p id="cinematic-text" class="cinematic-text"></p>
+          <div id="cinematic-prompt" class="cinematic-prompt">
+            <span>Toca o presiona [Espacio] para continuar</span>
+            <span class="cinematic-prompt-dot"></span>
+          </div>
+        </div>
+      </div>
+
       <!-- 1. HUD Flotante Superior (Top-Left Pill) -->
       <div id="hud-container" class="hud-pill">
         <div class="hud-relic-badge" id="hud-relic-badge">

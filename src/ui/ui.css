@@ -730,3 +730,186 @@
   line-height: 1.45;
   margin: 0;
 }
+
+/* ==========================================================================
+   7. SISTEMA DE CINEMÁTICAS NARRATIVAS (DOM OVERLAY)
+   Efecto Ken Burns dinámico (Zoom in / out), Diálogos y Transiciones
+   ========================================================================== */
+
+.cinematic-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 25;
+  background: #000000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.6s ease;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.cinematic-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Capa de Imagen con Ken Burns */
+.cinematic-image-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* Animaciones Ken Burns (Zoom Dinámico Suave) */
+.ken-burns-zoom-in {
+  animation: kenBurnsZoomIn 10s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.ken-burns-zoom-out {
+  animation: kenBurnsZoomOut 10s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes kenBurnsZoomIn {
+  0% {
+    transform: scale(1.0);
+  }
+  100% {
+    transform: scale(1.14);
+  }
+}
+
+@keyframes kenBurnsZoomOut {
+  0% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1.02);
+  }
+}
+
+/* Viñeta cinematográfica para intensificar el dramatismo */
+.cinematic-vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.45) 80%, rgba(0, 0, 0, 0.85) 100%),
+              linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 40%);
+  z-index: 2;
+}
+
+/* Botón Minimalista de Salto (Skip) */
+.btn-skip-cinematic {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  color: #cbd5e1;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.btn-skip-cinematic:hover {
+  background: rgba(30, 41, 59, 0.9);
+  color: #f8fafc;
+  border-color: rgba(250, 204, 21, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-skip-cinematic:active {
+  transform: translateY(1px);
+}
+
+/* Caja de Narración y Diálogo Cinematográfico */
+.cinematic-caption-box {
+  position: relative;
+  z-index: 5;
+  width: 86%;
+  max-width: 780px;
+  margin-bottom: 28px;
+  padding: 20px 28px;
+  background: rgba(8, 12, 22, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.85), 0 0 30px rgba(0, 0, 0, 0.5);
+  user-select: none;
+}
+
+.cinematic-speaker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  color: #facc15;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+.cinematic-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+  font-weight: 400;
+  color: #f1f5f9;
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+
+.cinematic-prompt {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-top: 10px;
+  letter-spacing: 0.5px;
+}
+
+.cinematic-prompt-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #facc15;
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+

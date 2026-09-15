@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <!-- Amanecer dorado y esperanzador sobre Arcadia -->
+    <linearGradient id="dawnSky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" />
+      <stop offset="35%" stop-color="#4338ca" />
+      <stop offset="65%" stop-color="#fb7185" />
+      <stop offset="85%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#fef08a" />
+    </linearGradient>
+
+    <!-- Sol naciente -->
+    <radialGradient id="sunGlow" cx="50%" cy="65%" r="45%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="25%" stop-color="#fef08a" />
+      <stop offset="65%" stop-color="#fb923c" />
+      <stop offset="100%" stop-color="rgba(251, 146, 60, 0)" />
+    </radialGradient>
+
+    <!-- Niebla dorada en los valles -->
+    <linearGradient id="valleyMist" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="rgba(254, 243, 199, 0.4)" />
+      <stop offset="100%" stop-color="rgba(251, 191, 36, 0.05)" />
+    </linearGradient>
+  </defs>
+
+  <!-- Cielo de Amanecer -->
+  <rect width="1920" height="1080" fill="url(#dawnSky)" />
+
+  <!-- Sol naciente sobre el horizonte -->
+  <circle cx="960" cy="650" r="320" fill="url(#sunGlow)" />
+  <circle cx="960" cy="650" r="80" fill="#ffffff" filter="drop-shadow(0 0 45px #fef08a)" />
+
+  <!-- Haces de luz solar matutina (God Rays) -->
+  <g opacity="0.25">
+    <polygon points="960,650 300,0 480,0" fill="#ffffff" />
+    <polygon points="960,650 780,0 920,0" fill="#ffffff" />
+    <polygon points="960,650 1150,0 1280,0" fill="#ffffff" />
+    <polygon points="960,650 1520,0 1680,0" fill="#ffffff" />
+  </g>
+
+  <!-- Siluetas de las 4 Mazmorras / Reinos Elementales en el Horizonte -->
+  <!-- 1. Volcán del Fuego (Norte-Oeste) -->
+  <polygon points="120,720 320,530 520,720" fill="#31193d" />
+  <!-- Humo y cenizas del cráter -->
+  <circle cx="320" cy="520" r="14" fill="#f97316" opacity="0.6" filter="drop-shadow(0 0 10px #ea580c)" />
+
+  <!-- 2. Agujas del Trueno (Norte-Este) -->
+  <polygon points="1420,730 1560,490 1700,730" fill="#231d45" />
+  <polygon points="1520,730 1620,440 1720,730" fill="#1b153b" />
+  <polyline points="1620,440 1625,370" stroke="#38bdf8" stroke-width="3" filter="drop-shadow(0 0 8px #38bdf8)" />
+
+  <!-- 3. Gran Árbol Milenario de las Raíces (Sur-Centro) -->
+  <g fill="#142c26">
+    <path d="M840,680 Q760,540 840,480 Q960,420 1080,480 Q1160,540 1080,680 Z" />
+    <rect x="940" y="650" width="40" height="70" fill="#142c26" />
+  </g>
+  <circle cx="960" cy="510" r="30" fill="#4ade80" opacity="0.3" filter="drop-shadow(0 0 16px #22c55e)" />
+
+  <!-- Capa de niebla matutina sobre los valles -->
+  <rect x="0" y="660" width="1920" height="120" fill="url(#valleyMist)" />
+
+  <!-- Colinas intermedias y cordillera boscosa -->
+  <path d="M0,740 Q400,680 850,720 T1920,700 L1920,1080 L0,1080 Z" fill="#0f291e" />
+  <path d="M0,790 Q500,740 1100,770 T1920,750 L1920,1080 L0,1080 Z" fill="#091d15" />
+
+  <!-- Riberas fluviales y lago sagrado de la Curación (Reflejos de luz) -->
+  <path d="M500,770 Q750,750 960,760 T1400,770 L1350,820 Q960,800 550,810 Z" fill="#67e8f9" opacity="0.45" filter="drop-shadow(0 0 10px #06b6d4)" />
+
+  <!-- Aves fénix / pájaros surcando el cielo libre -->
+  <g stroke="#334155" stroke-width="2.5" fill="none" opacity="0.75">
+    <path d="M520,380 Q530,365 540,380 Q550,365 560,380" />
+    <path d="M565,350 Q573,338 581,350 Q589,338 597,350" />
+    <path d="M620,390 Q626,380 632,390 Q638,380 644,390" />
+  </g>
+
+  <!-- Acantilado en Primer Plano (Izquierda) -->
+  <path d="M0,720 Q240,710 380,820 L440,1080 L0,1080 Z" fill="#05120c" />
+  <!-- Vegetación, pasto y flores en el risco -->
+  <path d="M0,720 Q180,710 340,790 L360,820 L0,820 Z" fill="#15803d" />
+
+  <!-- SILUETA: El Nuevo Héroe de Pie en el Borde del Acantilado -->
+  <g fill="#020805">
+    <!-- Piernas firmes mirando hacia el horizonte infinito -->
+    <rect x="250" y="740" width="12" height="42" />
+    <rect x="272" y="740" width="12" height="42" />
+    <!-- Capa que ondea con la brisa del nuevo amanecer -->
+    <path d="M245,690 C210,700 170,720 130,750 C180,760 220,750 250,730 Z" fill="#1d4ed8" />
+    <!-- Torso y cabeza con mirada al frente -->
+    <rect x="246" y="670" width="34" height="45" rx="4" />
+    <circle cx="263" cy="650" r="18" />
+    <!-- Espada envainada en la espalda -->
+    <line x1="240" y1="720" x2="275" y2="625" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" />
+  </g>
+
+  <!-- Brillo dorado de la Reliquia equipada en el cinto del héroe -->
+  <circle cx="270" cy="710" r="7" fill="#facc15" filter="drop-shadow(0 0 12px #fbbf24)" />
+  <circle cx="270" cy="710" r="3" fill="#ffffff" />
+</svg>
