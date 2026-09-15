@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Be a Legend</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    #game-container {
+      position: relative;
+      width: 800px;
+      height: 600px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated; /* Crucial for pixel art */
+    }
+    #main-canvas {
+      z-index: 1;
+    }
+    #light-canvas {
+      z-index: 2;
+      pointer-events: none;
+    }
+    #ui-canvas {
+      z-index: 3;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="main-canvas" width="800" height="600"></canvas>
+    <canvas id="light-canvas" width="800" height="600"></canvas>
+    <canvas id="ui-canvas" width="800" height="600"></canvas>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
