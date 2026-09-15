@@ -5,9 +5,9 @@ import { Vector2 } from '../utils/Vector2.js';
  * @description Gestor integral de entradas híbridas: teclado (WASD / flechas), ratón y
  * gamepad virtual táctil (Joystick izquierdo, botón de ataque, botón dinámico de swipe
  * para habilidades de la Reliquia y botón de pausa).
- * Admite multi-touch real y emulación con ratón en entornos de escritorio.
+ * Optimizado para formato panorámico 16:9 (960x540) con multi-touch real y emulación con ratón.
  * @author Be a Legend Team
- * @version 1.3.0
+ * @version 1.4.0
  */
 export class InputManager {
   /**
@@ -31,29 +31,29 @@ export class InputManager {
     /** @type {number} Total de slots en la rueda */
     this.totalRadialSlots = 4;
 
-    // --- Configuración Geométrica de Controles Táctiles (Coordenadas Canvas 800x600) ---
+    // --- Configuración Geométrica Adaptada al Formato Panorámico 16:9 (960x540) ---
     this.joystickConfig = {
-      baseX: 110,
-      baseY: 490,
+      baseX: 115,
+      baseY: 435,
       radius: 65,
       maxDistance: 45
     };
 
     this.attackButtonConfig = {
-      x: 710,
-      y: 505,
-      radius: 38
+      x: 855,
+      y: 445,
+      radius: 40
     };
 
     this.skillButtonConfig = {
-      x: 710,
-      y: 405,
+      x: 855,
+      y: 345,
       radius: 34
     };
 
     this.pauseButtonConfig = {
-      x: 755,
-      y: 45,
+      x: 915,
+      y: 42,
       radius: 22
     };
 
@@ -100,8 +100,8 @@ export class InputManager {
   }
 
   /**
-   * Convierte coordenadas de pantalla del navegador (clientX, clientY)
-   * a coordenadas internas del Canvas virtual (800x600).
+   * Convierte coordenadas del navegador (clientX, clientY)
+   * a coordenadas internas del Canvas virtual (960x540).
    * @param {number} clientX
    * @param {number} clientY
    * @returns {{x: number, y: number}}
@@ -164,7 +164,6 @@ export class InputManager {
         this._calculateRadialSelection();
       }
 
-      // Soporte para probar el Virtual Gamepad con ratón si está arrastrando
       if (this._mouseIsDown) {
         const coords = this.getCanvasCoords(e.clientX, e.clientY);
         this._handlePointerMove(null, coords.x, coords.y);
@@ -218,20 +217,17 @@ export class InputManager {
   }
 
   /**
-   * Procesa el inicio de una pulsación o toque.
    * @private
    */
   _handlePointerDown(id, x, y) {
-    // 1. Chequear Botón de Pausa (Engranaje)
+    // 1. Botón de Pausa (Engranaje)
     const distPause = Math.hypot(x - this.pauseButtonConfig.x, y - this.pauseButtonConfig.y);
     if (distPause <= this.pauseButtonConfig.radius * 1.5) {
-      if (this._onPauseCallback) {
-        this._onPauseCallback();
-      }
+      if (this._onPauseCallback) this._onPauseCallback();
       return;
     }
 
-    // 2. Chequear Joystick Izquierdo
+    // 2. Joystick Izquierdo
     const distJoy = Math.hypot(x - this.joystickConfig.baseX, y - this.joystickConfig.baseY);
     if (distJoy <= this.joystickConfig.radius * 1.6 && this._joystickTouchId === null) {
       this._joystickTouchId = id;
@@ -239,7 +235,7 @@ export class InputManager {
       return;
     }
 
-    // 3. Chequear Botón de Ataque
+    // 3. Botón de Ataque
     const distAttack = Math.hypot(x - this.attackButtonConfig.x, y - this.attackButtonConfig.y);
     if (distAttack <= this.attackButtonConfig.radius * 1.3 && this._attackTouchId === null) {
       this._attackTouchId = id;
@@ -247,7 +243,7 @@ export class InputManager {
       return;
     }
 
-    // 4. Chequear Botón de Habilidad (Reliquia - Swipe)
+    // 4. Botón de Habilidad (Swipe)
     const distSkill = Math.hypot(x - this.skillButtonConfig.x, y - this.skillButtonConfig.y);
     if (distSkill <= this.skillButtonConfig.radius * 1.4 && this._skillTouchId === null) {
       this._skillTouchId = id;
@@ -259,16 +255,13 @@ export class InputManager {
   }
 
   /**
-   * Procesa el desplazamiento de un toque o puntero.
    * @private
    */
   _handlePointerMove(id, x, y) {
-    // Actualizar Joystick
     if (this._joystickTouchId === id || (id === null && this._joystickTouchId === 'mouse')) {
       this._updateJoystick(x, y);
     }
 
-    // Actualizar Swipe de Habilidad
     if (this._skillTouchId === id || (id === null && this._skillTouchId === 'mouse')) {
       const dx = x - this.skillButtonConfig.x;
       const dy = y - this.skillButtonConfig.y;
@@ -283,24 +276,20 @@ export class InputManager {
   }
 
   /**
-   * Procesa la liberación de un toque o puntero.
    * @private
    */
   _handlePointerUp(id, x, y) {
-    // Liberar Joystick
     if (this._joystickTouchId === id) {
       this._joystickTouchId = null;
       this.joystickVector.set(0, 0);
       this.joystickThumb.set(this.joystickConfig.baseX, this.joystickConfig.baseY);
     }
 
-    // Liberar Ataque
     if (this._attackTouchId === id) {
       this._attackTouchId = null;
       this.isAttackPressed = false;
     }
 
-    // Liberar Habilidad con Swipe: Calcular ángulo final y equipar poder
     if (this._skillTouchId === id) {
       this._skillTouchId = null;
       this.isSkillSwiping = false;
@@ -322,7 +311,6 @@ export class InputManager {
   }
 
   /**
-   * Actualiza el vector normalizado y la posición de la palanca del joystick.
    * @private
    */
   _updateJoystick(touchX, touchY) {
@@ -336,7 +324,6 @@ export class InputManager {
       return;
     }
 
-    // Normalizar para obtener dirección [-1..1]
     const clampedDist = Math.min(dist, this.joystickConfig.maxDistance);
     const normX = dx / dist;
     const normY = dy / dist;
@@ -349,39 +336,19 @@ export class InputManager {
   }
 
   /**
-   * Calcula el poder de la Reliquia correspondiente al ángulo de swipe con Math.atan2.
-   * Mapeo cardinal:
-   * - Arriba (-90°): Fuego
-   * - Derecha (0°): Embestida
-   * - Abajo (90°): Raíces
-   * - Izquierda (180° / -180°): Curación
    * @private
-   * @param {number} dx
-   * @param {number} dy
-   * @returns {string} Nombre del poder
    */
   _calculateSwipePower(dx, dy) {
     const angleRad = Math.atan2(dy, dx);
     const angleDeg = (angleRad * 180) / Math.PI;
 
-    // Arriba: entre -135° y -45°
-    if (angleDeg >= -135 && angleDeg < -45) {
-      return 'Fuego';
-    }
-    // Derecha: entre -45° y 45°
-    if (angleDeg >= -45 && angleDeg < 45) {
-      return 'Embestida';
-    }
-    // Abajo: entre 45° y 135°
-    if (angleDeg >= 45 && angleDeg < 135) {
-      return 'Raíces';
-    }
-    // Izquierda: > 135° o < -135°
+    if (angleDeg >= -135 && angleDeg < -45) return 'Fuego';
+    if (angleDeg >= -45 && angleDeg < 45) return 'Embestida';
+    if (angleDeg >= 45 && angleDeg < 135) return 'Raíces';
     return 'Curación';
   }
 
   /**
-   * Calcula selección en rueda radial con ratón para PC.
    * @private
    */
   _calculateRadialSelection() {
@@ -398,9 +365,7 @@ export class InputManager {
     }
 
     let angle = Math.atan2(dy, dx) + Math.PI / 2;
-    if (angle < 0) {
-      angle += 2 * Math.PI;
-    }
+    if (angle < 0) angle += 2 * Math.PI;
 
     const sliceSize = (2 * Math.PI) / this.totalRadialSlots;
     const offsetAngle = (angle + sliceSize / 2) % (2 * Math.PI);
@@ -415,7 +380,5 @@ export class InputManager {
     return !!this.keys[code];
   }
 
-  update() {
-    // Polling si se requiere en el futuro
-  }
+  update() {}
 }

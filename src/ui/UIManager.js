@@ -1,11 +1,10 @@
 /**
  * @module UIManager
  * @description Gestor de interfaz de usuario desacoplado en canvas dedicado superior.
- * Renderiza el Virtual Gamepad móvil táctil (Joystick izquierdo, botón de ataque,
- * botón dinámico de habilidad con swipe direccional e icono de pausa),
- * además de la rueda radial para PC y el HUD informativo.
+ * Renderiza el Virtual Gamepad móvil táctil en formato 16:9 panorámico (960x540),
+ * la rueda radial de PC, el HUD de estado y la viñeta de salud crítica roja pulsante.
  * @author Be a Legend Team
- * @version 1.3.0
+ * @version 1.4.0
  */
 export class UIManager {
   /**
@@ -14,6 +13,8 @@ export class UIManager {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    /** @type {number} Temporizador interno para animaciones de UI */
+    this.uiTime = 0;
   }
 
   /**
@@ -24,7 +25,35 @@ export class UIManager {
   }
 
   /**
-   * Renderiza el Virtual Gamepad optimizado para pantallas táctiles y móviles.
+   * Dibuja la viñeta roja pulsante en los bordes para indicar peligro o salud crítica.
+   * @param {number} deltaTime
+   */
+  drawCriticalVignette(deltaTime) {
+    this.uiTime += deltaTime * 4.5;
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    // Intensidad pulsante orgánica entre 0.3 y 0.7
+    const pulse = Math.sin(this.uiTime) * 0.2 + 0.5;
+
+    ctx.save();
+    const gradient = ctx.createRadialGradient(
+      w / 2, h / 2, Math.min(w, h) * 0.35,
+      w / 2, h / 2, Math.max(w, h) * 0.68
+    );
+
+    gradient.addColorStop(0, 'rgba(239, 68, 68, 0)');
+    gradient.addColorStop(0.7, `rgba(220, 38, 38, ${pulse * 0.4})`);
+    gradient.addColorStop(1, `rgba(185, 28, 28, ${pulse * 0.85})`);
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza el Virtual Gamepad optimizado para pantallas táctiles y móviles 16:9.
    * @param {import('../core/InputManager.js').InputManager} input
    * @param {string} equippedPower - Nombre del poder actualmente equipado
    */
@@ -44,7 +73,7 @@ export class UIManager {
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
     ctx.stroke();
 
-    // Cruz direccional sutil en la base
+    // Cruz direccional en la base
     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.fillRect(joy.baseX - 2, joy.baseY - 24, 4, 48);
     ctx.fillRect(joy.baseX - 24, joy.baseY - 2, 48, 4);
@@ -74,7 +103,6 @@ export class UIManager {
     ctx.strokeStyle = input.isAttackPressed ? '#FEF08A' : 'rgba(255, 255, 255, 0.8)';
     ctx.stroke();
 
-    // Icono / Texto de espada
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -87,7 +115,7 @@ export class UIManager {
     const skl = input.skillButtonConfig;
     ctx.save();
 
-    // Anillo exterior de direcciones de swipe
+    // Anillo exterior
     ctx.beginPath();
     ctx.arc(skl.x, skl.y, skl.radius + (input.isSkillSwiping ? 18 : 12), 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
@@ -96,14 +124,12 @@ export class UIManager {
     ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
     ctx.stroke();
 
-    // Indicadores direccionales alrededor del botón
     this._drawSwipeDirectionHints(skl.x, skl.y, input.hoveredSwipePower);
 
     // Botón central de la Reliquia
     ctx.beginPath();
     ctx.arc(skl.x, skl.y, skl.radius, 0, Math.PI * 2);
 
-    // Gradiente dorado / energía
     const relicGrad = ctx.createRadialGradient(skl.x, skl.y, 2, skl.x, skl.y, skl.radius);
     relicGrad.addColorStop(0, '#fef08a');
     relicGrad.addColorStop(1, '#ca8a04');
@@ -114,7 +140,6 @@ export class UIManager {
     ctx.strokeStyle = '#FFFFFF';
     ctx.stroke();
 
-    // Etiqueta del poder equipado o en pre-visualización
     const displayPower = input.hoveredSwipePower || equippedPower || 'Reliquia';
     ctx.fillStyle = '#1e1e24';
     ctx.font = 'bold 10px system-ui, sans-serif';
@@ -122,7 +147,6 @@ export class UIManager {
     ctx.textBaseline = 'middle';
     ctx.fillText(displayPower.toUpperCase(), skl.x, skl.y);
 
-    // Línea de rastro del swipe si está arrastrando
     if (input.isSkillSwiping && input.skillSwipeVector.length() > 5) {
       ctx.beginPath();
       ctx.moveTo(skl.x, skl.y);
@@ -139,7 +163,7 @@ export class UIManager {
 
     ctx.restore();
 
-    // --- 4. Botón de Pausa (Engranaje en esquina superior derecha) ---
+    // --- 4. Botón de Pausa (Engranaje) ---
     const pse = input.pauseButtonConfig;
     ctx.save();
 
@@ -151,7 +175,6 @@ export class UIManager {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.stroke();
 
-    // Icono de engranaje ⚙️
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '16px system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -162,7 +185,6 @@ export class UIManager {
   }
 
   /**
-   * Dibuja los indicadores direccionales de Swipe para la Reliquia.
    * @private
    */
   _drawSwipeDirectionHints(centerX, centerY, activePower) {
@@ -171,9 +193,9 @@ export class UIManager {
 
     const directions = [
       { text: '▲ Fuego', x: centerX, y: centerY - distance, power: 'Fuego' },
-      { text: '▶ Embestida', x: centerX + distance + 10, y: centerY, power: 'Embestida' },
+      { text: '▶ Embestida', x: centerX + distance + 12, y: centerY, power: 'Embestida' },
       { text: '▼ Raíces', x: centerX, y: centerY + distance, power: 'Raíces' },
-      { text: '◀ Curación', x: centerX - distance - 10, y: centerY, power: 'Curación' }
+      { text: '◀ Curación', x: centerX - distance - 12, y: centerY, power: 'Curación' }
     ];
 
     ctx.font = 'bold 9px system-ui, sans-serif';
@@ -190,15 +212,13 @@ export class UIManager {
 
   /**
    * Dibuja la rueda de selección radial trigonométrica para PC (Tab).
-   * @param {import('../core/InputManager.js').InputManager} inputManager
-   * @param {Array<string>} powers - Lista de nombres de poderes
    */
   drawRadialWheel(inputManager, powers) {
     if (!inputManager.isRadialMenuOpen) return;
 
     const centerX = this.canvas.width / 2;
     const centerY = this.canvas.height / 2;
-    const radius = 110;
+    const radius = 115;
     const slots = inputManager.totalRadialSlots;
     const sliceAngle = (2 * Math.PI) / slots;
 
@@ -238,7 +258,6 @@ export class UIManager {
       this.ctx.fillText(powerName, textX, textY);
     }
 
-    // Núcleo
     this.ctx.beginPath();
     this.ctx.arc(centerX, centerY, 24, 0, Math.PI * 2);
     this.ctx.fillStyle = 'rgba(10, 10, 15, 0.9)';
@@ -254,51 +273,58 @@ export class UIManager {
    * Renderizado general de la interfaz de usuario.
    * @param {import('../core/InputManager.js').InputManager} inputManager
    * @param {import('../core/StateManager.js').StateManager} stateManager
+   * @param {number} [deltaTime=0.016]
    */
-  render(inputManager, stateManager) {
+  render(inputManager, stateManager, deltaTime = 0.016) {
     this.clear();
+
+    // 1. Viñeta roja si la salud es crítica
+    if (stateManager && stateManager.get('health_critical')) {
+      this.drawCriticalVignette(deltaTime);
+    }
 
     const equipped = (stateManager && stateManager.get('equipped_power')) || 'Fuego';
     const unlocked = (stateManager && stateManager.get('unlocked_powers')) || ["Fuego", "Embestida", "Raíces", "Curación"];
 
-    // 1. Virtual Gamepad táctil (siempre visible en el canvas superior)
+    // 2. Virtual Gamepad táctil en el canvas superior
     this.drawVirtualGamepad(inputManager, equipped);
 
-    // 2. Menú radial de PC si está abierto
+    // 3. Menú radial de PC si está abierto
     if (inputManager.isRadialMenuOpen) {
       this.drawRadialWheel(inputManager, unlocked);
     } else {
-      // 3. HUD contextual
+      // 4. HUD superior
       this.drawHUD(stateManager, equipped);
     }
   }
 
   /**
-   * Dibuja la barra de estado superior con karma, poder activo y guía de controles.
+   * Dibuja la barra de estado superior en formato panorámico.
    * @param {import('../core/StateManager.js').StateManager} stateManager
    * @param {string} equippedPower
    */
   drawHUD(stateManager, equippedPower) {
     const karma = (stateManager && stateManager.get('karma_level')) || 0;
+    const isCritical = stateManager && stateManager.get('health_critical');
     const ctx = this.ctx;
 
     ctx.save();
-    // Tarjeta superior izquierda
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.68)';
     ctx.beginPath();
-    ctx.roundRect(12, 12, 230, 48, 6);
+    ctx.roundRect(14, 14, 250, 48, 8);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeStyle = isCritical ? 'rgba(239, 68, 68, 0.7)' : 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = isCritical ? 2 : 1;
     ctx.stroke();
 
     ctx.font = 'bold 11px system-ui, sans-serif';
     ctx.fillStyle = '#f8fafc';
     ctx.textAlign = 'left';
-    ctx.fillText(`Reliquia: ${equippedPower}`, 22, 28);
+    ctx.fillText(`Reliquia: ${equippedPower}`, 24, 30);
 
     ctx.font = '10px system-ui, sans-serif';
-    ctx.fillStyle = karma >= 0 ? '#4ade80' : '#f87171';
-    ctx.fillText(`Karma: ${karma >= 0 ? '+' : ''}${karma}  |  [WASD / Joystick]`, 22, 45);
+    ctx.fillStyle = isCritical ? '#ef4444' : (karma >= 0 ? '#4ade80' : '#f87171');
+    ctx.fillText(isCritical ? '⚠️ SALUD CRÍTICA [Presiona H para alternar]' : `Karma: ${karma >= 0 ? '+' : ''}${karma}  |  16:9 Panorámico`, 24, 47);
 
     ctx.restore();
   }

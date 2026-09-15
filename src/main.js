@@ -1,11 +1,12 @@
 /**
  * @file main.js
- * @description Punto de entrada principal y orquestador del juego "Be a Legend".
- * Ensambla el nivel de prueba "El Bosque" en estilo 32-bit moderno, el Virtual Gamepad táctil
- * móvil (Joystick, botón de ataque, botón swipe de Reliquia y pausa) y el Mini Menú Principal
- * HTML/CSS gobernado por la máquina de estados del StateManager.
+ * @description Punto de entrada principal y orquestador del nivel "El Bosque" en formato
+ * Next-Gen Pixel Art (estética The Minish Cap / Eastward de 32-bit de alta fidelidad).
+ * Integra resolución 16:9 panorámica (960x540), cámara cinemática cercana con LERP exponencial
+ * continuo y Screen Shake por impacto, físicas ambientales de vegetación reactiva (FoliageSystem)
+ * que se balancea con el viento y se deforma con el jugador, y viñeta roja de salud crítica.
  * @author Be a Legend Team
- * @version 1.4.0
+ * @version 1.5.0
  */
 
 import { Engine } from './core/Engine.js';
@@ -24,13 +25,14 @@ import { LightManager } from './render/LightManager.js';
 import { Camera } from './render/Camera.js';
 import { UIManager } from './ui/UIManager.js';
 import { Tilemap } from './world/Tilemap.js';
+import { FoliageSystem } from './world/FoliageSystem.js';
 
-// Capas de renderizado del DOM
+// Capas de renderizado del DOM (Nativo 960x540 - Panorámico 16:9)
 const mainCanvas = document.getElementById('main-canvas');
 const lightCanvas = document.getElementById('light-canvas');
 const uiCanvas = document.getElementById('ui-canvas');
 
-// Elementos HTML de Menús
+// Overlays HTML de Menús
 const mainMenuEl = document.getElementById('main-menu');
 const pauseMenuEl = document.getElementById('pause-menu');
 const settingsModalEl = document.getElementById('settings-modal');
@@ -52,9 +54,12 @@ const physicsSystem = new PhysicsSystem(entityManager);
 const interactionSystem = new InteractionSystem(entityManager, inputManager, stateManager);
 
 const renderer = new Renderer(mainCanvas);
-const lightManager = new LightManager(lightCanvas, false); // isInterior = false (Luz de día diurna)
+const lightManager = new LightManager(lightCanvas, false); // isInterior = false (Luz de día clara)
 const uiManager = new UIManager(uiCanvas);
 const camera = new Camera(mainCanvas.width, mainCanvas.height);
+
+// Sistema de físicas ambientales de vegetación reactiva
+const foliageSystem = new FoliageSystem(entityManager);
 
 // 2. Nivel "El Bosque" de 40x40 Casillas (1280x1280 px)
 const MAP_COLS = 40;
@@ -63,15 +68,14 @@ const TILE_SIZE = 32;
 const MAP_WIDTH = MAP_COLS * TILE_SIZE;   // 1280 px
 const MAP_HEIGHT = MAP_ROWS * TILE_SIZE; // 1280 px
 
-// Room Clamping de Cámara
 camera.setRoomBounds({ x: 0, y: 0, width: MAP_WIDTH, height: MAP_HEIGHT });
 const tilemap = new Tilemap(MAP_COLS, MAP_ROWS, TILE_SIZE);
 
-// 3. Jugador ubicado en el camino de tierra
+// 3. Jugador ubicado en el centro del claro
 const player = new Player(624, 624);
 entityManager.addEntity(player);
 
-// 4. Cabaña de madera moderna al norte
+// 4. Cabaña de madera estilo Minish Cap
 const cabin = new House(560, 260);
 entityManager.addEntity(cabin);
 
@@ -79,7 +83,17 @@ entityManager.addEntity(cabin);
 const elderNPC = new NPC(640, 410);
 entityManager.addEntity(elderNPC);
 
-// 5. Generación de Árboles con Y-Sorting Estricto
+// 5. Vegetación Reactiva con Físicas de Viento y Contacto
+foliageSystem.addFoliage(530, 560);
+foliageSystem.addFoliage(570, 680);
+foliageSystem.addFoliage(690, 580);
+foliageSystem.addFoliage(740, 660);
+foliageSystem.addFoliage(450, 490);
+foliageSystem.addFoliage(810, 470);
+foliageSystem.addFoliage(510, 360);
+foliageSystem.addFoliage(680, 350);
+
+// 6. Generación de Árboles Frondosos con Y-Sorting Estricto
 const trees = [];
 function spawnTree(x, y) {
   const tree = new Tree(x, y);
@@ -97,7 +111,7 @@ spawnTree(780, 320);
 spawnTree(310, 600);
 spawnTree(960, 600);
 
-// Perímetro de bosque
+// Perímetro denso de bosque
 for (let x = 0; x < MAP_WIDTH; x += 75) {
   spawnTree(x, 0);
   spawnTree(x + 35, 60);
@@ -105,21 +119,22 @@ for (let x = 0; x < MAP_WIDTH; x += 75) {
   spawnTree(x + 35, MAP_HEIGHT - 70);
 }
 for (let y = 100; y < MAP_HEIGHT - 120; y += 75) {
-  if (y > 560 && y < 700) continue; // Paso del camino
+  if (y > 560 && y < 700) continue; // Camino central
   spawnTree(0, y);
   spawnTree(55, y + 35);
   spawnTree(MAP_WIDTH - 85, y);
   spawnTree(MAP_WIDTH - 140, y + 35);
 }
 
-// 6. Carga Asíncrona de Assets
+// 7. Carga Asíncrona de Assets Next-Gen Pixel Art
 async function initAssets() {
   try {
     await resourceManager.loadBatch([
       { type: 'image', key: 'grass_tile', url: '/assets/tiles/grass.jpg' },
       { type: 'image', key: 'dirt_tile', url: '/assets/tiles/dirt.jpg' },
-      { type: 'image', key: 'tree_sprite', url: '/assets/sprites/tree.jpg', transparent: true, threshold: 240 },
-      { type: 'image', key: 'house_sprite', url: '/assets/sprites/house.jpg', transparent: true, threshold: 240 }
+      { type: 'image', key: 'tree_sprite', url: '/assets/sprites/tree.jpg', transparent: true, threshold: 242 },
+      { type: 'image', key: 'house_sprite', url: '/assets/sprites/house.jpg', transparent: true, threshold: 242 },
+      { type: 'image', key: 'bush_sprite', url: '/assets/sprites/bush.jpg', transparent: true, threshold: 242 }
     ]);
 
     const treeImg = resourceManager.getImage('tree_sprite');
@@ -128,8 +143,11 @@ async function initAssets() {
     const houseImg = resourceManager.getImage('house_sprite');
     if (houseImg) cabin.setSprite(houseImg);
 
+    const bushImg = resourceManager.getImage('bush_sprite');
+    if (bushImg) foliageSystem.setGlobalSprite(bushImg);
+
     tilemap.build(resourceManager);
-    console.log('[Be a Legend] Assets de 32-bit modernos cargados.');
+    console.log('[Be a Legend] Assets Next-Gen Pixel Art cargados con éxito.');
   } catch (err) {
     console.warn('[Be a Legend] Fallback procedural activo:', err);
     tilemap.build(null);
@@ -138,13 +156,15 @@ async function initAssets() {
 tilemap.build(null);
 initAssets();
 
-// 7. Ciclo de Actualización (Update)
+// 8. Ciclo de Actualización (Update)
+let wasAttackPressed = false;
+
 function update(deltaTime) {
   inputManager.update();
 
   const gameState = stateManager.get('game_state');
   if (gameState !== 'STATE_PLAYING') {
-    return; // En menú o pausa no se actualiza la física ni las entidades
+    return;
   }
 
   const gameContext = {
@@ -156,7 +176,16 @@ function update(deltaTime) {
   entityManager.update(gameContext);
   interactionSystem.update(deltaTime);
 
-  // Cámara centrada en el jugador
+  // Físicas ambientales de vegetación reactiva al paso del jugador
+  foliageSystem.updateInteraction(player);
+
+  // Game Feel: Screen Shake en impactos de espada
+  if (inputManager.isAttackPressed && !wasAttackPressed) {
+    camera.shake(0.38, 0.22); // Temblor visceral
+  }
+  wasAttackPressed = inputManager.isAttackPressed;
+
+  // Cámara cinemática suave siguiendo al jugador (LERP exponencial)
   const playerCenter = {
     x: player.pos.x + player.width / 2,
     y: player.pos.y + player.height / 2
@@ -164,54 +193,51 @@ function update(deltaTime) {
   camera.update(playerCenter, deltaTime);
 }
 
-// 8. Ciclo de Dibujado (Render)
+// 9. Ciclo de Dibujado (Render)
 function render(deltaTime) {
   renderer.begin(camera);
 
   // Terreno pre-renderizado O(1)
   tilemap.render(renderer.ctx, camera);
 
-  // Entidades ordenadas por Y-Sort
+  // Entidades del mundo ordenadas con Y-Sorting estricto
   renderer.drawEntities(entityManager.getEntities());
 
   renderer.end(camera);
 
-  // Capa de Iluminación diurna
+  // Capa de Iluminación
   lightManager.update(deltaTime);
   lightManager.render(camera);
 
-  // Capa de Interfaz y Virtual Gamepad táctil
+  // Capa de Interfaz y Virtual Gamepad
   const gameState = stateManager.get('game_state');
   if (gameState === 'STATE_PLAYING') {
-    uiManager.render(inputManager, stateManager);
+    uiManager.render(inputManager, stateManager, deltaTime);
   } else {
     uiManager.clear();
   }
 }
 
-// 9. Inicialización del Motor en Estado Inicial STATE_MENU
+// 10. Inicialización del Motor en Estado STATE_MENU
 const engine = new Engine(update, render);
 stateManager.set('game_state', 'STATE_MENU');
+stateManager.set('health_critical', false); // Estado de salud para la viñeta roja
 engine.start();
-engine.pause(); // Pausar ciclo lógico en el menú inicial (se sigue renderizando el fondo)
+engine.pause();
 
-// 10. Conexión de la Lógica de Estados y UI (HTML / StateManager)
-
-// A. Al pulsar Jugar
+// 11. Conexión de la Lógica de Estados y UI HTML
 btnPlay.addEventListener('click', () => {
   mainMenuEl.classList.add('hidden');
   stateManager.set('game_state', 'STATE_PLAYING');
   engine.resume();
-  console.log('[Game State] Cambiado a STATE_PLAYING. ¡Partida iniciada!');
+  console.log('[Game State] Cambiado a STATE_PLAYING. ¡Partida iniciada en 16:9!');
 });
 
-// B. Control de Pausa
 function openPauseMenu() {
   if (stateManager.get('game_state') === 'STATE_PLAYING') {
     stateManager.set('game_state', 'STATE_PAUSED');
     engine.pause();
     pauseMenuEl.classList.remove('hidden');
-    console.log('[Game State] Cambiado a STATE_PAUSED.');
   }
 }
 
@@ -220,7 +246,6 @@ function resumeGame() {
     pauseMenuEl.classList.add('hidden');
     stateManager.set('game_state', 'STATE_PLAYING');
     engine.resume();
-    console.log('[Game State] Reanudado a STATE_PLAYING.');
   }
 }
 
@@ -231,38 +256,39 @@ btnToMainMenu.addEventListener('click', () => {
   mainMenuEl.classList.remove('hidden');
   stateManager.set('game_state', 'STATE_MENU');
   engine.pause();
-  console.log('[Game State] Retornado a STATE_MENU.');
 });
 
-// Conectar botón de pausa táctil del InputManager (icono engranaje ⚙️) y tecla Escape
 inputManager.onPause(() => {
   const current = stateManager.get('game_state');
-  if (current === 'STATE_PLAYING') {
-    openPauseMenu();
-  } else if (current === 'STATE_PAUSED') {
-    resumeGame();
-  }
+  if (current === 'STATE_PLAYING') openPauseMenu();
+  else if (current === 'STATE_PAUSED') resumeGame();
 });
 
-// C. Conectar Swipe de Habilidad de la Reliquia
 inputManager.onSkillEquipped((newPower) => {
   stateManager.set('equipped_power', newPower);
-  console.log(`[Reliquia] ¡Poder equipado mediante Swipe: ${newPower}!`);
+  console.log(`[Reliquia] ¡Poder equipado: ${newPower}!`);
 });
 
-// D. Modal de Ajustes
 btnSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));
 btnPauseSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));
 btnCloseSettings.addEventListener('click', () => settingsModalEl.classList.add('hidden'));
 
-// 11. Herramientas de Depuración en Consola
-window.setKarma = (val) => {
-  stateManager.set('karma_level', val);
-  console.log(`[Karma] Nivel actualizado a: ${val}`);
-};
-window.equipPower = (name) => {
-  stateManager.set('equipped_power', name);
-  console.log(`[Reliquia] Poder forzado a: ${name}`);
+// Tecla 'H' para alternar la viñeta de salud crítica para pruebas de Game Feel
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyH') {
+    const current = !!stateManager.get('health_critical');
+    stateManager.set('health_critical', !current);
+    console.log(`[Game Feel] Viñeta de Salud Crítica: ${!current ? 'ACTIVADA' : 'DESACTIVADA'}`);
+  }
+});
+
+// 12. Herramientas de Depuración
+window.setKarma = (val) => stateManager.set('karma_level', val);
+window.triggerShake = (intensity = 0.5) => camera.shake(intensity, 0.25);
+window.toggleCritical = () => {
+  const c = !stateManager.get('health_critical');
+  stateManager.set('health_critical', c);
+  return c;
 };
 
-console.log('[Be a Legend] Sistema listo. Estado actual: STATE_MENU.');
+console.log('[Be a Legend] Next-Gen Pixel Art Engine iniciado en 16:9. Presiona [H] para alternar viñeta roja.');

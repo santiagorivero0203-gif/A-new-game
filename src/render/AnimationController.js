@@ -1,20 +1,15 @@
 /**
  * @module AnimationController
- * @description Controlador de animaciones 2D basado en spritesheets y mapas JSON (formato estándar Aseprite / TexturePacker).
- * Gestiona transiciones de estado de animación, tasas de refresco independientes por clip (FPS variable),
- * bucles y renderizado pixel-perfect a 60 FPS estables.
+ * @description Controlador de animaciones 2D de alta fidelidad (Next-Gen 60 FPS).
+ * Gestiona spritesheets de alto conteo de fotogramas, transiciones de estado sin saltos,
+ * cálculo de progreso sub-frame para interpolación temporal y multiplicadores de velocidad variable.
  * @author Be a Legend Team
- * @version 1.1.0
+ * @version 1.3.0
  */
 export class AnimationController {
   /**
-   * @param {HTMLImageElement} image - Textura del spritesheet cargada mediante ResourceManager
-   * @param {Object} jsonConfig - Descriptor JSON conteniendo frames y clips de animación
-   * @example
-   * {
-   *   frames: { "hero_idle_0": { frame: { x: 0, y: 0, w: 32, h: 32 } } },
-   *   animations: { "idle": ["hero_idle_0"] }
-   * }
+   * @param {HTMLImageElement|HTMLCanvasElement} image - Textura del spritesheet
+   * @param {Object} jsonConfig - Descriptor JSON conteniendo frames y animaciones
    */
   constructor(image, jsonConfig) {
     this.image = image;
@@ -23,37 +18,44 @@ export class AnimationController {
     /** @type {string|null} Nombre de la animación en curso */
     this.currentAnim = null;
 
-    /** @type {number} Índice del frame dentro de la secuencia actual */
+    /** @type {number} Índice del frame actual */
     this.currentFrameIndex = 0;
 
-    /** @type {number} Acumulador de tiempo para cambio de frame */
+    /** @type {number} Acumulador de tiempo en segundos */
     this.frameTimer = 0;
 
-    /** @type {number} Fotogramas por segundo del clip */
-    this.fps = 12;
+    /** @type {number} Tasa de refresco en FPS del clip (admite hasta 60 FPS) */
+    this.fps = 24;
 
     /** @type {number} Duración en segundos de cada cuadro */
     this.frameDuration = 1 / this.fps;
 
+    /** @type {number} Factor de progreso entre el cuadro actual y el siguiente [0..1] para interpolación */
+    this.frameProgress = 0;
+
+    /** @type {number} Multiplicador de velocidad de reproducción */
+    this.speedScale = 1.0;
+
     /** @type {boolean} Estado de reproducción */
     this.isPlaying = false;
 
-    /** @type {boolean} Si la animación debe repetirse en bucle */
+    /** @type {boolean} Si la animación se reproduce en bucle continuo */
     this.loop = true;
+
+    /** @type {Function|null} Callback al completar la animación */
+    this.onComplete = null;
   }
 
   /**
-   * Inicia la reproducción de una animación especificada en el archivo JSON.
-   * Si la animación ya está en curso, no se interrumpe.
-   * @param {string} animName - Clave del clip en el JSON
-   * @param {number} [fps=12] - Velocidad de reproducción deseada
-   * @param {boolean} [loop=true] - Si se reinicia al finalizar
+   * Inicia o cambia a una animación especificada con soporte de 60 FPS.
+   * @param {string} animName - Nombre del clip
+   * @param {number} [fps=24] - Velocidad deseada (ej: 12, 24, 30 o 60 FPS)
+   * @param {boolean} [loop=true] - Reproducción en bucle
    */
-  play(animName, fps = 12, loop = true) {
+  play(animName, fps = 24, loop = true) {
     if (this.currentAnim === animName && this.isPlaying) return;
 
     if (!this.config || !this.config.animations || !this.config.animations[animName]) {
-      console.warn(`[AnimationController] Animación no encontrada: "${animName}"`);
       return;
     }
 
@@ -64,33 +66,19 @@ export class AnimationController {
 
     this.currentFrameIndex = 0;
     this.frameTimer = 0;
+    this.frameProgress = 0;
     this.isPlaying = true;
   }
 
   /**
-   * Pausa la animación actual.
-   */
-  pause() {
-    this.isPlaying = false;
-  }
-
-  /**
-   * Reanuda la animación pausada.
-   */
-  resume() {
-    if (this.currentAnim) {
-      this.isPlaying = true;
-    }
-  }
-
-  /**
-   * Avanza el temporizador de la animación y cambia de fotograma según deltaTime.
-   * @param {number} deltaTime - Tiempo del fotograma en segundos
+   * Actualiza el temporizador e interpola el progreso sub-frame para 60 FPS súper fluidos.
+   * @param {number} deltaTime - Tiempo transcurrido en segundos
    */
   update(deltaTime) {
     if (!this.isPlaying || !this.currentAnim) return;
 
-    this.frameTimer += deltaTime;
+    const scaledDt = deltaTime * this.speedScale;
+    this.frameTimer += scaledDt;
 
     while (this.frameTimer >= this.frameDuration) {
       this.frameTimer -= this.frameDuration;
@@ -104,18 +92,22 @@ export class AnimationController {
         } else {
           this.currentFrameIndex = animFrames.length - 1;
           this.isPlaying = false;
+          if (this.onComplete) this.onComplete(this.currentAnim);
           break;
         }
       }
     }
+
+    // Progreso normalizado [0..1] dentro del cuadro actual para interpolación
+    this.frameProgress = Math.min(1, Math.max(0, this.frameTimer / this.frameDuration));
   }
 
   /**
-   * Dibuja el cuadro actual en el contexto 2D.
-   * @param {CanvasRenderingContext2D} ctx - Contexto 2D del canvas
-   * @param {number} x - Posición X en el lienzo
-   * @param {number} y - Posición Y en el lienzo
-   * @param {number} [scale=1] - Factor de escala de dibujo
+   * Dibuja el cuadro actual con posición y escala precisas.
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} x - Coordenada X
+   * @param {number} y - Coordenada Y
+   * @param {number} [scale=1] - Factor de escala
    */
   draw(ctx, x, y, scale = 1) {
     if (!this.currentAnim || !this.image) return;
