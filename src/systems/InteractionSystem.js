@@ -73,7 +73,14 @@ export class InteractionSystem {
     }
 
     if (closestNPC && typeof closestNPC.interact === 'function') {
-      closestNPC.interact(this.stateManager);
+      const dialogueText = closestNPC.interact(this.stateManager);
+      if (dialogueText && this.stateManager) {
+        this.stateManager.set('active_dialogue', {
+          speaker: 'Anciano del Claro',
+          text: dialogueText,
+          timer: 4.5
+        });
+      }
     }
   }
 }

@@ -4,9 +4,9 @@
  * Next-Gen Pixel Art (estética The Minish Cap / Eastward de 32-bit de alta fidelidad).
  * Integra resolución 16:9 panorámica (960x540), cámara cinemática cercana con LERP exponencial
  * continuo y Screen Shake por impacto, físicas ambientales de vegetación reactiva (FoliageSystem)
- * que se balancea con el viento y se deforma con el jugador, y viñeta roja de salud crítica.
+ * y una interfaz UI minimalista y cute cuyo Virtual Gamepad táctil se muestra ÚNICAMENTE en móvil.
  * @author Be a Legend Team
- * @version 1.5.0
+ * @version 1.6.0
  */
 
 import { Engine } from './core/Engine.js';
@@ -27,10 +27,9 @@ import { UIManager } from './ui/UIManager.js';
 import { Tilemap } from './world/Tilemap.js';
 import { FoliageSystem } from './world/FoliageSystem.js';
 
-// Capas de renderizado del DOM (Nativo 960x540 - Panorámico 16:9)
+// Capas de renderizado del Motor (Nativo 960x540 - Panorámico 16:9)
 const mainCanvas = document.getElementById('main-canvas');
 const lightCanvas = document.getElementById('light-canvas');
-const uiCanvas = document.getElementById('ui-canvas');
 
 // Overlays HTML de Menús
 const mainMenuEl = document.getElementById('main-menu');
@@ -43,10 +42,11 @@ const btnResume = document.getElementById('btn-resume');
 const btnPauseSettings = document.getElementById('btn-pause-settings');
 const btnToMainMenu = document.getElementById('btn-to-main-menu');
 const btnCloseSettings = document.getElementById('btn-close-settings');
+const btnCloseSettingsX = document.getElementById('btn-close-settings-x');
 
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
-const inputManager = new InputManager(uiCanvas);
+const inputManager = new InputManager(mainCanvas);
 const stateManager = new StateManager();
 const entityManager = new EntityManager();
 
@@ -55,7 +55,7 @@ const interactionSystem = new InteractionSystem(entityManager, inputManager, sta
 
 const renderer = new Renderer(mainCanvas);
 const lightManager = new LightManager(lightCanvas, false); // isInterior = false (Luz de día clara)
-const uiManager = new UIManager(uiCanvas);
+const uiManager = new UIManager(); // Gestiona el DOM Overlay moderno
 const camera = new Camera(mainCanvas.width, mainCanvas.height);
 
 // Sistema de físicas ambientales de vegetación reactiva
@@ -147,7 +147,7 @@ async function initAssets() {
     if (bushImg) foliageSystem.setGlobalSprite(bushImg);
 
     tilemap.build(resourceManager);
-    console.log('[Be a Legend] Assets Next-Gen Pixel Art cargados con éxito.');
+    if (DEBUG_MODE) console.log('[Be a Legend] Assets inicializados.');
   } catch (err) {
     console.warn('[Be a Legend] Fallback procedural activo:', err);
     tilemap.build(null);
@@ -225,12 +225,15 @@ stateManager.set('health_critical', false); // Estado de salud para la viñeta r
 engine.start();
 engine.pause();
 
+// Bandera de depuración global (false en producción)
+const DEBUG_MODE = false;
+
 // 11. Conexión de la Lógica de Estados y UI HTML
 btnPlay.addEventListener('click', () => {
   mainMenuEl.classList.add('hidden');
   stateManager.set('game_state', 'STATE_PLAYING');
   engine.resume();
-  console.log('[Game State] Cambiado a STATE_PLAYING. ¡Partida iniciada en 16:9!');
+  if (DEBUG_MODE) console.log('[Game State] PLAYING');
 });
 
 function openPauseMenu() {
@@ -266,23 +269,31 @@ inputManager.onPause(() => {
 
 inputManager.onSkillEquipped((newPower) => {
   stateManager.set('equipped_power', newPower);
-  console.log(`[Reliquia] ¡Poder equipado: ${newPower}!`);
+  if (DEBUG_MODE) console.log(`[Reliquia] Poder equipado: ${newPower}`);
 });
 
 btnSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));
 btnPauseSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));
 btnCloseSettings.addEventListener('click', () => settingsModalEl.classList.add('hidden'));
+if (btnCloseSettingsX) {
+  btnCloseSettingsX.addEventListener('click', () => settingsModalEl.classList.add('hidden'));
+}
 
-// Tecla 'H' para alternar la viñeta de salud crítica para pruebas de Game Feel
+// Atajos de desarrollo para pruebas internas (Detrás de DEBUG_MODE)
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyH') {
     const current = !!stateManager.get('health_critical');
     stateManager.set('health_critical', !current);
-    console.log(`[Game Feel] Viñeta de Salud Crítica: ${!current ? 'ACTIVADA' : 'DESACTIVADA'}`);
+    if (DEBUG_MODE) console.log(`[Health] Crítico: ${!current}`);
+  }
+  if (e.code === 'KeyM') {
+    const active = inputManager.toggleTouchControls();
+    if (DEBUG_MODE) console.log(`[Gamepad Táctil] Forzado: ${active}`);
   }
 });
 
-// 12. Herramientas de Depuración
+// 12. Herramientas de Depuración Internas (Under the Hood)
+window.DEBUG_MODE = DEBUG_MODE;
 window.setKarma = (val) => stateManager.set('karma_level', val);
 window.triggerShake = (intensity = 0.5) => camera.shake(intensity, 0.25);
 window.toggleCritical = () => {
@@ -290,5 +301,4 @@ window.toggleCritical = () => {
   stateManager.set('health_critical', c);
   return c;
 };
-
-console.log('[Be a Legend] Next-Gen Pixel Art Engine iniciado en 16:9. Presiona [H] para alternar viñeta roja.');
+window.toggleMobileControls = () => inputManager.toggleTouchControls();

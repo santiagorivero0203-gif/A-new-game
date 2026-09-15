@@ -43,7 +43,9 @@ export class NPC extends Entity {
       dialogue = "Percibo oscuridad en tu reliquia... aléjate de aquí.";
     }
 
-    console.log(`[NPC]: ${dialogue}`);
+    if (typeof window !== 'undefined' && window.DEBUG_MODE) {
+      console.log(`[NPC]: ${dialogue}`);
+    }
     return dialogue;
   }
 }

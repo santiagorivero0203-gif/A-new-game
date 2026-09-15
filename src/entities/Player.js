@@ -96,7 +96,9 @@ export class Player extends Entity {
       // 3. Botón de Ataque
       if (input.isAttackPressed && this.attackTimer <= 0) {
         this.attackTimer = 0.25; // 250ms de animación de tajo
-        console.log(`[Player] ¡Ataque básico de espada disparado hacia: ${this.facing}!`);
+        if (typeof window !== 'undefined' && window.DEBUG_MODE) {
+          console.log(`[Player] Ataque disparado hacia: ${this.facing}`);
+        }
       }
     }
 

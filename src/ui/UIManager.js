@@ -1,331 +1,244 @@
 /**
  * @module UIManager
- * @description Gestor de interfaz de usuario desacoplado en canvas dedicado superior.
- * Renderiza el Virtual Gamepad móvil táctil en formato 16:9 panorámico (960x540),
- * la rueda radial de PC, el HUD de estado y la viñeta de salud crítica roja pulsante.
+ * @description Gestor de interfaz de usuario desacoplado en DOM Overlay (HTML5/CSS3 + High-DPI SVGs).
+ * Implementa una arquitectura pura fuera del Canvas para lograr máxima nitidez, accesibilidad
+ * y contraste sofisticado contra el mundo de pixel art inferior:
+ * - Tipografía nítida moderna sans-serif ('Inter' / 'Outfit').
+ * - HUD minimalista flotante con gema elemental reactiva y corazones vectoriales SVG.
+ * - Banner inmersivo de diálogo ("Show, Don't Tell" para el sistema de Karma).
+ * - Rueda de selección radial DOM para PC (Tab) con sectores iluminados.
+ * - Virtual Gamepad táctil con vectores SVG renderizado ÚNICAMENTE en dispositivos móviles.
+ * - Menús y modales con diseño Glassmorphism translúcido y bordes redondeados suaves.
  * @author Be a Legend Team
- * @version 1.4.0
+ * @version 2.0.0
  */
 export class UIManager {
-  /**
-   * @param {HTMLCanvasElement} canvas - Canvas overlay dedicado a la interfaz
-   */
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-    /** @type {number} Temporizador interno para animaciones de UI */
-    this.uiTime = 0;
-  }
+  constructor() {
+    // --- Cache de Elementos del DOM Overlay ---
+    this.overlayEl = document.getElementById('ui-overlay');
+    this.vignetteEl = document.getElementById('vignette-overlay');
 
-  /**
-   * Limpia el lienzo de la interfaz antes de dibujar el frame actual.
-   */
-  clear() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-  }
-
-  /**
-   * Dibuja la viñeta roja pulsante en los bordes para indicar peligro o salud crítica.
-   * @param {number} deltaTime
-   */
-  drawCriticalVignette(deltaTime) {
-    this.uiTime += deltaTime * 4.5;
-    const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-
-    // Intensidad pulsante orgánica entre 0.3 y 0.7
-    const pulse = Math.sin(this.uiTime) * 0.2 + 0.5;
-
-    ctx.save();
-    const gradient = ctx.createRadialGradient(
-      w / 2, h / 2, Math.min(w, h) * 0.35,
-      w / 2, h / 2, Math.max(w, h) * 0.68
-    );
-
-    gradient.addColorStop(0, 'rgba(239, 68, 68, 0)');
-    gradient.addColorStop(0.7, `rgba(220, 38, 38, ${pulse * 0.4})`);
-    gradient.addColorStop(1, `rgba(185, 28, 28, ${pulse * 0.85})`);
-
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
-    ctx.restore();
-  }
-
-  /**
-   * Renderiza el Virtual Gamepad optimizado para pantallas táctiles y móviles 16:9.
-   * @param {import('../core/InputManager.js').InputManager} input
-   * @param {string} equippedPower - Nombre del poder actualmente equipado
-   */
-  drawVirtualGamepad(input, equippedPower) {
-    const ctx = this.ctx;
-
-    // --- 1. Joystick Izquierdo (Base y Palanca) ---
-    const joy = input.joystickConfig;
-    ctx.save();
-
-    // Base fija semitransparente
-    ctx.beginPath();
-    ctx.arc(joy.baseX, joy.baseY, joy.radius, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
-    ctx.fill();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
-    ctx.stroke();
-
-    // Cruz direccional en la base
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.fillRect(joy.baseX - 2, joy.baseY - 24, 4, 48);
-    ctx.fillRect(joy.baseX - 24, joy.baseY - 2, 48, 4);
-
-    // Palanca móvil (Thumbstick)
-    const thumbX = input.joystickThumb.x;
-    const thumbY = input.joystickThumb.y;
-    ctx.beginPath();
-    ctx.arc(thumbX, thumbY, 26, 0, Math.PI * 2);
-    ctx.fillStyle = input.joystickVector.lengthSquared() > 0.05 ? 'rgba(56, 189, 248, 0.85)' : 'rgba(203, 213, 225, 0.65)';
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.stroke();
-
-    ctx.restore();
-
-    // --- 2. Botón de Acción / Ataque (Esquina inferior derecha) ---
-    const atk = input.attackButtonConfig;
-    ctx.save();
-
-    ctx.beginPath();
-    ctx.arc(atk.x, atk.y, atk.radius, 0, Math.PI * 2);
-    ctx.fillStyle = input.isAttackPressed ? 'rgba(239, 68, 68, 0.85)' : 'rgba(220, 38, 38, 0.55)';
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = input.isAttackPressed ? '#FEF08A' : 'rgba(255, 255, 255, 0.8)';
-    ctx.stroke();
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 13px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('ESPADA', atk.x, atk.y - 1);
-
-    ctx.restore();
-
-    // --- 3. Botón Dinámico de Habilidad (Swipe - Núcleo de la Reliquia) ---
-    const skl = input.skillButtonConfig;
-    ctx.save();
-
-    // Anillo exterior
-    ctx.beginPath();
-    ctx.arc(skl.x, skl.y, skl.radius + (input.isSkillSwiping ? 18 : 12), 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
-    ctx.stroke();
-
-    this._drawSwipeDirectionHints(skl.x, skl.y, input.hoveredSwipePower);
-
-    // Botón central de la Reliquia
-    ctx.beginPath();
-    ctx.arc(skl.x, skl.y, skl.radius, 0, Math.PI * 2);
-
-    const relicGrad = ctx.createRadialGradient(skl.x, skl.y, 2, skl.x, skl.y, skl.radius);
-    relicGrad.addColorStop(0, '#fef08a');
-    relicGrad.addColorStop(1, '#ca8a04');
-    ctx.fillStyle = relicGrad;
-    ctx.fill();
-
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.stroke();
-
-    const displayPower = input.hoveredSwipePower || equippedPower || 'Reliquia';
-    ctx.fillStyle = '#1e1e24';
-    ctx.font = 'bold 10px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(displayPower.toUpperCase(), skl.x, skl.y);
-
-    if (input.isSkillSwiping && input.skillSwipeVector.length() > 5) {
-      ctx.beginPath();
-      ctx.moveTo(skl.x, skl.y);
-      ctx.lineTo(skl.x + input.skillSwipeVector.x, skl.y + input.skillSwipeVector.y);
-      ctx.strokeStyle = '#facc15';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(skl.x + input.skillSwipeVector.x, skl.y + input.skillSwipeVector.y, 8, 0, Math.PI * 2);
-      ctx.fillStyle = '#fde047';
-      ctx.fill();
-    }
-
-    ctx.restore();
-
-    // --- 4. Botón de Pausa (Engranaje) ---
-    const pse = input.pauseButtonConfig;
-    ctx.save();
-
-    ctx.beginPath();
-    ctx.arc(pse.x, pse.y, pse.radius, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.stroke();
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '16px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⚙️', pse.x, pse.y);
-
-    ctx.restore();
-  }
-
-  /**
-   * @private
-   */
-  _drawSwipeDirectionHints(centerX, centerY, activePower) {
-    const ctx = this.ctx;
-    const distance = 44;
-
-    const directions = [
-      { text: '▲ Fuego', x: centerX, y: centerY - distance, power: 'Fuego' },
-      { text: '▶ Embestida', x: centerX + distance + 12, y: centerY, power: 'Embestida' },
-      { text: '▼ Raíces', x: centerX, y: centerY + distance, power: 'Raíces' },
-      { text: '◀ Curación', x: centerX - distance - 12, y: centerY, power: 'Curación' }
+    // 1. HUD Superior Flotante
+    this.hudContainer = document.getElementById('hud-container');
+    this.hudRelicIcon = document.getElementById('hud-relic-icon');
+    this.hudPowerName = document.getElementById('hud-power-name');
+    this.heartElements = [
+      document.getElementById('heart-1'),
+      document.getElementById('heart-2'),
+      document.getElementById('heart-3')
     ];
 
-    ctx.font = 'bold 9px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    // 2. Diálogo Inmersivo
+    this.dialogueCard = document.getElementById('dialogue-card');
+    this.dialogueSpeaker = document.getElementById('dialogue-speaker');
+    this.dialogueText = document.getElementById('dialogue-text');
 
-    for (let i = 0; i < directions.length; i++) {
-      const dir = directions[i];
-      const isSelected = activePower === dir.power;
-      ctx.fillStyle = isSelected ? '#fde047' : 'rgba(255, 255, 255, 0.65)';
-      ctx.fillText(dir.text, dir.x, dir.y);
+    // 3. Rueda Radial de Poderes
+    this.radialWheel = document.getElementById('radial-wheel');
+    this.radialSectors = Array.from(document.querySelectorAll('.radial-sector'));
+
+    // 4. Virtual Gamepad Móvil
+    this.virtualGamepad = document.getElementById('virtual-gamepad');
+    this.joystickThumb = document.getElementById('touch-joystick-thumb');
+    this.touchSkillLabel = document.getElementById('touch-skill-label');
+
+    // Paleta de colores elementales de la Reliquia
+    this.powerColors = {
+      'Fuego': '#fb923c',
+      'Embestida': '#38bdf8',
+      'Raíces': '#4ade80',
+      'Curación': '#f472b6'
+    };
+  }
+
+  /**
+   * Actualiza el HUD flotante minimalista: gema de la Reliquia y corazones vectoriales SVG.
+   * Cero variables numéricas o métricas internas ('Show, Don't Tell').
+   * @param {import('../core/StateManager.js').StateManager} stateManager
+   * @param {string} equippedPower
+   */
+  updateHUD(stateManager, equippedPower) {
+    if (!this.hudContainer) return;
+
+    // Actualizar nombre y color de la Reliquia
+    if (this.hudPowerName) {
+      this.hudPowerName.textContent = equippedPower.toUpperCase();
+    }
+
+    const themeColor = this.powerColors[equippedPower] || '#facc15';
+    if (this.hudRelicIcon) {
+      this.hudRelicIcon.style.stroke = themeColor;
+      const innerCircle = this.hudRelicIcon.querySelector('circle');
+      if (innerCircle) innerCircle.setAttribute('fill', themeColor);
+      this.hudRelicIcon.style.filter = `drop-shadow(0 0 6px ${themeColor})`;
+    }
+
+    // Actualizar corazones según estado de salud
+    const isCritical = !!(stateManager && stateManager.get('health_critical'));
+
+    for (let i = 0; i < this.heartElements.length; i++) {
+      const heart = this.heartElements[i];
+      if (!heart) continue;
+
+      if (isCritical) {
+        if (i === 0) {
+          heart.setAttribute('class', 'heart-svg filled pulsing');
+        } else {
+          heart.setAttribute('class', 'heart-svg empty');
+        }
+      } else {
+        heart.setAttribute('class', 'heart-svg filled');
+      }
+    }
+
+    // Viñeta de peligro pulsante
+    if (this.vignetteEl) {
+      if (isCritical) {
+        this.vignetteEl.classList.add('active');
+      } else {
+        this.vignetteEl.classList.remove('active');
+      }
     }
   }
 
   /**
-   * Dibuja la rueda de selección radial trigonométrica para PC (Tab).
+   * Actualiza la tarjeta flotante de diálogo inmersivo cuando se interactúa con un NPC.
+   * Permite que el jugador descubra el impacto de sus acciones sin ver números.
+   * @param {import('../core/StateManager.js').StateManager} stateManager
+   * @param {number} deltaTime
    */
-  drawRadialWheel(inputManager, powers) {
-    if (!inputManager.isRadialMenuOpen) return;
+  updateDialogue(stateManager, deltaTime) {
+    if (!this.dialogueCard || !stateManager) return;
 
-    const centerX = this.canvas.width / 2;
-    const centerY = this.canvas.height / 2;
-    const radius = 115;
-    const slots = inputManager.totalRadialSlots;
-    const sliceAngle = (2 * Math.PI) / slots;
+    const dialogue = stateManager.get('active_dialogue');
+    if (!dialogue) {
+      this.dialogueCard.classList.add('hidden');
+      return;
+    }
 
-    this.ctx.save();
-    this.ctx.globalAlpha = 0.88;
+    dialogue.timer -= deltaTime;
+    if (dialogue.timer <= 0) {
+      stateManager.set('active_dialogue', null);
+      this.dialogueCard.classList.add('hidden');
+      return;
+    }
 
-    for (let i = 0; i < slots; i++) {
-      const startAngle = i * sliceAngle - Math.PI / 2 - sliceAngle / 2;
-      const endAngle = startAngle + sliceAngle;
+    // Mostrar diálogo
+    if (this.dialogueSpeaker) {
+      this.dialogueSpeaker.textContent = dialogue.speaker || 'HABITANTE';
+    }
+    if (this.dialogueText) {
+      this.dialogueText.textContent = `"${dialogue.text}"`;
+    }
+    this.dialogueCard.classList.remove('hidden');
+  }
 
-      this.ctx.beginPath();
-      this.ctx.moveTo(centerX, centerY);
-      this.ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-      this.ctx.closePath();
+  /**
+   * Actualiza la visibilidad e iluminación de la rueda radial de poderes para PC (Tab).
+   * @param {import('../core/InputManager.js').InputManager} inputManager
+   */
+  updateRadialWheel(inputManager) {
+    if (!this.radialWheel || !inputManager) return;
 
-      if (inputManager.radialSelectionIndex === i) {
-        this.ctx.fillStyle = 'rgba(255, 215, 0, 0.8)';
-      } else {
-        this.ctx.fillStyle = 'rgba(20, 20, 25, 0.7)';
+    if (inputManager.isRadialMenuOpen) {
+      this.radialWheel.classList.remove('hidden');
+
+      const selectedIdx = inputManager.radialSelectionIndex;
+      this.radialSectors.forEach((sector, idx) => {
+        if (idx === selectedIdx) {
+          sector.classList.add('active');
+        } else {
+          sector.classList.remove('active');
+        }
+      });
+    } else {
+      this.radialWheel.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Actualiza la visualización y física del Virtual Gamepad.
+   * Se muestra ÚNICAMENTE si se detecta un dispositivo móvil/táctil o si se activa el preview.
+   * @param {import('../core/InputManager.js').InputManager} inputManager
+   * @param {string} equippedPower
+   */
+  updateVirtualGamepad(inputManager, equippedPower) {
+    if (!this.virtualGamepad || !inputManager) return;
+
+    if (inputManager.shouldShowTouchControls) {
+      this.virtualGamepad.classList.remove('hidden');
+
+      // Actualizar posición del joystick thumb
+      if (this.joystickThumb && inputManager.joystickVector) {
+        const maxOffset = 28;
+        const offsetX = inputManager.joystickVector.x * maxOffset;
+        const offsetY = inputManager.joystickVector.y * maxOffset;
+        this.joystickThumb.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
       }
 
-      this.ctx.fill();
-      this.ctx.lineWidth = 2;
-      this.ctx.strokeStyle = inputManager.radialSelectionIndex === i ? '#FFF' : 'rgba(255, 255, 255, 0.3)';
-      this.ctx.stroke();
-
-      const textAngle = startAngle + sliceAngle / 2;
-      const textX = centerX + Math.cos(textAngle) * (radius * 0.62);
-      const textY = centerY + Math.sin(textAngle) * (radius * 0.62);
-
-      this.ctx.fillStyle = inputManager.radialSelectionIndex === i ? '#000' : '#FFF';
-      this.ctx.font = 'bold 12px system-ui, sans-serif';
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'middle';
-
-      const powerName = powers[i] || `Ranura ${i + 1}`;
-      this.ctx.fillText(powerName, textX, textY);
+      // Actualizar etiqueta del poder dinámico en el botón de habilidad
+      if (this.touchSkillLabel) {
+        const activeName = inputManager.hoveredSwipePower || equippedPower;
+        this.touchSkillLabel.textContent = activeName.toUpperCase();
+      }
+    } else {
+      this.virtualGamepad.classList.add('hidden');
     }
-
-    this.ctx.beginPath();
-    this.ctx.arc(centerX, centerY, 24, 0, Math.PI * 2);
-    this.ctx.fillStyle = 'rgba(10, 10, 15, 0.9)';
-    this.ctx.fill();
-    this.ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
-    this.ctx.lineWidth = 2;
-    this.ctx.stroke();
-
-    this.ctx.restore();
   }
 
   /**
-   * Renderizado general de la interfaz de usuario.
+   * Limpia o desactiva la interfaz en pantalla al pausar o volver al menú.
+   */
+  clear() {
+    this.setGameState('STATE_MENU');
+  }
+
+  /**
+   * Oculta o muestra elementos del juego según el estado de la partida.
+   * @param {string} gameState - 'STATE_PLAYING', 'STATE_MENU', 'STATE_PAUSED'
+   */
+  setGameState(gameState) {
+    const isPlaying = gameState === 'STATE_PLAYING';
+
+    if (this.hudContainer) {
+      this.hudContainer.style.display = isPlaying ? 'flex' : 'none';
+    }
+    const btnQuickPause = document.getElementById('btn-quick-pause');
+    if (btnQuickPause) {
+      btnQuickPause.style.display = isPlaying ? 'flex' : 'none';
+    }
+
+    if (!isPlaying) {
+      if (this.dialogueCard) this.dialogueCard.classList.add('hidden');
+      if (this.radialWheel) this.radialWheel.classList.add('hidden');
+      if (this.virtualGamepad) this.virtualGamepad.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Ciclo de actualización general de la UI en DOM Overlay.
    * @param {import('../core/InputManager.js').InputManager} inputManager
    * @param {import('../core/StateManager.js').StateManager} stateManager
    * @param {number} [deltaTime=0.016]
    */
   render(inputManager, stateManager, deltaTime = 0.016) {
-    this.clear();
+    const gameState = stateManager ? stateManager.get('game_state') : 'STATE_PLAYING';
+    this.setGameState(gameState);
 
-    // 1. Viñeta roja si la salud es crítica
-    if (stateManager && stateManager.get('health_critical')) {
-      this.drawCriticalVignette(deltaTime);
-    }
+    if (gameState !== 'STATE_PLAYING') return;
 
     const equipped = (stateManager && stateManager.get('equipped_power')) || 'Fuego';
-    const unlocked = (stateManager && stateManager.get('unlocked_powers')) || ["Fuego", "Embestida", "Raíces", "Curación"];
 
-    // 2. Virtual Gamepad táctil en el canvas superior
-    this.drawVirtualGamepad(inputManager, equipped);
+    // 1. Actualizar HUD flotante
+    this.updateHUD(stateManager, equipped);
 
-    // 3. Menú radial de PC si está abierto
-    if (inputManager.isRadialMenuOpen) {
-      this.drawRadialWheel(inputManager, unlocked);
-    } else {
-      // 4. HUD superior
-      this.drawHUD(stateManager, equipped);
-    }
-  }
+    // 2. Actualizar diálogo inmersivo
+    this.updateDialogue(stateManager, deltaTime);
 
-  /**
-   * Dibuja la barra de estado superior en formato panorámico.
-   * @param {import('../core/StateManager.js').StateManager} stateManager
-   * @param {string} equippedPower
-   */
-  drawHUD(stateManager, equippedPower) {
-    const karma = (stateManager && stateManager.get('karma_level')) || 0;
-    const isCritical = stateManager && stateManager.get('health_critical');
-    const ctx = this.ctx;
+    // 3. Actualizar rueda radial de poderes
+    this.updateRadialWheel(inputManager);
 
-    ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.68)';
-    ctx.beginPath();
-    ctx.roundRect(14, 14, 250, 48, 8);
-    ctx.fill();
-    ctx.strokeStyle = isCritical ? 'rgba(239, 68, 68, 0.7)' : 'rgba(255, 255, 255, 0.18)';
-    ctx.lineWidth = isCritical ? 2 : 1;
-    ctx.stroke();
-
-    ctx.font = 'bold 11px system-ui, sans-serif';
-    ctx.fillStyle = '#f8fafc';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Reliquia: ${equippedPower}`, 24, 30);
-
-    ctx.font = '10px system-ui, sans-serif';
-    ctx.fillStyle = isCritical ? '#ef4444' : (karma >= 0 ? '#4ade80' : '#f87171');
-    ctx.fillText(isCritical ? '⚠️ SALUD CRÍTICA [Presiona H para alternar]' : `Karma: ${karma >= 0 ? '+' : ''}${karma}  |  16:9 Panorámico`, 24, 47);
-
-    ctx.restore();
+    // 4. Actualizar gamepad táctil (solo en móvil)
+    this.updateVirtualGamepad(inputManager, equipped);
   }
 }

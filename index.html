@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Be a Legend — Next-Gen Action-RPG Engine</title>
-  <!-- Google Fonts: Tipografía retro pixel art y moderna -->
+  <title>Be a Legend</title>
+  
+  <!-- Google Fonts: Tipografía Sans-Serif nítida, moderna y de alta legibilidad -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
   
+  <!-- Hoja de Estilos de la UI en DOM Overlay -->
+  <link rel="stylesheet" href="/src/ui/ui.css">
+
   <style>
     * {
       box-sizing: border-box;
@@ -21,13 +25,13 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: #05070d;
+      background-color: #030712;
       display: flex;
       justify-content: center;
       align-items: center;
-      font-family: 'Outfit', system-ui, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
-    /* Contenedor 100% responsivo en formato panorámico 16:9 dinámico adaptado a la ventana */
+    /* Contenedor panorámico 16:9 dinámico adaptado a la ventana */
     #game-container {
       position: relative;
       width: 100vw;
@@ -36,8 +40,8 @@
       max-height: calc(100vw * (9 / 16));
       aspect-ratio: 16 / 9;
       background-color: #000;
-      box-shadow: 0 0 60px rgba(0, 0, 0, 0.95);
-      border-radius: 6px;
+      box-shadow: 0 0 70px rgba(0, 0, 0, 0.95);
+      border-radius: 8px;
       overflow: hidden;
     }
     canvas {
@@ -56,198 +60,200 @@
       z-index: 2;
       pointer-events: none;
     }
-    #ui-canvas {
-      z-index: 3;
-      pointer-events: auto;
-      touch-action: none;
-    }
-
-    /* --- Overlays HTML del Menú (Glassmorphism + Backdrop Filter) --- */
-    .overlay-menu {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: rgba(8, 12, 22, 0.62);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-    .overlay-menu.hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
-    .menu-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      padding: 36px 52px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 2px solid rgba(245, 158, 11, 0.5);
-      border-radius: 14px;
-      box-shadow: 0 12px 45px rgba(0, 0, 0, 0.85), 0 0 35px rgba(245, 158, 11, 0.25);
-      max-width: 90%;
-    }
-    .game-title {
-      font-family: 'Press Start 2P', monospace;
-      font-size: 28px;
-      color: #fbbf24;
-      text-shadow: 0 4px 0 #b45309, 0 0 25px rgba(251, 191, 36, 0.7);
-      letter-spacing: 2px;
-      margin-bottom: 12px;
-    }
-    .game-subtitle {
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 4px;
-      color: #94a3b8;
-      text-transform: uppercase;
-      margin-bottom: 34px;
-    }
-    .menu-buttons {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      width: 230px;
-    }
-
-    /* Botones Retro Estilo 3D Arcade */
-    .retro-btn {
-      font-family: 'Press Start 2P', monospace;
-      font-size: 12px;
-      padding: 15px 22px;
-      border-radius: 6px;
-      cursor: pointer;
-      text-transform: uppercase;
-      transition: all 0.15s ease;
-      background: #1e293b;
-      color: #f8fafc;
-      border: 2px solid #38bdf8;
-      box-shadow: 0 4px 0 #0284c7, 0 6px 15px rgba(2, 132, 199, 0.35);
-    }
-    .retro-btn:hover {
-      background: #38bdf8;
-      color: #0f172a;
-      transform: translateY(-2px);
-      box-shadow: 0 6px 0 #0284c7, 0 8px 22px rgba(56, 189, 248, 0.55);
-    }
-    .retro-btn:active {
-      transform: translateY(2px);
-      box-shadow: 0 2px 0 #0284c7;
-    }
-
-    /* Botón Primario */
-    .retro-btn.primary {
-      background: #f59e0b;
-      color: #0f172a;
-      border-color: #fde68a;
-      box-shadow: 0 4px 0 #b45309, 0 8px 28px rgba(245, 158, 11, 0.5);
-    }
-    .retro-btn.primary:hover {
-      background: #facc15;
-      box-shadow: 0 6px 0 #b45309, 0 10px 32px rgba(250, 204, 21, 0.65);
-    }
-    .retro-btn.primary:active {
-      transform: translateY(2px);
-      box-shadow: 0 2px 0 #b45309;
-    }
-
-    /* Modal de Ajustes */
-    .modal-backdrop {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 20;
-      background: rgba(0, 0, 0, 0.72);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      transition: opacity 0.25s ease;
-    }
-    .modal-backdrop.hidden {
-      display: none;
-    }
-    .modal-box {
-      background: #0f172a;
-      border: 2px solid #38bdf8;
-      border-radius: 12px;
-      padding: 30px 38px;
-      color: #f8fafc;
-      width: 400px;
-      max-width: 90%;
-      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.9);
-      text-align: center;
-    }
-    .modal-box h3 {
-      font-family: 'Press Start 2P', monospace;
-      font-size: 14px;
-      color: #38bdf8;
-      margin-bottom: 22px;
-    }
-    .settings-list {
-      text-align: left;
-      font-size: 12px;
-      color: #94a3b8;
-      line-height: 1.8;
-      margin-bottom: 24px;
-    }
-    .settings-list strong {
-      color: #f8fafc;
-    }
   </style>
 </head>
 <body>
   <div id="game-container">
-    <!-- Capas de Dibujado en Formato Panorámico 16:9 Nativo (960x540) -->
+    <!-- Capas de Renderizado del Motor en Canvas (Pixel Art Mundo & Iluminación) -->
     <canvas id="main-canvas" width="960" height="540"></canvas>
     <canvas id="light-canvas" width="960" height="540"></canvas>
-    <canvas id="ui-canvas" width="960" height="540"></canvas>
 
-    <!-- 1. Mini Menú Principal (HTML / CSS Overlay) -->
-    <div id="main-menu" class="overlay-menu">
-      <div class="menu-card">
-        <h1 class="game-title">BE A LEGEND</h1>
-        <p class="game-subtitle">NEXT-GEN ACTION-RPG • 16:9 CINEMATIC</p>
-        <div class="menu-buttons">
-          <button id="btn-play" class="retro-btn primary">JUGAR</button>
-          <button id="btn-settings" class="retro-btn">AJUSTES</button>
+    <!-- CAPA COMPLETA DE UI EN DOM OVERLAY (Fuera del Canvas, High-DPI y Tipografía Moderna) -->
+    <div id="ui-overlay">
+      <!-- Viñeta Ambiental de Salud Crítica -->
+      <div id="vignette-overlay" class="vignette-overlay"></div>
+
+      <!-- 1. HUD Flotante Superior (Top-Left Pill) -->
+      <div id="hud-container" class="hud-pill">
+        <div class="hud-relic-badge" id="hud-relic-badge">
+          <!-- Gema de la Reliquia SVG -->
+          <svg class="relic-icon" id="hud-relic-icon" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12,2 22,12 12,22 2,12" />
+            <circle cx="12" cy="12" r="3" fill="#fb923c" />
+          </svg>
+          <span id="hud-power-name" class="hud-power-name">FUEGO</span>
+        </div>
+        <div class="hud-separator"></div>
+        <div class="hud-hearts" id="hud-hearts">
+          <!-- 3 Corazones Vectoriales SVG Nítidos -->
+          <svg class="heart-svg filled" id="heart-1" viewBox="0 0 24 24">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+          <svg class="heart-svg filled" id="heart-2" viewBox="0 0 24 24">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+          <svg class="heart-svg filled" id="heart-3" viewBox="0 0 24 24">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
         </div>
       </div>
-    </div>
 
-    <!-- 2. Menú de Pausa (HTML / CSS Overlay) -->
-    <div id="pause-menu" class="overlay-menu hidden">
-      <div class="menu-card">
-        <h2 class="game-title" style="font-size: 20px; color: #38bdf8; text-shadow: 0 4px 0 #0284c7;">PAUSA</h2>
-        <p class="game-subtitle" style="margin-bottom: 24px;">PARTIDA DETENIDA</p>
-        <div class="menu-buttons">
-          <button id="btn-resume" class="retro-btn primary">REANUDAR</button>
-          <button id="btn-pause-settings" class="retro-btn">AJUSTES</button>
-          <button id="btn-to-main-menu" class="retro-btn">SALIR AL MENÚ</button>
+      <!-- 2. Botón de Pausa Flotante Superior Derecho -->
+      <button id="btn-quick-pause" class="icon-pill-btn" aria-label="Pausa">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <rect x="6" y="5" width="4" height="14" rx="1.5"/>
+          <rect x="14" y="5" width="4" height="14" rx="1.5"/>
+        </svg>
+      </button>
+
+      <!-- 3. Tarjeta Flotante de Diálogo Inmersivo (Bottom Center) -->
+      <div id="dialogue-card" class="dialogue-card hidden">
+        <div class="dialogue-header">
+          <span class="dialogue-badge">SABIO</span>
+          <span id="dialogue-speaker" class="dialogue-speaker">Anciano del Claro</span>
+        </div>
+        <p id="dialogue-text" class="dialogue-text">"¡Hola, portador de la reliquia! Que la luz guíe tu camino."</p>
+      </div>
+
+      <!-- 4. Rueda Radial de Selección de Poderes (PC Tab Overlay) -->
+      <div id="radial-wheel" class="radial-wheel hidden">
+        <div class="radial-center-badge">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#facc15" stroke-width="2.2" stroke-linecap="round">
+            <polygon points="12,2 22,12 12,22 2,12" />
+            <circle cx="12" cy="12" r="3" fill="#facc15" />
+          </svg>
+        </div>
+        <div class="radial-items">
+          <div class="radial-sector sector-north" data-index="0" data-power="Fuego">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C8 6 6 9 6 13a6 6 0 0 0 12 0c0-4-2-7-6-11zm0 15a3 3 0 0 1-3-3c0-2 1-3 3-5 2 2 3 3 3 5a3 3 0 0 1-3 3z"/></svg>
+            <span>FUEGO</span>
+          </div>
+          <div class="radial-sector sector-east" data-index="1" data-power="Embestida">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+            <span>EMBESTIDA</span>
+          </div>
+          <div class="radial-sector sector-south" data-index="2" data-power="Raíces">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.22V8c0 .24 0 .47.03.7 4.12-.92 9.07-1.4 12.97-.7z"/></svg>
+            <span>RAÍCES</span>
+          </div>
+          <div class="radial-sector sector-west" data-index="3" data-power="Curación">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span>CURACIÓN</span>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- 3. Modal de Ajustes -->
-    <div id="settings-modal" class="modal-backdrop hidden">
-      <div class="modal-box">
-        <h3>AJUSTES</h3>
-        <div class="settings-list">
-          <p>🎮 <strong>PC:</strong> WASD para moverse, Espacio interactuar, Tab rueda Reliquia, Escape pausa.</p>
-          <p>📱 <strong>Móvil:</strong> Joystick izquierdo, botón espada (con Screen Shake), botón Reliquia con swipe.</p>
-          <p>✨ <strong>Visual:</strong> Next-Gen Pixel Art (The Minish Cap style), vegetación reactiva y cámara cinemática 16:9.</p>
+      <!-- 5. Virtual Gamepad Táctil (ESTRICTAMENTE SOLO EN MÓVIL) -->
+      <div id="virtual-gamepad" class="virtual-gamepad hidden">
+        <!-- Joystick Izquierdo -->
+        <div id="touch-joystick-zone" class="touch-joystick-zone">
+          <div id="touch-joystick-base" class="touch-joystick-base">
+            <div id="touch-joystick-thumb" class="touch-joystick-thumb"></div>
+          </div>
         </div>
-        <button id="btn-close-settings" class="retro-btn primary" style="width: 100%;">CERRAR</button>
+
+        <!-- Zona de Acciones Derecha -->
+        <div class="touch-actions-zone">
+          <!-- Botón de Habilidad / Reliquia con swipe -->
+          <div id="touch-btn-skill" class="touch-action-btn skill-btn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#0f172a" stroke-width="2.2">
+              <polygon points="12,2 22,12 12,22 2,12" />
+              <circle cx="12" cy="12" r="3" fill="#0f172a" />
+            </svg>
+            <span id="touch-skill-label" class="touch-skill-label">FUEGO</span>
+            <span class="swipe-hint hint-n">🔥</span>
+            <span class="swipe-hint hint-e">⚡</span>
+            <span class="swipe-hint hint-s">🌿</span>
+            <span class="swipe-hint hint-w">💚</span>
+          </div>
+
+          <!-- Botón de Ataque con Espada -->
+          <button id="touch-btn-attack" class="touch-action-btn attack-btn" aria-label="Atacar">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="14.5" y1="9.5" x2="20" y2="4"/>
+              <line x1="18.5" y1="5.5" x2="15.5" y2="8.5"/>
+              <line x1="4" y1="20" x2="14.5" y2="9.5"/>
+              <line x1="4" y1="16" x2="8" y2="20"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 6. Mini Menú Principal (Modern Glassmorphism) -->
+      <div id="main-menu" class="overlay-menu">
+        <div class="menu-card">
+          <div class="brand-badge">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polygon points="12,2 22,12 12,22 2,12" />
+            </svg>
+            <span>THE RELIC CHRONICLES</span>
+          </div>
+          <h1 class="game-title">BE A LEGEND</h1>
+          <p class="game-subtitle">EL LEGADO DE LA RELIQUIA</p>
+          <div class="menu-buttons">
+            <button id="btn-play" class="modern-btn primary">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>
+              <span>JUGAR</span>
+            </button>
+            <button id="btn-settings" class="modern-btn secondary">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span>AJUSTES</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Menú de Pausa (Modern Glassmorphism) -->
+      <div id="pause-menu" class="overlay-menu hidden">
+        <div class="menu-card">
+          <h2 class="menu-heading">PAUSA</h2>
+          <div class="menu-buttons">
+            <button id="btn-resume" class="modern-btn primary">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>
+              <span>REANUDAR</span>
+            </button>
+            <button id="btn-pause-settings" class="modern-btn secondary">
+              <span>AJUSTES</span>
+            </button>
+            <button id="btn-to-main-menu" class="modern-btn tertiary">
+              <span>SALIR AL MENÚ</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Modal de Ajustes (Modern Glassmorphism) -->
+      <div id="settings-modal" class="modal-backdrop hidden">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>AJUSTES & CONTROLES</h3>
+            <button id="btn-close-settings-x" class="modal-close-btn" aria-label="Cerrar">✕</button>
+          </div>
+          <div class="settings-list">
+            <div class="setting-item">
+              <div class="setting-icon">⚔️</div>
+              <div>
+                <strong>Combate</strong>
+                <p>Blandir la espada sagrada frente a enemigos.</p>
+              </div>
+            </div>
+            <div class="setting-item">
+              <div class="setting-icon">✦</div>
+              <div>
+                <strong>Reliquia Ancestral</strong>
+                <p>[Tab] en PC o deslizar botón en móvil para intercambiar poder elemental.</p>
+              </div>
+            </div>
+            <div class="setting-item">
+              <div class="setting-icon">💬</div>
+              <div>
+                <strong>Interacción</strong>
+                <p>[Espacio] Conversar con habitantes y sabios del reino.</p>
+              </div>
+            </div>
+          </div>
+          <button id="btn-close-settings" class="modern-btn primary" style="width: 100%; margin-top: 20px;">ENTENDIDO</button>
+        </div>
       </div>
     </div>
   </div>
