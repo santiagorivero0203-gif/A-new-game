@@ -4,25 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Be a Legend — Action-RPG Engine</title>
+  <!-- Google Fonts: Tipografía retro pixel art y moderna -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+  
   <style>
     * {
       box-sizing: border-box;
       user-select: none;
       -webkit-user-select: none;
-    }
-    body, html {
       margin: 0;
       padding: 0;
+    }
+    body, html {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: #0b0b0e;
+      background-color: #06080e;
       display: flex;
       justify-content: center;
       align-items: center;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-family: 'Outfit', system-ui, sans-serif;
     }
-    /* STD-05 FIX: Contenedor responsivo manteniendo la relación de aspecto 4:3 */
+    /* Contenedor responsivo con relación de aspecto 4:3 */
     #game-container {
       position: relative;
       width: 100vw;
@@ -31,8 +36,8 @@
       max-height: calc(100vw * (3 / 4));
       aspect-ratio: 4 / 3;
       background-color: #000;
-      box-shadow: 0 0 35px rgba(0, 0, 0, 0.95);
-      border-radius: 4px;
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.95);
+      border-radius: 6px;
       overflow: hidden;
     }
     canvas {
@@ -53,16 +58,200 @@
     }
     #ui-canvas {
       z-index: 3;
+      pointer-events: auto; /* Permite toques en el Virtual Gamepad */
+      touch-action: none;
+    }
+
+    /* --- Overlays HTML del Menú (Glassmorphism + Backdrop Filter) --- */
+    .overlay-menu {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(8, 12, 22, 0.68);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .overlay-menu.hidden {
+      opacity: 0;
+      visibility: hidden;
       pointer-events: none;
+    }
+    .menu-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 36px 48px;
+      background: rgba(15, 23, 42, 0.82);
+      border: 2px solid rgba(245, 158, 11, 0.45);
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(245, 158, 11, 0.2);
+      max-width: 90%;
+    }
+    .game-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 26px;
+      color: #fbbf24;
+      text-shadow: 0 4px 0 #b45309, 0 0 20px rgba(251, 191, 36, 0.6);
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+    }
+    .game-subtitle {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 36px;
+    }
+    .menu-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 220px;
+    }
+
+    /* Botones Retro Estilo 3D Arcade */
+    .retro-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 12px;
+      padding: 14px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.15s ease;
+      background: #1e293b;
+      color: #f8fafc;
+      border: 2px solid #38bdf8;
+      box-shadow: 0 4px 0 #0284c7, 0 6px 15px rgba(2, 132, 199, 0.3);
+    }
+    .retro-btn:hover {
+      background: #38bdf8;
+      color: #0f172a;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 #0284c7, 0 8px 20px rgba(56, 189, 248, 0.5);
+    }
+    .retro-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #0284c7;
+    }
+
+    /* Botón Primario (Jugar / Reanudar) */
+    .retro-btn.primary {
+      background: #f59e0b;
+      color: #0f172a;
+      border-color: #fde68a;
+      box-shadow: 0 4px 0 #b45309, 0 8px 25px rgba(245, 158, 11, 0.45);
+    }
+    .retro-btn.primary:hover {
+      background: #facc15;
+      box-shadow: 0 6px 0 #b45309, 0 10px 30px rgba(250, 204, 21, 0.6);
+    }
+    .retro-btn.primary:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #b45309;
+    }
+
+    /* Modal de Ajustes */
+    .modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.25s ease;
+    }
+    .modal-backdrop.hidden {
+      display: none;
+    }
+    .modal-box {
+      background: #0f172a;
+      border: 2px solid #38bdf8;
+      border-radius: 10px;
+      padding: 28px 36px;
+      color: #f8fafc;
+      width: 380px;
+      max-width: 90%;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+      text-align: center;
+    }
+    .modal-box h3 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 14px;
+      color: #38bdf8;
+      margin-bottom: 20px;
+    }
+    .settings-list {
+      text-align: left;
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.8;
+      margin-bottom: 24px;
+    }
+    .settings-list strong {
+      color: #f8fafc;
     }
   </style>
 </head>
 <body>
   <div id="game-container">
+    <!-- Capas de Dibujado del Motor -->
     <canvas id="main-canvas" width="800" height="600"></canvas>
     <canvas id="light-canvas" width="800" height="600"></canvas>
     <canvas id="ui-canvas" width="800" height="600"></canvas>
+
+    <!-- 1. Mini Menú Principal (HTML / CSS Overlay) -->
+    <div id="main-menu" class="overlay-menu">
+      <div class="menu-card">
+        <h1 class="game-title">BE A LEGEND</h1>
+        <p class="game-subtitle">ACTION-RPG 2D • EL BOSQUE</p>
+        <div class="menu-buttons">
+          <button id="btn-play" class="retro-btn primary">JUGAR</button>
+          <button id="btn-settings" class="retro-btn">AJUSTES</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Menú de Pausa (HTML / CSS Overlay) -->
+    <div id="pause-menu" class="overlay-menu hidden">
+      <div class="menu-card">
+        <h2 class="game-title" style="font-size: 20px; color: #38bdf8; text-shadow: 0 4px 0 #0284c7;">PAUSA</h2>
+        <p class="game-subtitle" style="margin-bottom: 24px;">PARTIDA DETENIDA</p>
+        <div class="menu-buttons">
+          <button id="btn-resume" class="retro-btn primary">REANUDAR</button>
+          <button id="btn-pause-settings" class="retro-btn">AJUSTES</button>
+          <button id="btn-to-main-menu" class="retro-btn">SALIR AL MENÚ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Modal de Ajustes -->
+    <div id="settings-modal" class="modal-backdrop hidden">
+      <div class="modal-box">
+        <h3>AJUSTES</h3>
+        <div class="settings-list">
+          <p>🎮 <strong>PC:</strong> WASD para moverse, Espacio interactuar, Tab/R rueda de la Reliquia, Escape pausa.</p>
+          <p>📱 <strong>Móvil:</strong> Joystick izquierdo, botón espada, botón Reliquia con swipe hacia 4 direcciones.</p>
+          <p>⚙️ <strong>Modo:</strong> Sandbox 32-bit (Plena luz del día).</p>
+        </div>
+        <button id="btn-close-settings" class="retro-btn primary" style="width: 100%;">CERRAR</button>
+      </div>
+    </div>
   </div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

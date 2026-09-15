@@ -1,17 +1,19 @@
 /**
  * @module StateManager
  * @description Gestor de estado global del juego.
- * Almacena datos persistentes (karma, poderes desbloqueados) y actúa como
- * un bus de eventos reactivo para comunicación desacoplada entre sistemas.
+ * Almacena datos persistentes (karma, poderes desbloqueados, estado del juego)
+ * y actúa como un bus de eventos reactivo para comunicación desacoplada entre sistemas.
  * @author Be a Legend Team
- * @version 1.1.0
+ * @version 1.2.0
  */
 export class StateManager {
   constructor() {
-    /** @type {Object} Estado global del juego */
+    /** @type {Object} Estado global centralizado del juego */
     this.state = {
+      game_state: 'STATE_MENU', // 'STATE_MENU' | 'STATE_PLAYING' | 'STATE_PAUSED'
       karma_level: 0,
-      unlocked_powers: []
+      equipped_power: 'Fuego',
+      unlocked_powers: ['Fuego', 'Embestida', 'Raíces', 'Curación']
     };
 
     /** @type {Object.<string, Function[]>} Mapa de listeners por evento */
@@ -31,8 +33,7 @@ export class StateManager {
   }
 
   /**
-   * ARCH-03 FIX: Desuscribe un callback de un evento.
-   * Previene memory leaks cuando entidades se destruyen o cambia el nivel.
+   * Desuscribe un callback de un evento.
    * @param {string} event - Nombre del evento
    * @param {Function} callback - Referencia exacta al callback registrado
    */

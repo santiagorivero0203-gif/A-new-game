@@ -1,11 +1,11 @@
 /**
  * @file main.js
- * @description Punto de entrada y orquestador del nivel de prueba "El Bosque".
- * Inicializa un mapa abierto de 40x40 casillas (1280x1280 px), pre-renderiza el terreno
- * con pasto y camino de tierra, configura el Room Clamping en la cámara para evitar vacíos negros,
- * y puebla la escena con árboles y cabaña de madera con Y-Sorting estricto.
+ * @description Punto de entrada principal y orquestador del juego "Be a Legend".
+ * Ensambla el nivel de prueba "El Bosque" en estilo 32-bit moderno, el Virtual Gamepad táctil
+ * móvil (Joystick, botón de ataque, botón swipe de Reliquia y pausa) y el Mini Menú Principal
+ * HTML/CSS gobernado por la máquina de estados del StateManager.
  * @author Be a Legend Team
- * @version 1.2.0
+ * @version 1.4.0
  */
 
 import { Engine } from './core/Engine.js';
@@ -30,9 +30,21 @@ const mainCanvas = document.getElementById('main-canvas');
 const lightCanvas = document.getElementById('light-canvas');
 const uiCanvas = document.getElementById('ui-canvas');
 
+// Elementos HTML de Menús
+const mainMenuEl = document.getElementById('main-menu');
+const pauseMenuEl = document.getElementById('pause-menu');
+const settingsModalEl = document.getElementById('settings-modal');
+
+const btnPlay = document.getElementById('btn-play');
+const btnSettings = document.getElementById('btn-settings');
+const btnResume = document.getElementById('btn-resume');
+const btnPauseSettings = document.getElementById('btn-pause-settings');
+const btnToMainMenu = document.getElementById('btn-to-main-menu');
+const btnCloseSettings = document.getElementById('btn-close-settings');
+
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
-const inputManager = new InputManager();
+const inputManager = new InputManager(uiCanvas);
 const stateManager = new StateManager();
 const entityManager = new EntityManager();
 
@@ -40,62 +52,28 @@ const physicsSystem = new PhysicsSystem(entityManager);
 const interactionSystem = new InteractionSystem(entityManager, inputManager, stateManager);
 
 const renderer = new Renderer(mainCanvas);
-const lightManager = new LightManager(lightCanvas);
+const lightManager = new LightManager(lightCanvas, false); // isInterior = false (Luz de día diurna)
 const uiManager = new UIManager(uiCanvas);
 const camera = new Camera(mainCanvas.width, mainCanvas.height);
 
-// Atmósfera de bosque crepuscular / arboleda mágica
-lightManager.ambientLight = 'rgba(10, 20, 28, 0.42)';
-
-// 2. Nivel de 40x40 Casillas (1280x1280 px)
+// 2. Nivel "El Bosque" de 40x40 Casillas (1280x1280 px)
 const MAP_COLS = 40;
 const MAP_ROWS = 40;
 const TILE_SIZE = 32;
 const MAP_WIDTH = MAP_COLS * TILE_SIZE;   // 1280 px
 const MAP_HEIGHT = MAP_ROWS * TILE_SIZE; // 1280 px
 
-// Regla Técnica 2: Room Clamping de Cámara en bordes exactos del mapa 40x40
+// Room Clamping de Cámara
 camera.setRoomBounds({ x: 0, y: 0, width: MAP_WIDTH, height: MAP_HEIGHT });
-
 const tilemap = new Tilemap(MAP_COLS, MAP_ROWS, TILE_SIZE);
 
-// 3. Jugador ubicado en el camino de tierra en el centro del claro
+// 3. Jugador ubicado en el camino de tierra
 const player = new Player(624, 624);
 entityManager.addEntity(player);
 
-// Luz dinámica de la Reliquia Milenaria del jugador
-const playerLight = {
-  x: player.pos.x + player.width / 2,
-  y: player.pos.y + player.height / 2,
-  radius: 140,
-  intensity: 0.88,
-  color: 'white',
-  flicker: false,
-  isPlayerLight: true
-};
-lightManager.addLight(playerLight);
-
-// 4. Cabaña de madera al norte del claro junto al sendero
+// 4. Cabaña de madera moderna al norte
 const cabin = new House(560, 260);
 entityManager.addEntity(cabin);
-
-// Antorchas de bienvenida a los lados de la entrada de la cabaña
-lightManager.addLight({
-  x: 600,
-  y: 380,
-  radius: 95,
-  intensity: 0.85,
-  color: '#ff9933',
-  flicker: true
-});
-lightManager.addLight({
-  x: 685,
-  y: 380,
-  radius: 95,
-  intensity: 0.85,
-  color: '#ff9933',
-  flicker: true
-});
 
 // Guardián sabio cerca de la cabaña
 const elderNPC = new NPC(640, 410);
@@ -103,19 +81,13 @@ entityManager.addEntity(elderNPC);
 
 // 5. Generación de Árboles con Y-Sorting Estricto
 const trees = [];
-
-/**
- * Función auxiliar para añadir un árbol al mundo.
- * @param {number} x
- * @param {number} y
- */
 function spawnTree(x, y) {
   const tree = new Tree(x, y);
   entityManager.addEntity(tree);
   trees.push(tree);
 }
 
-// A. Árboles clave dispersos dentro del claro para probar Y-Sorting en 360°
+// Árboles en el claro para pruebas de profundidad en 360°
 spawnTree(400, 520);
 spawnTree(480, 710);
 spawnTree(800, 540);
@@ -125,68 +97,55 @@ spawnTree(780, 320);
 spawnTree(310, 600);
 spawnTree(960, 600);
 
-// B. Perímetro denso de bosque (borde norte, sur, este y oeste)
-// Borde Norte
+// Perímetro de bosque
 for (let x = 0; x < MAP_WIDTH; x += 75) {
   spawnTree(x, 0);
   spawnTree(x + 35, 60);
-}
-// Borde Sur
-for (let x = 0; x < MAP_WIDTH; x += 75) {
   spawnTree(x, MAP_HEIGHT - 110);
   spawnTree(x + 35, MAP_HEIGHT - 70);
 }
-// Borde Oeste
 for (let y = 100; y < MAP_HEIGHT - 120; y += 75) {
-  // Dejar paso abierto para el camino central (y ≈ 580..680)
-  if (y > 560 && y < 700) continue;
+  if (y > 560 && y < 700) continue; // Paso del camino
   spawnTree(0, y);
   spawnTree(55, y + 35);
-}
-// Borde Este
-for (let y = 100; y < MAP_HEIGHT - 120; y += 75) {
-  if (y > 560 && y < 700) continue;
   spawnTree(MAP_WIDTH - 85, y);
   spawnTree(MAP_WIDTH - 140, y + 35);
 }
 
-// 6. Carga Asíncrona de Assets (Sprites y Tiles)
+// 6. Carga Asíncrona de Assets
 async function initAssets() {
   try {
     await resourceManager.loadBatch([
       { type: 'image', key: 'grass_tile', url: '/assets/tiles/grass.jpg' },
       { type: 'image', key: 'dirt_tile', url: '/assets/tiles/dirt.jpg' },
-      { type: 'image', key: 'tree_sprite', url: '/assets/sprites/tree.jpg', transparent: true, threshold: 238 },
-      { type: 'image', key: 'house_sprite', url: '/assets/sprites/house.jpg', transparent: true, threshold: 238 }
+      { type: 'image', key: 'tree_sprite', url: '/assets/sprites/tree.jpg', transparent: true, threshold: 240 },
+      { type: 'image', key: 'house_sprite', url: '/assets/sprites/house.jpg', transparent: true, threshold: 240 }
     ]);
 
-    // Asignar texturas cargadas a las entidades del nivel
     const treeImg = resourceManager.getImage('tree_sprite');
-    if (treeImg) {
-      trees.forEach(t => t.setSprite(treeImg));
-    }
+    if (treeImg) trees.forEach(t => t.setSprite(treeImg));
 
     const houseImg = resourceManager.getImage('house_sprite');
-    if (houseImg) {
-      cabin.setSprite(houseImg);
-    }
+    if (houseImg) cabin.setSprite(houseImg);
 
-    // Reconstruir el buffer del mapa con las texturas de alta resolución
     tilemap.build(resourceManager);
-    console.log('[Be a Legend] Assets de "El Bosque" cargados e integrados exitosamente.');
+    console.log('[Be a Legend] Assets de 32-bit modernos cargados.');
   } catch (err) {
-    console.warn('[Be a Legend] Usando texturas procedurales de respaldo:', err);
+    console.warn('[Be a Legend] Fallback procedural activo:', err);
     tilemap.build(null);
   }
 }
-
-// Construcción inicial con patrones procedurales de inmediato
 tilemap.build(null);
 initAssets();
 
 // 7. Ciclo de Actualización (Update)
 function update(deltaTime) {
   inputManager.update();
+
+  const gameState = stateManager.get('game_state');
+  if (gameState !== 'STATE_PLAYING') {
+    return; // En menú o pausa no se actualiza la física ni las entidades
+  }
 
   const gameContext = {
     deltaTime,
@@ -195,49 +154,115 @@ function update(deltaTime) {
     state: stateManager
   };
   entityManager.update(gameContext);
-
   interactionSystem.update(deltaTime);
 
-  // Cámara sigue suavemente al jugador con clamping dentro del mapa de 40x40
+  // Cámara centrada en el jugador
   const playerCenter = {
     x: player.pos.x + player.width / 2,
     y: player.pos.y + player.height / 2
   };
   camera.update(playerCenter, deltaTime);
-
-  // Sincronizar luz de la reliquia con la posición del jugador
-  playerLight.x = playerCenter.x;
-  playerLight.y = playerCenter.y;
 }
 
 // 8. Ciclo de Dibujado (Render)
 function render(deltaTime) {
   renderer.begin(camera);
 
-  // Terreno: Claro de bosque con camino de tierra pre-renderizado (O(1))
+  // Terreno pre-renderizado O(1)
   tilemap.render(renderer.ctx, camera);
 
-  // Entidades del mundo ordenadas con Y-Sorting estricto
+  // Entidades ordenadas por Y-Sort
   renderer.drawEntities(entityManager.getEntities());
 
   renderer.end(camera);
 
-  // Capa de Iluminación
+  // Capa de Iluminación diurna
   lightManager.update(deltaTime);
   lightManager.render(camera);
 
-  // Capa de Interfaz y Menú Radial
-  uiManager.render(inputManager, stateManager);
+  // Capa de Interfaz y Virtual Gamepad táctil
+  const gameState = stateManager.get('game_state');
+  if (gameState === 'STATE_PLAYING') {
+    uiManager.render(inputManager, stateManager);
+  } else {
+    uiManager.clear();
+  }
 }
 
-// 9. Arranque del Motor
+// 9. Inicialización del Motor en Estado Inicial STATE_MENU
 const engine = new Engine(update, render);
+stateManager.set('game_state', 'STATE_MENU');
 engine.start();
+engine.pause(); // Pausar ciclo lógico en el menú inicial (se sigue renderizando el fondo)
 
-// Herramientas de depuración en consola
+// 10. Conexión de la Lógica de Estados y UI (HTML / StateManager)
+
+// A. Al pulsar Jugar
+btnPlay.addEventListener('click', () => {
+  mainMenuEl.classList.add('hidden');
+  stateManager.set('game_state', 'STATE_PLAYING');
+  engine.resume();
+  console.log('[Game State] Cambiado a STATE_PLAYING. ¡Partida iniciada!');
+});
+
+// B. Control de Pausa
+function openPauseMenu() {
+  if (stateManager.get('game_state') === 'STATE_PLAYING') {
+    stateManager.set('game_state', 'STATE_PAUSED');
+    engine.pause();
+    pauseMenuEl.classList.remove('hidden');
+    console.log('[Game State] Cambiado a STATE_PAUSED.');
+  }
+}
+
+function resumeGame() {
+  if (stateManager.get('game_state') === 'STATE_PAUSED') {
+    pauseMenuEl.classList.add('hidden');
+    stateManager.set('game_state', 'STATE_PLAYING');
+    engine.resume();
+    console.log('[Game State] Reanudado a STATE_PLAYING.');
+  }
+}
+
+btnResume.addEventListener('click', resumeGame);
+
+btnToMainMenu.addEventListener('click', () => {
+  pauseMenuEl.classList.add('hidden');
+  mainMenuEl.classList.remove('hidden');
+  stateManager.set('game_state', 'STATE_MENU');
+  engine.pause();
+  console.log('[Game State] Retornado a STATE_MENU.');
+});
+
+// Conectar botón de pausa táctil del InputManager (icono engranaje ⚙️) y tecla Escape
+inputManager.onPause(() => {
+  const current = stateManager.get('game_state');
+  if (current === 'STATE_PLAYING') {
+    openPauseMenu();
+  } else if (current === 'STATE_PAUSED') {
+    resumeGame();
+  }
+});
+
+// C. Conectar Swipe de Habilidad de la Reliquia
+inputManager.onSkillEquipped((newPower) => {
+  stateManager.set('equipped_power', newPower);
+  console.log(`[Reliquia] ¡Poder equipado mediante Swipe: ${newPower}!`);
+});
+
+// D. Modal de Ajustes
+btnSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));
+btnPauseSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));
+btnCloseSettings.addEventListener('click', () => settingsModalEl.classList.add('hidden'));
+
+// 11. Herramientas de Depuración en Consola
 window.setKarma = (val) => {
   stateManager.set('karma_level', val);
   console.log(`[Karma] Nivel actualizado a: ${val}`);
 };
+window.equipPower = (name) => {
+  stateManager.set('equipped_power', name);
+  console.log(`[Reliquia] Poder forzado a: ${name}`);
+};
 
-console.log('[Be a Legend] Nivel "El Bosque" inicializado. Usa [WASD] para explorar el claro y probar el Y-Sorting.');
+console.log('[Be a Legend] Sistema listo. Estado actual: STATE_MENU.');

@@ -2,12 +2,12 @@ import { Entity } from './Entity.js';
 
 /**
  * @module Tree
- * @description Entidad de árbol frondoso para el bosque con Y-Sorting estricto.
- * Posee una copa grande de follaje y un tronco pequeño en la base.
+ * @description Entidad de árbol frondoso estilo 32-bit indie moderno con Y-Sorting estricto.
+ * Posee una gran copa redonda chibi (cabeza grande) y un tronco pequeño en la base.
  * La hitbox sólida se ubica exclusivamente en el tronco inferior, permitiendo al jugador
- * caminar por detrás de la copa (quedando oculto) o por delante de la base (quedando en primer plano).
+ * caminar libremente detrás del follaje o delante de la base.
  * @author Be a Legend Team
- * @version 1.0.0
+ * @version 1.2.0
  */
 export class Tree extends Entity {
   /**
@@ -16,8 +16,7 @@ export class Tree extends Entity {
    * @param {HTMLImageElement|HTMLCanvasElement} [sprite] - Sprite de árbol cargado
    */
   constructor(x, y, sprite = null) {
-    // Dimensiones del sprite completo: 80x96 px
-    super(x, y, 80, 96);
+    super(x, y, 84, 98);
     this.sprite = sprite;
 
     this.tags.push('solid');
@@ -29,19 +28,18 @@ export class Tree extends Entity {
      * Tronco de 24x18 px centrado horizontalmente en la base del sprite.
      */
     this.hitbox = {
-      offsetX: 28,
+      offsetX: 30,
       offsetY: 78,
       width: 24,
       height: 18
     };
 
-    // Actualizar cache pre-alocado de la entidad base
     this._hitboxCache.width = this.hitbox.width;
     this._hitboxCache.height = this.hitbox.height;
   }
 
   /**
-   * Asigna la textura del sprite si se cargó de forma asíncrona.
+   * Asigna la textura del sprite 32-bit.
    * @param {HTMLImageElement|HTMLCanvasElement} sprite
    */
   setSprite(sprite) {
@@ -49,7 +47,7 @@ export class Tree extends Entity {
   }
 
   /**
-   * Renderiza el sprite del árbol o una representación pixel art vectorial de respaldo.
+   * Renderiza el sprite del árbol moderno o el fallback vectorial chibi.
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
@@ -58,35 +56,32 @@ export class Tree extends Entity {
       return;
     }
 
-    // Fallback visual procedural estilizado (en caso de demora en carga)
     const { x, y } = this.pos;
 
-    // 1. Sombra en el suelo
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    // 1. Sombra suave en el suelo
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
     ctx.beginPath();
-    ctx.ellipse(x + 40, y + 88, 30, 10, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 42, y + 90, 26, 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. Tronco de madera
-    ctx.fillStyle = '#5c3a21';
-    ctx.fillRect(x + 30, y + 60, 20, 32);
-    ctx.fillStyle = '#422814';
-    ctx.fillRect(x + 30, y + 60, 6, 32);
+    // 2. Tronco pequeño chibi (marrón cálido)
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(x + 34, y + 68, 16, 24);
 
-    // 3. Copa frondosa grande (círculos compuestos)
-    ctx.fillStyle = '#1e5e18';
+    // 3. Copa redonda grande estilo chibi / Eastward (verde brillante uniforme)
+    ctx.fillStyle = '#15803d';
     ctx.beginPath();
-    ctx.arc(x + 40, y + 36, 38, 0, Math.PI * 2);
+    ctx.arc(x + 42, y + 42, 36, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#2d8223';
+    ctx.fillStyle = '#22c55e';
     ctx.beginPath();
-    ctx.arc(x + 36, y + 32, 34, 0, Math.PI * 2);
+    ctx.arc(x + 40, y + 38, 32, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#42a832';
+    ctx.fillStyle = '#4ade80';
     ctx.beginPath();
-    ctx.arc(x + 32, y + 26, 26, 0, Math.PI * 2);
+    ctx.arc(x + 36, y + 32, 22, 0, Math.PI * 2);
     ctx.fill();
   }
 }

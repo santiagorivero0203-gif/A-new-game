@@ -4,9 +4,10 @@ import { Vector2 } from '../utils/Vector2.js';
 /**
  * @module Player
  * @description Entidad controlada por el usuario con diseño visual de héroe Action-RPG.
- * Maneja traslación con normalización diagonal, resolución de colisiones y movimiento Top-Down.
+ * Maneja traslación combinando teclado físico y joystick virtual táctil, resolución de colisiones,
+ * animación de ataque con espada y profundidad Top-Down.
  * @author Be a Legend Team
- * @version 1.2.0
+ * @version 1.3.0
  */
 export class Player extends Entity {
   /**
@@ -14,7 +15,7 @@ export class Player extends Entity {
    * @param {number} y - Posición Y inicial
    */
   constructor(x, y) {
-    super(x, y, 32, 32); // Proporciones chibi / pixel art
+    super(x, y, 32, 32);
     this.color = '#4CAF50';
     this.tags.push('player');
 
@@ -23,6 +24,12 @@ export class Player extends Entity {
 
     /** @type {Vector2} Vector de velocidad del frame actual */
     this.velocity = new Vector2(0, 0);
+
+    /** @type {string} Dirección a la que mira el jugador ('up', 'down', 'left', 'right') */
+    this.facing = 'down';
+
+    /** @type {number} Temporizador del ataque con espada */
+    this.attackTimer = 0;
 
     // Hitbox precisa para la base del personaje (pies)
     this.hitbox = {
@@ -37,8 +44,7 @@ export class Player extends Entity {
   }
 
   /**
-   * ARCH-01 FIX: Actualización lógica usando contexto unificado.
-   * Soporta tanto `{ deltaTime, input, physics }` como argumentos individuales para retrocompatibilidad.
+   * Actualización lógica combinando teclado físico y Joystick Virtual.
    * @param {Object|number} contextOrDt - Objeto de contexto o deltaTime
    * @param {import('../core/InputManager.js').InputManager} [legacyInput]
    * @param {import('../systems/PhysicsSystem.js').PhysicsSystem} [legacyPhysics]
@@ -51,22 +57,60 @@ export class Player extends Entity {
 
     this.velocity.set(0, 0);
 
-    if (input) {
-      if (input.isKeyPressed('KeyW') || input.isKeyPressed('ArrowUp')) this.velocity.y -= 1;
-      if (input.isKeyPressed('KeyS') || input.isKeyPressed('ArrowDown')) this.velocity.y += 1;
-      if (input.isKeyPressed('KeyA') || input.isKeyPressed('ArrowLeft')) this.velocity.x -= 1;
-      if (input.isKeyPressed('KeyD') || input.isKeyPressed('ArrowRight')) this.velocity.x += 1;
+    if (this.attackTimer > 0) {
+      this.attackTimer -= deltaTime;
     }
 
-    // Normalizar vector para evitar velocidad aumentada en diagonales
-    this.velocity.normalize();
+    if (input) {
+      // 1. Entradas de teclado físico
+      if (input.isKeyPressed('KeyW') || input.isKeyPressed('ArrowUp')) {
+        this.velocity.y -= 1;
+        this.facing = 'up';
+      }
+      if (input.isKeyPressed('KeyS') || input.isKeyPressed('ArrowDown')) {
+        this.velocity.y += 1;
+        this.facing = 'down';
+      }
+      if (input.isKeyPressed('KeyA') || input.isKeyPressed('ArrowLeft')) {
+        this.velocity.x -= 1;
+        this.facing = 'left';
+      }
+      if (input.isKeyPressed('KeyD') || input.isKeyPressed('ArrowRight')) {
+        this.velocity.x += 1;
+        this.facing = 'right';
+      }
+
+      // 2. Entrada de Joystick Táctil Virtual
+      if (input.joystickVector && input.joystickVector.lengthSquared() > 0.02) {
+        this.velocity.x += input.joystickVector.x;
+        this.velocity.y += input.joystickVector.y;
+
+        // Actualizar dirección según el joystick
+        if (Math.abs(input.joystickVector.x) > Math.abs(input.joystickVector.y)) {
+          this.facing = input.joystickVector.x > 0 ? 'right' : 'left';
+        } else {
+          this.facing = input.joystickVector.y > 0 ? 'down' : 'up';
+        }
+      }
+
+      // 3. Botón de Ataque
+      if (input.isAttackPressed && this.attackTimer <= 0) {
+        this.attackTimer = 0.25; // 250ms de animación de tajo
+        console.log(`[Player] ¡Ataque básico de espada disparado hacia: ${this.facing}!`);
+      }
+    }
+
+    // Normalizar vector si la magnitud excede 1
+    if (this.velocity.lengthSquared() > 1) {
+      this.velocity.normalize();
+    }
     this.velocity.multiplyScalar(this.speed * deltaTime);
 
     // Posición tentativa
     const nextX = this.pos.x + this.velocity.x;
     const nextY = this.pos.y + this.velocity.y;
 
-    // Resolver colisiones con el entorno si el sistema de física está presente
+    // Resolver colisiones
     if (physics) {
       const finalPos = physics.moveWithCollisions(this, nextX, nextY);
       this.pos.set(finalPos.x, finalPos.y);
@@ -76,7 +120,7 @@ export class Player extends Entity {
   }
 
   /**
-   * Renderizado visual estilizado en pixel-art del héroe con túnica y la Reliquia.
+   * Renderizado visual estilizado del héroe y su tajo de espada.
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
@@ -89,31 +133,74 @@ export class Player extends Entity {
     ctx.fill();
 
     // 2. Capa trasera
-    ctx.fillStyle = '#1d4ed8'; // Capa azul heroica
+    ctx.fillStyle = '#1d4ed8'; // Azul
     ctx.fillRect(x + 7, y + 14, 18, 14);
 
     // 3. Túnica del héroe
-    ctx.fillStyle = '#16a34a'; // Verde clásico de aventura
+    ctx.fillStyle = '#16a34a'; // Verde
     ctx.fillRect(x + 9, y + 14, 14, 12);
 
-    // 4. Cinturón y Reliquia Milenaria (emite destellos dorados)
+    // 4. Cinturón y Reliquia Milenaria
     ctx.fillStyle = '#78350f';
     ctx.fillRect(x + 9, y + 21, 14, 3);
-    ctx.fillStyle = '#facc15'; // Reliquia de poder
+    ctx.fillStyle = '#facc15';
     ctx.fillRect(x + 14, y + 20, 4, 5);
 
     // 5. Cabeza / Rostro
-    ctx.fillStyle = '#fed7aa'; // Piel
+    ctx.fillStyle = '#fed7aa';
     ctx.fillRect(x + 9, y + 6, 14, 10);
 
-    // 6. Cabello / Capucha
-    ctx.fillStyle = '#b45309'; // Cabello castaño / dorado
+    // 6. Cabello
+    ctx.fillStyle = '#b45309';
     ctx.fillRect(x + 8, y + 3, 16, 5);
     ctx.fillRect(x + 7, y + 5, 3, 7);
 
-    // 7. Ojos pixel art
+    // 7. Ojos pixel art según la dirección
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(x + 12, y + 10, 2, 3);
-    ctx.fillRect(x + 18, y + 10, 2, 3);
+    if (this.facing === 'left') {
+      ctx.fillRect(x + 10, y + 10, 2, 3);
+    } else if (this.facing === 'right') {
+      ctx.fillRect(x + 20, y + 10, 2, 3);
+    } else {
+      ctx.fillRect(x + 12, y + 10, 2, 3);
+      ctx.fillRect(x + 18, y + 10, 2, 3);
+    }
+
+    // 8. Efecto visual de Tajo de Espada si está atacando
+    if (this.attackTimer > 0) {
+      this._drawSlashEffect(ctx, x, y);
+    }
+  }
+
+  /**
+   * Dibuja un arco de energía cortante frente al héroe.
+   * @private
+   */
+  _drawSlashEffect(ctx, px, py) {
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+
+    const cx = px + 16;
+    const cy = py + 16;
+
+    if (this.facing === 'right') {
+      ctx.arc(cx + 10, cy, 22, -Math.PI / 3, Math.PI / 3);
+    } else if (this.facing === 'left') {
+      ctx.arc(cx - 10, cy, 22, (2 * Math.PI) / 3, (4 * Math.PI) / 3);
+    } else if (this.facing === 'up') {
+      ctx.arc(cx, cy - 10, 22, (7 * Math.PI) / 6, (11 * Math.PI) / 6);
+    } else {
+      ctx.arc(cx, cy + 10, 22, Math.PI / 6, (5 * Math.PI) / 6);
+    }
+
+    ctx.stroke();
+
+    // Brillo blanco en el filo
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
   }
 }
