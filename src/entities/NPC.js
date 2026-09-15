@@ -13,10 +13,20 @@ export class NPC extends Entity {
    */
   constructor(x, y) {
     super(x, y, 32, 32);
-    this.color = '#FF9800'; // Color distintivo para prototipado
+    this.color = '#6366f1';
     this.tags.push('npc');
-    this.tags.push('solid'); // Los NPCs bloquean el paso por defecto
+    this.tags.push('solid');
     this.interacted = false;
+
+    // Hitbox precisa para la base de los pies del NPC (Y-Sorting perfecto con el héroe)
+    this.hitbox = {
+      offsetX: 6,
+      offsetY: 18,
+      width: 20,
+      height: 14
+    };
+    this._hitboxCache.width = this.hitbox.width;
+    this._hitboxCache.height = this.hitbox.height;
   }
 
   /**
@@ -26,6 +36,55 @@ export class NPC extends Entity {
    */
   update(contextOrDt) {
     // Espacio para lógica de patrulla/IA del NPC
+  }
+
+  /**
+   * Renderizado vectorial estilizado del Sabio / Anciano del Claro.
+   * @param {CanvasRenderingContext2D} ctx
+   */
+  draw(ctx) {
+    const { x, y } = this.pos;
+
+    // 1. Sombra elíptica en el suelo
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(x + 16, y + 29, 11, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. Túnica larga de sabio (morado índigo profundo)
+    ctx.fillStyle = '#4338ca';
+    ctx.fillRect(x + 7, y + 14, 18, 14);
+
+    // Ribete dorado de la túnica
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(x + 15, y + 14, 2, 14);
+    ctx.fillRect(x + 7, y + 26, 18, 2);
+
+    // 3. Cabeza / Rostro
+    ctx.fillStyle = '#fde68a';
+    ctx.fillRect(x + 9, y + 6, 14, 9);
+
+    // 4. Capucha / Cabello de anciano
+    ctx.fillStyle = '#312e81';
+    ctx.fillRect(x + 8, y + 3, 16, 5);
+    ctx.fillRect(x + 7, y + 5, 3, 8);
+    ctx.fillRect(x + 22, y + 5, 3, 8);
+
+    // 5. Ojos serenos
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(x + 11, y + 9, 2, 2);
+    ctx.fillRect(x + 19, y + 9, 2, 2);
+
+    // 6. Barba blanca prominente de sabio
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(x + 10, y + 12, 12, 6);
+    ctx.fillRect(x + 12, y + 18, 8, 4);
+
+    // 7. Bastón de madera con gema mística
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(x + 25, y + 10, 2, 18);
+    ctx.fillStyle = '#38bdf8'; // Gema celeste brillante
+    ctx.fillRect(x + 24, y + 8, 4, 4);
   }
 
   /**

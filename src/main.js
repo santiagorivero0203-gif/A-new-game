@@ -47,7 +47,7 @@ const btnCloseSettingsX = document.getElementById('btn-close-settings-x');
 
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
-const inputManager = new InputManager(mainCanvas);
+const inputManager = new InputManager();
 const stateManager = new StateManager();
 const entityManager = new EntityManager();
 

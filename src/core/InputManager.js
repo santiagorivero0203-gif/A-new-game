@@ -2,21 +2,16 @@ import { Vector2 } from '../utils/Vector2.js';
 
 /**
  * @module InputManager
- * @description Gestor integral de entradas híbridas: teclado (WASD / flechas), ratón y
- * gamepad virtual táctil (Joystick izquierdo, botón de ataque, botón dinámico de swipe
- * para habilidades de la Reliquia y botón de pausa).
- * Detecta automáticamente si el dispositivo es táctil/móvil para desplegar los controles
- * virtuales únicamente cuando sea necesario, manteniendo la pantalla limpia en PC.
+ * @description Gestor integral y unificado de entradas híbridas para 'Be a Legend'.
+ * - PC: Teclado físico (WASD, flechas, Tab, Escape, Espacio) y ratón para selección radial.
+ * - Móvil: Gamepad virtual táctil moderno (DOM Overlay) con Joystick analógico,
+ *   botón de ataque con espada y botón dinámico de Reliquia con swipe direccional.
+ * - Arquitectura 100% libre de código muerto de canvas y optimizada para 60 FPS sin asignaciones de memoria.
  * @author Be a Legend Team
- * @version 1.5.0
+ * @version 2.1.0
  */
 export class InputManager {
-  /**
-   * @param {HTMLCanvasElement} [uiCanvas] - Canvas sobre el cual se proyectan los controles
-   */
-  constructor(uiCanvas = null) {
-    this.uiCanvas = uiCanvas;
-
+  constructor() {
     /** @type {Object.<string, boolean>} Estado de teclas físicas presionadas */
     this.keys = {};
 
@@ -35,7 +30,7 @@ export class InputManager {
     // --- Detección Estricta de Dispositivo Móvil / Táctil ---
     /**
      * Detección de dispositivo móvil real mediante User Agent.
-     * En PC de escritorio permanece false para mantener la vista limpia cinematográfica,
+     * En PC de escritorio permanece false para mantener la vista cinematográfica limpia,
      * y se activa dinámicamente si se recibe un evento touchstart real.
      * @type {boolean}
      */
@@ -48,58 +43,15 @@ export class InputManager {
     /** @type {boolean} Forzar visualización de controles móviles para pruebas en escritorio */
     this.forceTouchControls = false;
 
-    // --- Configuración Geométrica Minimalista 16:9 (960x540) ---
-    this.joystickConfig = {
-      baseX: 110,
-      baseY: 430,
-      radius: 56,
-      maxDistance: 38
-    };
-
-    this.attackButtonConfig = {
-      x: 870,
-      y: 445,
-      radius: 34
-    };
-
-    this.skillButtonConfig = {
-      x: 870,
-      y: 350,
-      radius: 30
-    };
-
-    this.pauseButtonConfig = {
-      x: 924,
-      y: 38,
-      radius: 20
-    };
-
-    // --- Estado de Controles Táctiles ---
+    // --- Estado de Controles Táctiles (DOM Overlay) ---
     /** @type {Vector2} Vector de movimiento normalizado [-1..1] del joystick virtual */
     this.joystickVector = new Vector2(0, 0);
-
-    /** @type {Vector2} Posición visual del pulgar del joystick */
-    this.joystickThumb = new Vector2(this.joystickConfig.baseX, this.joystickConfig.baseY);
 
     /** @type {boolean} Si el botón de ataque está activo en este fotograma */
     this.isAttackPressed = false;
 
-    /** @type {boolean} Si el botón de habilidad está siendo arrastrado (swipe) */
-    this.isSkillSwiping = false;
-
-    /** @type {Vector2} Vector del arrastre de habilidad desde el centro del botón */
-    this.skillSwipeVector = new Vector2(0, 0);
-
     /** @type {string|null} Poder pre-visualizado durante el swipe actual */
     this.hoveredSwipePower = null;
-
-    /** @type {boolean} Si se ha accionado el botón de pausa */
-    this.isPauseTriggered = false;
-
-    // Identificadores de dedos para multi-touch
-    this._joystickTouchId = null;
-    this._attackTouchId = null;
-    this._skillTouchId = null;
 
     // Callbacks
     this._onSkillEquippedCallback = null;
@@ -128,39 +80,11 @@ export class InputManager {
   /**
    * Alterna la visualización forzada de controles táctiles en escritorio.
    * @param {boolean} [force]
+   * @returns {boolean}
    */
   toggleTouchControls(force = undefined) {
     this.forceTouchControls = (force !== undefined) ? force : !this.forceTouchControls;
     return this.forceTouchControls;
-  }
-
-  /**
-   * Conecta el canvas de la UI para calcular con precisión las coordenadas táctiles.
-   * @param {HTMLCanvasElement} canvas
-   */
-  setCanvas(canvas) {
-    this.uiCanvas = canvas;
-  }
-
-  /**
-   * Convierte coordenadas del navegador (clientX, clientY)
-   * a coordenadas internas del Canvas virtual (960x540).
-   * @param {number} clientX
-   * @param {number} clientY
-   * @returns {{x: number, y: number}}
-   */
-  getCanvasCoords(clientX, clientY) {
-    if (!this.uiCanvas) {
-      return { x: clientX, y: clientY };
-    }
-    const rect = this.uiCanvas.getBoundingClientRect();
-    const scaleX = this.uiCanvas.width / rect.width;
-    const scaleY = this.uiCanvas.height / rect.height;
-
-    return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY
-    };
   }
 
   /**
@@ -179,9 +103,12 @@ export class InputManager {
     this._onPauseCallback = cb;
   }
 
-  /** @private Enlaza todos los manejadores de eventos */
+  /**
+   * Enlaza los manejadores de eventos globales (Teclado físico y ratón).
+   * @private
+   */
   _bindEvents() {
-    // --- Teclado Físico ---
+    // --- 1. Teclado Físico ---
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
       if (e.code === 'Tab') {
@@ -200,243 +127,27 @@ export class InputManager {
       }
     });
 
-    // --- Ratón (PC) ---
+    // --- 2. Ratón para Selección Radial en PC ---
     window.addEventListener('mousemove', (e) => {
       this.mouse.set(e.clientX, e.clientY);
       if (this.isRadialMenuOpen) {
         this._calculateRadialSelection();
       }
-
-      if (this._mouseIsDown && this.shouldShowTouchControls) {
-        const coords = this.getCanvasCoords(e.clientX, e.clientY);
-        this._handlePointerMove(null, coords.x, coords.y);
-      }
     });
 
-    window.addEventListener('mousedown', (e) => {
-      this._mouseIsDown = true;
-      if (this.shouldShowTouchControls) {
-        const coords = this.getCanvasCoords(e.clientX, e.clientY);
-        this._handlePointerDown('mouse', coords.x, coords.y);
-      }
-    });
-
-    window.addEventListener('mouseup', (e) => {
-      this._mouseIsDown = false;
-      if (this.shouldShowTouchControls) {
-        const coords = this.getCanvasCoords(e.clientX, e.clientY);
-        this._handlePointerUp('mouse', coords.x, coords.y);
-      }
-    });
-
-    // --- Eventos Táctiles (Multi-Touch Móvil) ---
-    window.addEventListener('touchstart', (e) => {
-      // Activar automáticamente controles táctiles al detectar primer toque en móvil
+    // Activar soporte táctil si el dispositivo emite un toque real
+    window.addEventListener('touchstart', () => {
       this.isTouchDevice = true;
-
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        const coords = this.getCanvasCoords(touch.clientX, touch.clientY);
-        this._handlePointerDown(touch.identifier, coords.x, coords.y);
-      }
-    }, { passive: false });
-
-    window.addEventListener('touchmove', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        const coords = this.getCanvasCoords(touch.clientX, touch.clientY);
-        this._handlePointerMove(touch.identifier, coords.x, coords.y);
-      }
-    }, { passive: false });
-
-    window.addEventListener('touchend', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        const coords = this.getCanvasCoords(touch.clientX, touch.clientY);
-        this._handlePointerUp(touch.identifier, coords.x, coords.y);
-      }
-    }, { passive: false });
-
-    window.addEventListener('touchcancel', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        const coords = this.getCanvasCoords(touch.clientX, touch.clientY);
-        this._handlePointerUp(touch.identifier, coords.x, coords.y);
-      }
-    }, { passive: false });
+    }, { passive: true });
   }
 
   /**
-   * @private
-   */
-  _handlePointerDown(id, x, y) {
-    // 1. Botón de Pausa (Engranaje)
-    const distPause = Math.hypot(x - this.pauseButtonConfig.x, y - this.pauseButtonConfig.y);
-    if (distPause <= this.pauseButtonConfig.radius * 1.5) {
-      if (this._onPauseCallback) this._onPauseCallback();
-      return;
-    }
-
-    // 2. Joystick Izquierdo
-    const distJoy = Math.hypot(x - this.joystickConfig.baseX, y - this.joystickConfig.baseY);
-    if (distJoy <= this.joystickConfig.radius * 1.6 && this._joystickTouchId === null) {
-      this._joystickTouchId = id;
-      this._updateJoystick(x, y);
-      return;
-    }
-
-    // 3. Botón de Ataque
-    const distAttack = Math.hypot(x - this.attackButtonConfig.x, y - this.attackButtonConfig.y);
-    if (distAttack <= this.attackButtonConfig.radius * 1.3 && this._attackTouchId === null) {
-      this._attackTouchId = id;
-      this.isAttackPressed = true;
-      return;
-    }
-
-    // 4. Botón de Habilidad (Swipe)
-    const distSkill = Math.hypot(x - this.skillButtonConfig.x, y - this.skillButtonConfig.y);
-    if (distSkill <= this.skillButtonConfig.radius * 1.4 && this._skillTouchId === null) {
-      this._skillTouchId = id;
-      this.isSkillSwiping = true;
-      this.skillSwipeVector.set(0, 0);
-      this.hoveredSwipePower = null;
-      return;
-    }
-  }
-
-  /**
-   * @private
-   */
-  _handlePointerMove(id, x, y) {
-    if (this._joystickTouchId === id || (id === null && this._joystickTouchId === 'mouse')) {
-      this._updateJoystick(x, y);
-    }
-
-    if (this._skillTouchId === id || (id === null && this._skillTouchId === 'mouse')) {
-      const dx = x - this.skillButtonConfig.x;
-      const dy = y - this.skillButtonConfig.y;
-      this.skillSwipeVector.set(dx, dy);
-
-      if (this.skillSwipeVector.length() > 18) {
-        this.hoveredSwipePower = this._calculateSwipePower(dx, dy);
-      } else {
-        this.hoveredSwipePower = null;
-      }
-    }
-  }
-
-  /**
-   * @private
-   */
-  _handlePointerUp(id, x, y) {
-    if (this._joystickTouchId === id) {
-      this._joystickTouchId = null;
-      this.joystickVector.set(0, 0);
-      this.joystickThumb.set(this.joystickConfig.baseX, this.joystickConfig.baseY);
-    }
-
-    if (this._attackTouchId === id) {
-      this._attackTouchId = null;
-      this.isAttackPressed = false;
-    }
-
-    if (this._skillTouchId === id) {
-      this._skillTouchId = null;
-      this.isSkillSwiping = false;
-
-      if (this.skillSwipeVector.length() > 18) {
-        const selectedPower = this._calculateSwipePower(
-          this.skillSwipeVector.x,
-          this.skillSwipeVector.y
-        );
-
-        if (selectedPower && this._onSkillEquippedCallback) {
-          this._onSkillEquippedCallback(selectedPower);
-        }
-      }
-
-      this.skillSwipeVector.set(0, 0);
-      this.hoveredSwipePower = null;
-    }
-  }
-
-  /**
-   * @private
-   */
-  _updateJoystick(touchX, touchY) {
-    const dx = touchX - this.joystickConfig.baseX;
-    const dy = touchY - this.joystickConfig.baseY;
-    const dist = Math.hypot(dx, dy);
-
-    if (dist === 0) {
-      this.joystickVector.set(0, 0);
-      this.joystickThumb.set(this.joystickConfig.baseX, this.joystickConfig.baseY);
-      return;
-    }
-
-    const clampedDist = Math.min(dist, this.joystickConfig.maxDistance);
-    const normX = dx / dist;
-    const normY = dy / dist;
-
-    this.joystickVector.set(normX * (clampedDist / this.joystickConfig.maxDistance), normY * (clampedDist / this.joystickConfig.maxDistance));
-    this.joystickThumb.set(
-      this.joystickConfig.baseX + normX * clampedDist,
-      this.joystickConfig.baseY + normY * clampedDist
-    );
-  }
-
-  /**
-   * @private
-   */
-  _calculateSwipePower(dx, dy) {
-    const angleRad = Math.atan2(dy, dx);
-    const angleDeg = (angleRad * 180) / Math.PI;
-
-    if (angleDeg >= -135 && angleDeg < -45) return 'Fuego';
-    if (angleDeg >= -45 && angleDeg < 45) return 'Embestida';
-    if (angleDeg >= 45 && angleDeg < 135) return 'Raíces';
-    return 'Curación';
-  }
-
-  /**
-   * @private
-   */
-  _calculateRadialSelection() {
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-
-    const dx = this.mouse.x - centerX;
-    const dy = this.mouse.y - centerY;
-
-    const deadZone = 50;
-    if (Math.hypot(dx, dy) < deadZone) {
-      this.radialSelectionIndex = -1;
-      return;
-    }
-
-    let angle = Math.atan2(dy, dx) + Math.PI / 2;
-    if (angle < 0) angle += 2 * Math.PI;
-
-    const sliceSize = (2 * Math.PI) / this.totalRadialSlots;
-    const offsetAngle = (angle + sliceSize / 2) % (2 * Math.PI);
-    this.radialSelectionIndex = Math.floor(offsetAngle / sliceSize);
-  }
-
-  /**
-   * @param {string} code
-   * @returns {boolean}
-   */
-  isKeyPressed(code) {
-    return !!this.keys[code];
-  }
-
-  /**
-   * Conecta eventos interactivos directamente a los elementos del DOM Overlay.
-   * Proporciona respuesta táctil y de ratón instantánea de alta precisión.
+   * Conecta eventos interactivos de alta precisión directamente a los elementos del DOM Overlay.
+   * Elimina por completo los chequeos manuales por distancia de píxeles y colisiones obsoletas.
    * @private
    */
   _bindDOMElements() {
-    // 1. Botón de pausa flotante superior derecho
+    // 1. Botón de Pausa Flotante
     const btnQuickPause = document.getElementById('btn-quick-pause');
     if (btnQuickPause) {
       btnQuickPause.addEventListener('click', (e) => {
@@ -445,7 +156,7 @@ export class InputManager {
       });
     }
 
-    // 2. Sectores de la rueda radial de poderes en DOM
+    // 2. Sectores de la Rueda Radial de Poderes en DOM
     const sectors = document.querySelectorAll('.radial-sector');
     sectors.forEach((sec) => {
       sec.addEventListener('mouseenter', () => {
@@ -536,7 +247,6 @@ export class InputManager {
       };
 
       const endJoy = (e) => {
-        if (activeTouchId === null) return;
         e.preventDefault();
         e.stopPropagation();
         activeTouchId = null;
@@ -615,5 +325,59 @@ export class InputManager {
     }
   }
 
+  /**
+   * Calcula el cuadrante de swipe para habilidades basándose en el ángulo del vector.
+   * @private
+   * @param {number} dx
+   * @param {number} dy
+   * @returns {string}
+   */
+  _calculateSwipePower(dx, dy) {
+    const angleRad = Math.atan2(dy, dx);
+    const angleDeg = (angleRad * 180) / Math.PI;
+
+    if (angleDeg >= -135 && angleDeg < -45) return 'Fuego';
+    if (angleDeg >= -45 && angleDeg < 45) return 'Embestida';
+    if (angleDeg >= 45 && angleDeg < 135) return 'Raíces';
+    return 'Curación';
+  }
+
+  /**
+   * Calcula el slot de la rueda radial de PC según la posición del cursor respecto al centro.
+   * @private
+   */
+  _calculateRadialSelection() {
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+
+    const dx = this.mouse.x - centerX;
+    const dy = this.mouse.y - centerY;
+
+    const deadZone = 40;
+    if (Math.hypot(dx, dy) < deadZone) {
+      this.radialSelectionIndex = -1;
+      return;
+    }
+
+    let angle = Math.atan2(dy, dx) + Math.PI / 2;
+    if (angle < 0) angle += 2 * Math.PI;
+
+    const sliceSize = (2 * Math.PI) / this.totalRadialSlots;
+    const offsetAngle = (angle + sliceSize / 2) % (2 * Math.PI);
+    this.radialSelectionIndex = Math.floor(offsetAngle / sliceSize);
+  }
+
+  /**
+   * Consulta si una tecla física está actualmente presionada.
+   * @param {string} code - Código de la tecla (ej: 'KeyW', 'Space')
+   * @returns {boolean}
+   */
+  isKeyPressed(code) {
+    return !!this.keys[code];
+  }
+
+  /**
+   * Actualización por fotograma (mantenida por uniformidad de interfaz).
+   */
   update() {}
 }
