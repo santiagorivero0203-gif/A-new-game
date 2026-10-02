@@ -62,14 +62,15 @@ export class Tilemap {
     this.offscreenCanvas.width = this.width;
     this.offscreenCanvas.height = this.height;
     const ctx = this.offscreenCanvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
 
     const grassImg = resourceManager ? resourceManager.getImage('grass_tile') : null;
     const dirtImg = resourceManager ? resourceManager.getImage('dirt_tile') : null;
 
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
-        const px = x * this.tileSize;
-        const py = y * this.tileSize;
+        const px = Math.round(x * this.tileSize);
+        const py = Math.round(y * this.tileSize);
         const tileType = this.grid[y][x];
 
         if (tileType === 1) {

@@ -1,0 +1,37 @@
+[
+  {
+    "key": "grass_tile",
+    "url": "/assets/tiles/grass.png",
+    "type": "image",
+    "tileSize": 32,
+    "required": false
+  },
+  {
+    "key": "dirt_tile",
+    "url": "/assets/tiles/dirt.png",
+    "type": "image",
+    "tileSize": 32,
+    "required": false
+  },
+  {
+    "key": "tree_sprite",
+    "url": "/assets/sprites/tree.png",
+    "type": "image",
+    "tileSize": 32,
+    "required": false
+  },
+  {
+    "key": "house_sprite",
+    "url": "/assets/sprites/house.png",
+    "type": "image",
+    "tileSize": 32,
+    "required": false
+  },
+  {
+    "key": "bush_sprite",
+    "url": "/assets/sprites/bush.png",
+    "type": "image",
+    "tileSize": 32,
+    "required": false
+  }
+]

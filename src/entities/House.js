@@ -50,12 +50,13 @@ export class House extends Entity {
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
+    const x = Math.round(this.pos.x);
+    const y = Math.round(this.pos.y);
+
     if (this.sprite) {
-      ctx.drawImage(this.sprite, this.pos.x, this.pos.y, this.width, this.height);
+      ctx.drawImage(this.sprite, x, y, this.width, this.height);
       return;
     }
-
-    const { x, y } = this.pos;
 
     // 1. Sombra suave
     ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';

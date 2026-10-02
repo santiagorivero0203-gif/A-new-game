@@ -108,9 +108,10 @@ export class FoliageProp extends Entity {
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
-    const { x, y } = this.pos;
-    const pivotX = x + this.width / 2;
-    const pivotY = y + this.height - 4; // Pivote en la base del suelo
+    const x = Math.round(this.pos.x);
+    const y = Math.round(this.pos.y);
+    const pivotX = Math.round(x + this.width / 2);
+    const pivotY = Math.round(y + this.height - 4); // Pivote en la base del suelo
 
     ctx.save();
     // Trasladar al pivote, rotar según las físicas, y dibujar
@@ -118,7 +119,7 @@ export class FoliageProp extends Entity {
     ctx.rotate(this.angle);
 
     if (this.sprite) {
-      ctx.drawImage(this.sprite, -this.width / 2, -this.height + 4, this.width, this.height);
+      ctx.drawImage(this.sprite, -Math.round(this.width / 2), -Math.round(this.height - 4), this.width, this.height);
     } else {
       this._drawFallbackBush(ctx);
     }

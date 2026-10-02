@@ -11,11 +11,17 @@ import { Vector2 } from '../utils/Vector2.js';
  * @version 2.1.0
  */
 export class InputManager {
-  constructor() {
+  /**
+   * @param {HTMLCanvasElement} [canvas] - Elemento de canvas principal opcional
+   */
+  constructor(canvas = null) {
+    /** @type {HTMLCanvasElement|null} Referencia al canvas principal para rects de precisión */
+    this.canvas = canvas || (typeof document !== 'undefined' ? document.getElementById('main-canvas') : null);
+
     /** @type {Object.<string, boolean>} Estado de teclas físicas presionadas */
     this.keys = {};
 
-    /** @type {Vector2} Posición actual del ratón en coordenadas de pantalla */
+    /** @type {Vector2} Posición actual del ratón en coordenadas relativas al canvas */
     this.mouse = new Vector2(0, 0);
 
     /** @type {boolean} Indica si la rueda radial está visible en PC */
@@ -47,8 +53,29 @@ export class InputManager {
     /** @type {Vector2} Vector de movimiento normalizado [-1..1] del joystick virtual */
     this.joystickVector = new Vector2(0, 0);
 
-    /** @type {boolean} Si el botón de ataque está activo en este fotograma */
+    /** @type {boolean} Si el botón de ataque básico (espada) está activo en este fotograma */
     this.isAttackPressed = false;
+
+    /** @type {boolean} Si el uso de habilidad elemental equipada está activo en este fotograma */
+    this.isAbilityPressed = false;
+
+    /** @type {boolean} Si el ataque fuerte/secundario está activo en este fotograma */
+    this.isStrongAttackPressed = false;
+
+    /** @type {boolean} Si la acción de curación milenaria del guante está activa */
+    this.isHealPressed = false;
+
+    /** @type {boolean} Si el comando de dash/esquiva rápida está activo */
+    this.isDashPressed = false;
+
+    /** @type {string} Poder elemental actualmente equipado ('Fuego', 'Embestida', 'Raíces') */
+    this.currentPower = 'Fuego';
+
+    /** @type {number} Timestamp del último evento de rueda del ratón para throttling */
+    this._lastWheelTime = 0;
+
+    /** @type {boolean} Si la acción de defensa (escudo/parry) está activa */
+    this.isDefendPressed = false;
 
     /** @type {string|null} Poder pre-visualizado durante el swipe actual */
     this.hoveredSwipePower = null;
@@ -88,8 +115,8 @@ export class InputManager {
   }
 
   /**
-   * Registra un callback a ejecutar cuando se completa un swipe sobre el botón de habilidad.
-   * @param {Function} cb - Recibe el nombre del poder ('Fuego', 'Embestida', 'Raíces', 'Curación')
+   * Registra un callback a ejecutar cuando se equipa un nuevo poder.
+   * @param {Function} cb - Recibe el nombre del poder ('Fuego', 'Embestida', 'Raíces')
    */
   onSkillEquipped(cb) {
     this._onSkillEquippedCallback = cb;
@@ -104,17 +131,152 @@ export class InputManager {
   }
 
   /**
-   * Enlaza los manejadores de eventos globales (Teclado físico y ratón).
+   * Establece directamente el poder elemental activo y dispara el callback.
+   * @param {string} powerName - 'Fuego' | 'Embestida' | 'Raíces'
+   */
+  setPower(powerName) {
+    if (!powerName || powerName === 'Sellado') return;
+    this.currentPower = powerName;
+    if (this._onSkillEquippedCallback) {
+      this._onSkillEquippedCallback(powerName);
+    }
+  }
+
+  /**
+   * Cicla de forma circular entre los poderes elementales disponibles.
+   * Ideal para la rueda del ratón y botones de cambio rápido.
+   * @param {number} [direction=1] - 1 para avanzar, -1 para retroceder
+   * @returns {string} Poder recién equipado
+   */
+  cyclePower(direction = 1) {
+    const availablePowers = ['Fuego', 'Embestida', 'Raíces'];
+    let idx = availablePowers.indexOf(this.currentPower || 'Fuego');
+    if (idx === -1) idx = 0;
+    idx = (idx + direction + availablePowers.length) % availablePowers.length;
+    const nextPower = availablePowers[idx];
+    this.setPower(nextPower);
+    return nextPower;
+  }
+
+  /**
+   * Dispara una acción con persistencia mínima de fotograma (latching).
+   * Garantiza que toques rápidos en pantallas táctiles se procesen sin ser borrados antes del tick del motor.
+   * @param {string} actionName - 'attack' | 'heal' | 'dash' | 'ability' | 'strong'
+   * @param {number} [durationMs=140]
+   */
+  triggerAction(actionName, durationMs = 140) {
+    switch (actionName) {
+      case 'attack':
+        this.isAttackPressed = true;
+        clearTimeout(this._timerAttack);
+        this._timerAttack = setTimeout(() => { this.isAttackPressed = false; }, durationMs);
+        break;
+      case 'heal':
+        this.isHealPressed = true;
+        clearTimeout(this._timerHeal);
+        this._timerHeal = setTimeout(() => { this.isHealPressed = false; }, durationMs);
+        break;
+      case 'dash':
+        this.isDashPressed = true;
+        clearTimeout(this._timerDash);
+        this._timerDash = setTimeout(() => { this.isDashPressed = false; }, durationMs);
+        break;
+      case 'ability':
+        this.isAbilityPressed = true;
+        clearTimeout(this._timerAbility);
+        this._timerAbility = setTimeout(() => { this.isAbilityPressed = false; }, durationMs);
+        break;
+      case 'strong':
+        this.isStrongAttackPressed = true;
+        clearTimeout(this._timerStrong);
+        this._timerStrong = setTimeout(() => { this.isStrongAttackPressed = false; }, durationMs);
+        break;
+    }
+  }
+
+  /**
+   * Consume la acción de ataque ejecutada en este fotograma.
+   */
+  consumeAttack() {
+    this.isAttackPressed = false;
+    clearTimeout(this._timerAttack);
+  }
+
+  /**
+   * Consume la acción de curación ejecutada en este fotograma.
+   */
+  consumeHeal() {
+    this.isHealPressed = false;
+    clearTimeout(this._timerHeal);
+  }
+
+  /**
+   * Consume la acción de dash ejecutada en este fotograma.
+   */
+  consumeDash() {
+    this.isDashPressed = false;
+    clearTimeout(this._timerDash);
+  }
+
+  /**
+   * Consume la acción de habilidad elemental ejecutada en este fotograma.
+   */
+  consumeAbility() {
+    this.isAbilityPressed = false;
+    clearTimeout(this._timerAbility);
+  }
+
+  /**
+   * Consume la acción de ataque fuerte ejecutada en este fotograma.
+   */
+  consumeStrongAttack() {
+    this.isStrongAttackPressed = false;
+  }
+
+  /**
+   * Enlaza los manejadores de eventos globales (Teclado físico, ratón y rueda).
    * @private
    */
   _bindEvents() {
-    // --- 1. Teclado Físico ---
+    // --- 1. Teclado Físico (Estándar de la Industria + Hotkeys Rápidos) ---
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
+
+      // Ataque de espada físico (J o Z)
+      if (e.code === 'KeyJ' || e.code === 'KeyZ') this.isAttackPressed = true;
+
+      // Habilidad elemental equipada (K o X)
+      if (e.code === 'KeyK' || e.code === 'KeyX') this.isAbilityPressed = true;
+
+      // Habilidad elemental potente / alternativa (KeyL)
+      if (e.code === 'KeyL') this.isStrongAttackPressed = true;
+
+      // Curación milenaria del guante (Q o C)
+      if (e.code === 'KeyQ' || e.code === 'KeyC') this.isHealPressed = true;
+
+      // Dash / Esquiva física (Espacio)
+      if (e.code === 'Space') this.isDashPressed = true;
+
+      // Guardia y Parry (ShiftLeft o ShiftRight)
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.isDefendPressed = true;
+
+      // Teclas numéricas para selección directa de poderes (1, 2, 3)
+      if (e.code === 'Digit1') this.setPower('Fuego');
+      if (e.code === 'Digit2') this.setPower('Embestida');
+      if (e.code === 'Digit3') this.setPower('Raíces');
+
+      // Teclas de ciclo rápido de poder (R o E)
+      if (e.code === 'KeyR' || e.code === 'KeyE') {
+        this.cyclePower(1);
+      }
+
+      // Menú radial de reliquia (Tab)
       if (e.code === 'Tab') {
         e.preventDefault();
         this.isRadialMenuOpen = true;
       }
+
+      // Pausa (Escape o P)
       if (e.code === 'Escape' || e.code === 'KeyP') {
         if (this._onPauseCallback) this._onPauseCallback();
       }
@@ -122,14 +284,36 @@ export class InputManager {
 
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
+
+      if (e.code === 'KeyJ' || e.code === 'KeyZ') this.isAttackPressed = false;
+      if (e.code === 'KeyK' || e.code === 'KeyX') this.isAbilityPressed = false;
+      if (e.code === 'KeyL') this.isStrongAttackPressed = false;
+      if (e.code === 'KeyQ' || e.code === 'KeyC') this.isHealPressed = false;
+      if (e.code === 'Space') this.isDashPressed = false;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.isDefendPressed = false;
+
       if (e.code === 'Tab') {
         this.isRadialMenuOpen = false;
       }
     });
 
-    // --- 2. Ratón para Selección Radial en PC ---
+    // --- 2. Rueda del Ratón (Mouse Wheel) para Ciclar Poderes al Vuelo ---
+    window.addEventListener('wheel', (e) => {
+      const now = performance.now();
+      // Throttling de 130ms para evitar saltos múltiples por muesca
+      if (now - this._lastWheelTime < 130) return;
+      this._lastWheelTime = now;
+
+      if (e.deltaY > 0) {
+        this.cyclePower(1);
+      } else if (e.deltaY < 0) {
+        this.cyclePower(-1);
+      }
+    }, { passive: true });
+
+    // --- 3. Ratón para Selección Radial en PC ---
     window.addEventListener('mousemove', (e) => {
-      this.mouse.set(e.clientX, e.clientY);
+      this._updateMousePosition(e.clientX, e.clientY);
       if (this.isRadialMenuOpen) {
         this._calculateRadialSelection();
       }
@@ -139,6 +323,40 @@ export class InputManager {
     window.addEventListener('touchstart', () => {
       this.isTouchDevice = true;
     }, { passive: true });
+
+    // --- 4. Ratón para Combate (Estándar Hades / Diablo / ARPG) ---
+    window.addEventListener('contextmenu', (e) => {
+      e.preventDefault(); // Prevenir menú contextual de Windows
+    });
+
+    window.addEventListener('mousedown', (e) => {
+      this._updateMousePosition(e.clientX, e.clientY);
+
+      // Clic Izquierdo (Botón 0): Ataque básico de Espada
+      if (e.button === 0) {
+        this.isAttackPressed = true;
+      }
+      // Botón Central (Botón 1): Guardia / Escudo
+      if (e.button === 1) {
+        this.isDefendPressed = true;
+      }
+      // Clic Derecho (Botón 2): Habilidad Elemental Equipada
+      if (e.button === 2) {
+        this.isAbilityPressed = true;
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) {
+        this.isAttackPressed = false;
+      }
+      if (e.button === 1) {
+        this.isDefendPressed = false;
+      }
+      if (e.button === 2) {
+        this.isAbilityPressed = false;
+      }
+    });
   }
 
   /**
@@ -166,6 +384,9 @@ export class InputManager {
       sec.addEventListener('click', (e) => {
         e.stopPropagation();
         const power = sec.dataset.power;
+        if (sec.classList.contains('locked') || power === 'Sellado') {
+          return; // No se puede equipar el slot sellado
+        }
         if (power && this._onSkillEquippedCallback) {
           this._onSkillEquippedCallback(power);
         }
@@ -173,24 +394,78 @@ export class InputManager {
       });
     });
 
-    // 3. Botón de Ataque Táctil en DOM
-    const btnAttack = document.getElementById('touch-btn-attack');
-    if (btnAttack) {
-      const startAttack = (e) => {
+    // 3. Botones Táctiles del Virtual Gamepad (Botonera Completa Ergonómica con Latching)
+    const bindBtn = (id, onDown, onUp, triggerActionName = null) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      let pressStartTime = 0;
+
+      const start = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this.isAttackPressed = true;
+        this.isTouchDevice = true;
+        pressStartTime = performance.now();
+        if (triggerActionName) {
+          this.triggerAction(triggerActionName, 180);
+        } else {
+          onDown();
+        }
+        btn.classList.add('touch-pressed');
       };
-      const stopAttack = (e) => {
+
+      const stop = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this.isAttackPressed = false;
+        btn.classList.remove('touch-pressed');
+        const elapsed = performance.now() - pressStartTime;
+        if (triggerActionName) {
+          if (elapsed >= 180) {
+            onUp();
+          }
+        } else {
+          onUp();
+        }
       };
-      btnAttack.addEventListener('touchstart', startAttack, { passive: false });
-      btnAttack.addEventListener('touchend', stopAttack, { passive: false });
-      btnAttack.addEventListener('mousedown', startAttack);
-      btnAttack.addEventListener('mouseup', stopAttack);
-      btnAttack.addEventListener('mouseleave', stopAttack);
+
+      btn.addEventListener('touchstart', start, { passive: false });
+      btn.addEventListener('touchend', stop, { passive: false });
+      btn.addEventListener('touchcancel', stop, { passive: false });
+      btn.addEventListener('mousedown', start);
+      btn.addEventListener('mouseup', stop);
+      btn.addEventListener('mouseleave', stop);
+    };
+
+    // 3.1 Botón Central de Espada
+    bindBtn('touch-btn-attack', () => { this.isAttackPressed = true; }, () => { this.isAttackPressed = false; }, 'attack');
+
+    // 3.2 Botón de Habilidad Elemental Débil / Rápida
+    bindBtn('touch-btn-skill-weak', () => { this.isAbilityPressed = true; }, () => { this.isAbilityPressed = false; }, 'ability');
+
+    // 3.3 Botón de Habilidad Elemental Fuerte / Cargada
+    bindBtn('touch-btn-skill-strong', () => { this.isStrongAttackPressed = true; }, () => { this.isStrongAttackPressed = false; }, 'strong');
+
+    // 3.4 Botón de Esquiva / Dash con Iframes
+    bindBtn('touch-btn-dash', () => { this.isDashPressed = true; }, () => { this.isDashPressed = false; }, 'dash');
+
+    // 3.5 Botón de Guardia y Defensa con Escudo / Parry
+    bindBtn('touch-btn-defend', () => { this.isDefendPressed = true; }, () => { 
+      setTimeout(() => { this.isDefendPressed = false; }, 140);
+    });
+
+    // 3.6 Botón de Curación Milenaria del Guante
+    bindBtn('touch-btn-heal', () => { this.isHealPressed = true; }, () => { this.isHealPressed = false; }, 'heal');
+
+    // 3.7 Selector Rápido de Elemento (Cicla entre Fuego, Embestida y Raíces)
+    const btnSwitch = document.getElementById('touch-btn-switch');
+    if (btnSwitch) {
+      const handleSwitch = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.isTouchDevice = true;
+        this.cyclePower(1);
+      };
+      btnSwitch.addEventListener('touchstart', handleSwitch, { passive: false });
+      btnSwitch.addEventListener('click', handleSwitch);
     }
 
     // 4. Joystick Táctil en DOM
@@ -210,6 +485,8 @@ export class InputManager {
 
         if (dist === 0) {
           this.joystickVector.set(0, 0);
+          const thumb = document.getElementById('touch-joystick-thumb');
+          if (thumb) thumb.style.transform = 'translate(0px, 0px)';
           return;
         }
 
@@ -217,6 +494,11 @@ export class InputManager {
         const normX = dx / dist;
         const normY = dy / dist;
         this.joystickVector.set(normX * (clamped / maxDist), normY * (clamped / maxDist));
+
+        const thumb = document.getElementById('touch-joystick-thumb');
+        if (thumb) {
+          thumb.style.transform = `translate(${normX * clamped}px, ${normY * clamped}px)`;
+        }
       };
 
       const startJoy = (e) => {
@@ -251,6 +533,10 @@ export class InputManager {
         e.stopPropagation();
         activeTouchId = null;
         this.joystickVector.set(0, 0);
+        const thumb = document.getElementById('touch-joystick-thumb');
+        if (thumb) {
+          thumb.style.transform = 'translate(0px, 0px)';
+        }
       };
 
       joyZone.addEventListener('touchstart', startJoy, { passive: false });
@@ -304,8 +590,13 @@ export class InputManager {
         e.preventDefault();
         e.stopPropagation();
         isSwiping = false;
-        if (this.hoveredSwipePower && this._onSkillEquippedCallback) {
-          this._onSkillEquippedCallback(this.hoveredSwipePower);
+        
+        // Si no hubo swipe direccional, fue un tap -> Disparar la habilidad elemental equipada
+        if (!this.hoveredSwipePower) {
+          this.isAbilityPressed = true;
+          setTimeout(() => { this.isAbilityPressed = false; }, 80);
+        } else if (this.hoveredSwipePower !== null) {
+          this.setPower(this.hoveredSwipePower);
         }
         this.hoveredSwipePower = null;
       };
@@ -327,10 +618,11 @@ export class InputManager {
 
   /**
    * Calcula el cuadrante de swipe para habilidades basándose en el ángulo del vector.
+   * Norte: Fuego | Este: Embestida | Sur: Raíces | Oeste: Sellado (4to elemento por descubrir)
    * @private
    * @param {number} dx
    * @param {number} dy
-   * @returns {string}
+   * @returns {string|null}
    */
   _calculateSwipePower(dx, dy) {
     const angleRad = Math.atan2(dy, dx);
@@ -339,16 +631,48 @@ export class InputManager {
     if (angleDeg >= -135 && angleDeg < -45) return 'Fuego';
     if (angleDeg >= -45 && angleDeg < 45) return 'Embestida';
     if (angleDeg >= 45 && angleDeg < 135) return 'Raíces';
-    return 'Curación';
+    // Oeste está reservado para el 4to elemento futuro aún sin despertar
+    return null;
   }
 
   /**
-   * Calcula el slot de la rueda radial de PC según la posición del cursor respecto al centro.
+   * Obtiene el rectángulo delimitador del canvas principal o dimensiones de viewport seguras.
+   * @returns {DOMRect|{left: number, top: number, width: number, height: number}}
+   */
+  getCanvasRect() {
+    if (!this.canvas && typeof document !== 'undefined') {
+      this.canvas = document.getElementById('main-canvas');
+    }
+    if (this.canvas) {
+      return this.canvas.getBoundingClientRect();
+    }
+    return {
+      left: 0,
+      top: 0,
+      width: (typeof window !== 'undefined' ? window.innerWidth : 960),
+      height: (typeof window !== 'undefined' ? window.innerHeight : 540)
+    };
+  }
+
+  /**
+   * Actualiza las coordenadas del ratón respecto al origen del canvas principal.
+   * @private
+   * @param {number} clientX
+   * @param {number} clientY
+   */
+  _updateMousePosition(clientX, clientY) {
+    const rect = this.getCanvasRect();
+    this.mouse.set(clientX - rect.left, clientY - rect.top);
+  }
+
+  /**
+   * Calcula el slot de la rueda radial de PC según la posición del cursor respecto al centro real del canvas.
    * @private
    */
   _calculateRadialSelection() {
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
+    const rect = this.getCanvasRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
 
     const dx = this.mouse.x - centerX;
     const dy = this.mouse.y - centerY;

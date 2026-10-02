@@ -20,14 +20,20 @@ export class Camera {
     this.viewportWidth = viewportWidth;
     this.viewportHeight = viewportHeight;
 
-    /** @type {number} Nivel de zoom cinemático (1.45x para encuadre cercano y detalle chibi) */
-    this.zoom = 1.45;
+    /** @type {number} Escala de píxeles del dispositivo (Device Pixel Ratio) */
+    this.dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+
+    /** @type {number} Multiplicador de zoom efectivo (calculado dinámicamente) */
+    this.zoom = 2.0;
 
     /** @type {number} Constante de velocidad para el decaimiento exponencial (LERP suave) */
     this.lerpSpeed = 7.0;
 
     /** @type {{x: number, y: number, width: number, height: number}|null} Límites del mapa */
     this.roomBounds = null;
+
+    // Calcular zoom pixel-perfect inicial
+    this.updatePixelPerfectZoom();
 
     // --- Sistema de Screen Shake (Temblor de Cámara) ---
     /** @type {number} Nivel de trauma actual [0..1] */
@@ -51,13 +57,33 @@ export class Camera {
   }
 
   /**
-   * Actualiza las dimensiones del viewport.
-   * @param {number} width
-   * @param {number} height
+   * Actualiza las dimensiones del viewport y recalcula el zoom pixel-perfect.
+   * @param {number} width - Ancho en píxeles CSS
+   * @param {number} height - Alto en píxeles CSS
+   * @param {number} [dpr] - Escala de píxeles del dispositivo
    */
-  setViewportSize(width, height) {
+  setViewportSize(width, height, dpr = undefined) {
     this.viewportWidth = width;
     this.viewportHeight = height;
+    if (dpr !== undefined) {
+      this.dpr = dpr;
+    }
+    this.updatePixelPerfectZoom();
+  }
+
+  /**
+   * Calcula el zoom efectivo pixel-perfect a partir de la altura del viewport.
+   * El zoom multiplicado por DPR es un entero positivo garantizado para que los
+   * sprites de 32x32 px se muestren con nitidez perfecta sin deformación ni artefactos.
+   */
+  updatePixelPerfectZoom() {
+    const baseTargetHeight = 270; // Altura de referencia (540 / 2)
+    const effectiveDpr = this.dpr || 1;
+    const physicalHeight = (this.viewportHeight || 540) * effectiveDpr;
+    // Escala física entera requerida en pantalla
+    const integerScale = Math.max(1, Math.round(physicalHeight / baseTargetHeight));
+    // Zoom relativo en coordenadas del viewport (múltiplo exacto de 1/DPR)
+    this.zoom = integerScale / effectiveDpr;
   }
 
   /**
@@ -152,19 +178,24 @@ export class Camera {
   }
 
   /**
-   * Aplica la matriz de transformación: Centrado + Zoom + Posición del Mundo + Shake.
+   * Aplica la matriz de transformación: DPR + Centrado + Zoom + Posición del Mundo + Shake.
+   * Emplea redondeo al píxel (Math.round) para consistencia visual pixel-perfect.
    * @param {CanvasRenderingContext2D} ctx
    */
   applyTransform(ctx) {
     ctx.save();
-    // 1. Mover al centro del viewport
-    ctx.translate(Math.floor(this.viewportWidth / 2), Math.floor(this.viewportHeight / 2));
-    // 2. Aplicar escala de Zoom cinemático
+    // 0. Escalar por DPR si el buffer del canvas utiliza resolución física nativa
+    if (this.dpr && this.dpr !== 1) {
+      ctx.scale(this.dpr, this.dpr);
+    }
+    // 1. Mover al centro del viewport con redondeo entero
+    ctx.translate(Math.round(this.viewportWidth / 2), Math.round(this.viewportHeight / 2));
+    // 2. Aplicar escala de Zoom cinemático pixel-perfect
     ctx.scale(this.zoom, this.zoom);
-    // 3. Trasladar al objetivo mundial con Screen Shake
+    // 3. Trasladar al objetivo mundial con Screen Shake y redondeo al píxel
     ctx.translate(
-      -Math.floor(this.pos.x) - Math.floor(this.shakeOffset.x),
-      -Math.floor(this.pos.y) - Math.floor(this.shakeOffset.y)
+      -Math.round(this.pos.x + this.shakeOffset.x),
+      -Math.round(this.pos.y + this.shakeOffset.y)
     );
   }
 

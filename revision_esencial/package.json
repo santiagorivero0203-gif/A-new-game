@@ -1,0 +1,14 @@
+{
+  "name": "be-a-legend-engine",
+  "version": "1.0.0",
+  "description": "Action-RPG 2D Top-Down in Pixel Art",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

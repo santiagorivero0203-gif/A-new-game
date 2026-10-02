@@ -39,11 +39,25 @@ export class NPC extends Entity {
   }
 
   /**
+   * Asigna la textura del sprite del NPC.
+   * @param {HTMLImageElement|HTMLCanvasElement} sprite
+   */
+  setSprite(sprite) {
+    this.sprite = sprite;
+  }
+
+  /**
    * Renderizado vectorial estilizado del Sabio / Anciano del Claro.
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
-    const { x, y } = this.pos;
+    const x = Math.round(this.pos.x);
+    const y = Math.round(this.pos.y);
+
+    if (this.sprite) {
+      ctx.drawImage(this.sprite, x, y, this.width, this.height);
+      return;
+    }
 
     // 1. Sombra elíptica en el suelo
     ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';

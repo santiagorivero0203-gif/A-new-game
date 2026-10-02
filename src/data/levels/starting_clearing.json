@@ -1,0 +1,45 @@
+{
+  "id": "starting_clearing",
+  "name": "El Claro Sagrado",
+  "map": {
+    "cols": 40,
+    "rows": 40,
+    "tileSize": 32
+  },
+  "playerSpawn": {
+    "x": 624,
+    "y": 624
+  },
+  "entities": [
+    { "type": "house", "x": 560, "y": 260 },
+    { "type": "npc", "x": 640, "y": 410, "name": "Guardián Sabio Tarak" },
+    { "type": "enemy", "x": 540, "y": 520, "element": "plantas", "name": "Slime de Hojas" },
+    { "type": "enemy", "x": 710, "y": 520, "element": "fuego", "name": "Slime Ígneo" },
+    { "type": "enemy", "x": 624, "y": 490, "element": "kinetic", "name": "Gólem Cinético" }
+  ],
+  "foliage": [
+    { "x": 530, "y": 560 },
+    { "x": 570, "y": 680 },
+    { "x": 690, "y": 580 },
+    { "x": 740, "y": 660 },
+    { "x": 450, "y": 490 },
+    { "x": 810, "y": 470 },
+    { "x": 510, "y": 360 },
+    { "x": 680, "y": 350 }
+  ],
+  "clearingTrees": [
+    { "x": 400, "y": 520 },
+    { "x": 480, "y": 710 },
+    { "x": 800, "y": 540 },
+    { "x": 890, "y": 710 },
+    { "x": 380, "y": 360 },
+    { "x": 780, "y": 320 },
+    { "x": 310, "y": 600 },
+    { "x": 960, "y": 600 }
+  ],
+  "perimeterConfig": {
+    "step": 75,
+    "hasOpenRoad": true,
+    "roadGapY": [560, 700]
+  }
+}

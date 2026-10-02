@@ -1,5 +1,8 @@
 import { Entity } from './Entity.js';
 import { Vector2 } from '../utils/Vector2.js';
+import { FireAbility } from '../combat/FireAbility.js';
+import { KineticAbility } from '../combat/KineticAbility.js';
+import { EarthAbility } from '../combat/EarthAbility.js';
 
 /**
  * @module Player
@@ -41,6 +44,116 @@ export class Player extends Entity {
 
     this._hitboxCache.width = this.hitbox.width;
     this._hitboxCache.height = this.hitbox.height;
+
+    /** @type {string} Estado actual (FSM) */
+    this.fsmState = 'STATE_IDLE';
+    this.stateTimer = 0;
+
+    /** @type {number} Salud del héroe (3 corazones) */
+    this.health = 3;
+    this.max_health = 3;
+
+    /** @type {number} Reserva de Energía Elemental milenaria (0 - 100) */
+    this.energy = 100;
+    this.max_energy = 100;
+
+    /** @type {number} Regeneración pasiva de energía por segundo */
+    this.energy_regen_rate = 4; // Tasa equilibrada (no se llena tan rápido)
+
+    /** @type {number} Temporizador de recuperación post-tajo (cooldown mínimo de espada) */
+    this.swordCooldown = 0;
+    /** @type {number} Tiempo mínimo de delay entre tajos de espada (380ms recovery + 220ms tajo = 600ms ciclo) */
+    this.SWORD_RECOVERY_TIME = 0.38;
+
+    /** @type {number} Cooldown interno de curación del guante (2.5 segundos) */
+    this.healCooldown = 0;
+    this.healTimer = 0;
+
+    /** @type {number} Cooldown anti-spam de parry para evitar reinicios infinitos */
+    this.parryCooldown = 0;
+
+    /** @type {number} Cooldown y estado de esquiva rápida (Dash) */
+    this.dashCooldown = 0;
+    this.dashTimer = 0;
+    this.isDashing = false;
+    this.dashSpeed = 0;
+    this.dashDirection = new Vector2(0, 0);
+    
+    /** @type {Object<string, import('../combat/Ability.js').Ability>} */
+    const earthAbility = new EarthAbility();
+    this.abilities = {
+      'Fuego': new FireAbility(),
+      'Embestida': new KineticAbility(),
+      'Plantas': earthAbility,
+      'Raíces': earthAbility
+      // El 4to elemento se desbloqueará progresivamente en el mundo
+    };
+    this.currentAbility = 'Fuego';
+    this.sprite = null;
+  }
+
+  /**
+   * Asigna la textura del sprite del jugador.
+   * @param {HTMLImageElement|HTMLCanvasElement} sprite
+   */
+  setSprite(sprite) {
+    this.sprite = sprite;
+  }
+
+  /**
+   * Calcula la hitbox de barrido frontal en abanico (Sweeping Edge estilo Minecraft) según la orientación.
+   * Cobertura amplia (72px de ancho lateral x 48px de profundidad) para golpear y repeler múltiples objetivos.
+   * @returns {{x: number, y: number, width: number, height: number}}
+   */
+  getSwordSweepHitbox() {
+    const cx = this.pos.x + this.width / 2;
+    const cy = this.pos.y + this.height / 2;
+
+    switch (this.facing) {
+      case 'up':
+        return { x: cx - 36, y: cy - 52, width: 72, height: 48 };
+      case 'down':
+        return { x: cx - 36, y: cy + 4, width: 72, height: 48 };
+      case 'left':
+        return { x: cx - 52, y: cy - 36, width: 48, height: 72 };
+      case 'right':
+      default:
+        return { x: cx + 4, y: cy - 36, width: 48, height: 72 };
+    }
+  }
+
+  /**
+   * Alias de compatibilidad para la hitbox de la espada.
+   */
+  getSwordHitbox() {
+    return this.getSwordSweepHitbox();
+  }
+
+  equipAbility(name) {
+    let targetName = name;
+    if (targetName === 'Raíces' || targetName === 'Raices') targetName = 'Plantas';
+    if (this.abilities[targetName]) {
+      this.currentAbility = targetName;
+      if (typeof window !== 'undefined' && window.DEBUG_MODE) {
+        console.log(`[Player] Habilidad equipada: ${targetName}`);
+      }
+    }
+  }
+
+  /**
+   * Inicia un dash físico con impulso direccional de alta velocidad.
+   * @param {number} dx - Dirección en X (-1, 0, 1)
+   * @param {number} dy - Dirección en Y (-1, 0, 1)
+   * @param {number} speed - Velocidad en píxeles por segundo
+   * @param {number} duration - Duración en segundos
+   */
+  startDash(dx, dy, speed = 420, duration = 0.25) {
+    const len = Math.hypot(dx, dy) || 1;
+    this.dashDirection.set(dx / len, dy / len);
+    this.dashSpeed = speed;
+    this.dashTimer = duration;
+    this.isDashing = true;
+    this.applyEffect('iframe', duration + 0.05);
   }
 
   /**
@@ -50,42 +163,73 @@ export class Player extends Entity {
    * @param {import('../systems/PhysicsSystem.js').PhysicsSystem} [legacyPhysics]
    */
   update(contextOrDt, legacyInput, legacyPhysics) {
+    super.update(contextOrDt); // Para aplicar efectos temporales (Entity.js)
+    
     const isContext = typeof contextOrDt === 'object' && contextOrDt !== null;
     const deltaTime = isContext ? contextOrDt.deltaTime : contextOrDt;
     const input = isContext ? contextOrDt.input : legacyInput;
     const physics = isContext ? contextOrDt.physics : legacyPhysics;
+    const combatManager = isContext ? contextOrDt.combatManager : null;
 
-    this.velocity.set(0, 0);
+    // 0. Regeneración pasiva y gestión de temporizadores de utilidad
+    if (this.fsmState !== 'STATE_GUARD_BREAK') {
+      this.energy = Math.min(this.max_energy, this.energy + this.energy_regen_rate * deltaTime);
+    }
+    if (this.swordCooldown > 0) this.swordCooldown -= deltaTime;
+    if (this.parryCooldown > 0) this.parryCooldown -= deltaTime;
+    if (this.healCooldown > 0) this.healCooldown -= deltaTime;
+    if (this.healTimer > 0) this.healTimer -= deltaTime;
+    if (this.dashCooldown > 0) this.dashCooldown -= deltaTime;
+    if (this.dashTimer > 0) {
+      this.dashTimer -= deltaTime;
+      if (this.dashTimer <= 0) this.isDashing = false;
+    }
+
+    // Sincronizar estado global con StateManager
+    if (isContext && contextOrDt.state) {
+      contextOrDt.state.set('player_energy', this.energy);
+      contextOrDt.state.set('player_health', this.health);
+      contextOrDt.state.set('health_critical', this.health <= 1);
+    }
+
+    if (this.fsmState === 'STATE_GUARD_BREAK') {
+      if (this.stateTimer > 0) {
+        this.stateTimer -= deltaTime;
+        if (this.stateTimer <= 0) {
+          this.fsmState = 'STATE_IDLE';
+        }
+      }
+    } else if (this.fsmState !== 'STATE_DEFEND') {
+      if (this.stateTimer > 0) {
+        this.stateTimer -= deltaTime;
+        if (this.stateTimer <= 0) {
+          this.fsmState = 'STATE_IDLE';
+        }
+      }
+    }
 
     if (this.attackTimer > 0) {
       this.attackTimer -= deltaTime;
     }
 
+    this.velocity.set(0, 0);
+
+    let canMove = (this.fsmState === 'STATE_IDLE' || this.fsmState === 'STATE_MOVE') && !this.isDashing;
+    let canAttack = (this.fsmState === 'STATE_IDLE' || this.fsmState === 'STATE_MOVE');
+    let moveX = 0; 
+    let moveY = 0;
+
     if (input) {
       // 1. Entradas de teclado físico
-      if (input.isKeyPressed('KeyW') || input.isKeyPressed('ArrowUp')) {
-        this.velocity.y -= 1;
-        this.facing = 'up';
-      }
-      if (input.isKeyPressed('KeyS') || input.isKeyPressed('ArrowDown')) {
-        this.velocity.y += 1;
-        this.facing = 'down';
-      }
-      if (input.isKeyPressed('KeyA') || input.isKeyPressed('ArrowLeft')) {
-        this.velocity.x -= 1;
-        this.facing = 'left';
-      }
-      if (input.isKeyPressed('KeyD') || input.isKeyPressed('ArrowRight')) {
-        this.velocity.x += 1;
-        this.facing = 'right';
-      }
+      if (input.isKeyPressed('KeyW') || input.isKeyPressed('ArrowUp')) { moveY -= 1; this.facing = 'up'; }
+      if (input.isKeyPressed('KeyS') || input.isKeyPressed('ArrowDown')) { moveY += 1; this.facing = 'down'; }
+      if (input.isKeyPressed('KeyA') || input.isKeyPressed('ArrowLeft')) { moveX -= 1; this.facing = 'left'; }
+      if (input.isKeyPressed('KeyD') || input.isKeyPressed('ArrowRight')) { moveX += 1; this.facing = 'right'; }
 
       // 2. Entrada de Joystick Táctil Virtual
       if (input.joystickVector && input.joystickVector.lengthSquared() > 0.02) {
-        this.velocity.x += input.joystickVector.x;
-        this.velocity.y += input.joystickVector.y;
-
-        // Actualizar dirección según el joystick
+        moveX += input.joystickVector.x;
+        moveY += input.joystickVector.y;
         if (Math.abs(input.joystickVector.x) > Math.abs(input.joystickVector.y)) {
           this.facing = input.joystickVector.x > 0 ? 'right' : 'left';
         } else {
@@ -93,24 +237,204 @@ export class Player extends Entity {
         }
       }
 
-      // 3. Botón de Ataque
-      if (input.isAttackPressed && this.attackTimer <= 0) {
-        this.attackTimer = 0.25; // 250ms de animación de tajo
-        if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-          console.log(`[Player] Ataque disparado hacia: ${this.facing}`);
+      if (canMove) {
+        this.velocity.x = moveX;
+        this.velocity.y = moveY;
+        if (moveX !== 0 || moveY !== 0) this.fsmState = 'STATE_MOVE';
+        else this.fsmState = 'STATE_IDLE';
+      }
+
+      // Procesar Defensa y Postura con Límite al Spam de Parry
+      if (this.fsmState !== 'STATE_GUARD_BREAK') {
+        if (input.isDefendPressed) {
+          if (this.fsmState !== 'STATE_DEFEND') {
+            this.fsmState = 'STATE_DEFEND';
+            if (this.parryCooldown <= 0) {
+              this.stateTimer = 0; // Ventana de Parry perfecta abierta (0..0.15s)
+              this.parryCooldown = 0.42; // Cooldown antes de poder reiniciar ventana de parry
+            } else {
+              this.stateTimer = 0.22; // Spam penalizado: defiende pero fuera de ventana de parry
+            }
+          } else {
+            this.stateTimer += deltaTime;
+          }
+          canMove = false;
+          canAttack = false;
+          this.velocity.set(0, 0);
+        } else if (this.fsmState === 'STATE_DEFEND') {
+          this.fsmState = 'STATE_IDLE';
+        }
+      }
+
+      // 3. Dash / Esquiva Rápida (Espacio / Botón Táctil) con CANCELACIÓN DE ANIMACIÓN
+      // Permite abortar ataques lentos para reaccionar a embestidas del Duelista Implacable
+      const canDashCancel = this.fsmState !== 'STATE_GUARD_BREAK' && !this.isDashing;
+      if (input.isDashPressed && this.dashCooldown <= 0 && canDashCancel) {
+        if (typeof input.consumeDash === 'function') input.consumeDash();
+        const dashCost = 10;
+        if (this.energy >= dashCost) {
+          this.energy -= dashCost;
+          this.dashCooldown = 0.55;
+          this.attackTimer = 0; // Abortar ataque activo inmediatamente (Animation Cancel)
+          if (combatManager) {
+            combatManager.cancelAttacksFrom(this); // Cancelar hitboxes activas del jugador
+          }
+          this.swordCooldown = 0.10; // Reiniciar cooldown de espada tras esquiva
+          this.fsmState = 'STATE_DASH';
+          const dx = this.facing === 'right' ? 1 : this.facing === 'left' ? -1 : 0;
+          const dy = this.facing === 'down' ? 1 : this.facing === 'up' ? -1 : 0;
+          const useX = (moveX !== 0 || moveY !== 0) ? moveX : dx;
+          const useY = (moveX !== 0 || moveY !== 0) ? moveY : dy;
+          this.startDash(useX, useY, 420, 0.24);
+        }
+      }
+
+      // 4. Curación Milenaria del Guante (Q / C / Botón Verde) — Habilidad Base
+      if (input.isHealPressed && this.healCooldown <= 0 && canAttack) {
+        if (typeof input.consumeHeal === 'function') input.consumeHeal();
+
+        const healCost = 30;
+        if (this.health < this.max_health) {
+          if (this.energy >= healCost) {
+            this.energy -= healCost;
+            this.health = Math.min(this.max_health, this.health + 1);
+            this.healCooldown = 2.5; // 2.5 segundos de cooldown
+            this.healTimer = 0.85;   // Duración de animación y pulso curativo esmeralda
+            if (isContext && contextOrDt.state) {
+              contextOrDt.state.set('player_health', this.health);
+              contextOrDt.state.set('health_critical', this.health <= 1);
+            }
+          }
+        } else {
+          // Si la salud ya está al máximo (3/3), no falla en silencio:
+          // Activa un Escudo de Vitalidad con halo de protección
+          const barrierCost = 20;
+          if (this.energy >= barrierCost) {
+            this.energy -= barrierCost;
+            this.healCooldown = 2.0;
+            this.healTimer = 0.85;
+            this.applyEffect('vitality_shield', 4.0);
+            if (isContext && contextOrDt.state) {
+              contextOrDt.state.set('active_dialogue', {
+                speaker: 'GUANTELETE',
+                text: '¡Salud al máximo! Escudo de Vitalidad activado.',
+                timer: 2.5
+              });
+            }
+          }
+        }
+      }
+
+      // 5. Ataques y Sinergias (FSM)
+      const tryTransition = (nextState) => {
+        if (!canAttack) return false;
+        if (!combatManager) return true;
+        return combatManager.canCancel(this.fsmState, nextState);
+      };
+
+      // 5.1 Ataque de Espada Básico (Físico — Clic Izquierdo / J / Z / Botón Táctil)
+      // Requiere que el ataque activo y el delay de recuperación (cooldown) hayan concluido
+      if (input.isAttackPressed && this.attackTimer <= 0 && this.swordCooldown <= 0 && tryTransition('STATE_ATTACK_WEAK')) {
+        if (typeof input.consumeAttack === 'function') input.consumeAttack();
+
+        // Obtener estadísticas data-driven del arma equipada
+        const equipmentManager = isContext ? contextOrDt.equipmentManager : null;
+        const weapon = equipmentManager && equipmentManager.getWeapon ? equipmentManager.getWeapon() : null;
+        const swordRecovery = weapon ? weapon.recoveryTime : this.SWORD_RECOVERY_TIME;
+        const swordDuration = weapon ? weapon.duration : 0.22;
+        const swordDamage = weapon ? weapon.damage : 16;
+        const swordKnockback = weapon ? weapon.knockback : 32;
+        const lungeForce = weapon ? weapon.lungeForce : 10;
+
+        this.fsmState = 'STATE_ATTACK_WEAK';
+        this.attackTimer = swordDuration;
+        this.stateTimer = swordDuration;
+        this.swordCooldown = swordRecovery;
+
+        // Mecánica Push-Forward: paso frontal hacia el enemigo al atacar
+        const lungeX = this.pos.x + (this.facing === 'right' ? lungeForce : this.facing === 'left' ? -lungeForce : 0);
+        const lungeY = this.pos.y + (this.facing === 'down' ? lungeForce : this.facing === 'up' ? -lungeForce : 0);
+        if (physics && typeof physics.moveWithCollisions === 'function') {
+          const safePos = physics.moveWithCollisions(this, lungeX, lungeY);
+          this.pos.set(safePos.x, safePos.y);
+        } else {
+          this.pos.set(lungeX, lungeY);
+        }
+
+        const cx = this.pos.x + this.width / 2;
+        const cy = this.pos.y + this.height / 2;
+
+        if (combatManager) {
+          combatManager.addAttack({
+            owner: this,
+            type: 'weak',
+            element: 'physical',
+            damage: swordDamage,
+            duration: swordDuration,
+            hitbox: this.getSwordSweepHitbox(),
+            destroyOnHit: false,
+            hitEntities: new Set(),
+            isSweep: true,
+            facing: this.facing,
+            originX: cx,
+            originY: cy,
+            knockbackForce: swordKnockback
+          });
+        }
+      }
+
+      // 5.2 Habilidad Elemental Equipada (Clic Derecho / K / X / Tap Táctil)
+      if (input.isAbilityPressed && this.attackTimer <= 0 && tryTransition('STATE_ATTACK_WEAK')) {
+        if (typeof input.consumeAbility === 'function') input.consumeAbility();
+        const ab = this.abilities[this.currentAbility];
+        const abilityCost = 15; // Coste estándar de energía elemental
+        if (ab && this.energy >= abilityCost) {
+          this.energy -= abilityCost;
+          this.fsmState = 'STATE_ATTACK_WEAK';
+          const context = isContext ? contextOrDt : {};
+          const dur = ab.executeWeak(this, context);
+          this.attackTimer = dur;
+          this.stateTimer = dur;
+        }
+      }
+
+      // 5.3 Ataque Elemental Fuerte (KeyL / Combinaciones)
+      if (input.isStrongAttackPressed && tryTransition('STATE_ATTACK_STRONG')) {
+        if (typeof input.consumeStrongAttack === 'function') input.consumeStrongAttack();
+        if (this.fsmState !== 'STATE_ATTACK_STRONG' && this.attackTimer <= 0) {
+          const ab = this.abilities[this.currentAbility];
+          const strongCost = 30;
+          if (ab && this.energy >= strongCost) {
+            const context = isContext ? contextOrDt : {};
+            const dur = ab.executeStrong(this, context);
+            if (dur > 0) {
+              this.energy -= strongCost;
+              this.fsmState = 'STATE_ATTACK_STRONG';
+              this.stateTimer = dur;
+              this.attackTimer = dur;
+            }
+          }
         }
       }
     }
 
-    // Normalizar vector si la magnitud excede 1
-    if (this.velocity.lengthSquared() > 1) {
-      this.velocity.normalize();
+    let nextX, nextY;
+    if (this.isDashing && this.dashTimer > 0) {
+      // Física pura de Dash de alta velocidad sin clamping de caminar
+      const dashDistX = this.dashDirection.x * this.dashSpeed * deltaTime;
+      const dashDistY = this.dashDirection.y * this.dashSpeed * deltaTime;
+      this.velocity.set(this.dashDirection.x * this.dashSpeed, this.dashDirection.y * this.dashSpeed);
+      nextX = this.pos.x + dashDistX;
+      nextY = this.pos.y + dashDistY;
+    } else {
+      // Movimiento normal a pie
+      if (this.velocity.lengthSquared() > 1) {
+        this.velocity.normalize();
+      }
+      this.velocity.multiplyScalar(this.speed * deltaTime);
+      nextX = this.pos.x + this.velocity.x;
+      nextY = this.pos.y + this.velocity.y;
     }
-    this.velocity.multiplyScalar(this.speed * deltaTime);
-
-    // Posición tentativa
-    const nextX = this.pos.x + this.velocity.x;
-    const nextY = this.pos.y + this.velocity.y;
 
     // Resolver colisiones
     if (physics) {
@@ -126,7 +450,13 @@ export class Player extends Entity {
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
-    const { x, y } = this.pos;
+    const x = Math.round(this.pos.x);
+    const y = Math.round(this.pos.y);
+
+    if (this.sprite) {
+      ctx.drawImage(this.sprite, x, y, this.width, this.height);
+      return;
+    }
 
     // 1. Sombra suave en el suelo
     ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
@@ -168,41 +498,69 @@ export class Player extends Entity {
       ctx.fillRect(x + 18, y + 10, 2, 3);
     }
 
-    // 8. Efecto visual de Tajo de Espada si está atacando
-    if (this.attackTimer > 0) {
-      this._drawSlashEffect(ctx, x, y);
+    // 8. El efecto visual de Tajo de Espada es renderizado por VFXRenderer (Sweeping Edge)
+    // para evitar duplicación de trazos y desalineación de capas.
+
+    // 9. Aura y destellos de Curación Milenaria del Guante
+    if (this.healTimer > 0) {
+      this._drawHealEffect(ctx, x, y);
+    }
+
+    // 10. Estela de velocidad si está en Dash
+    if (this.isDashing) {
+      this._drawDashTrail(ctx, x, y);
     }
   }
 
   /**
-   * Dibuja un arco de energía cortante frente al héroe.
+   * Renderiza el pulso curativo sacro bajo los pies del héroe.
    * @private
    */
-  _drawSlashEffect(ctx, px, py) {
+  _drawHealEffect(ctx, px, py) {
     ctx.save();
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-
     const cx = px + 16;
-    const cy = py + 16;
+    const cy = py + 26;
+    const progress = Math.max(0, this.healTimer / 0.85);
+    const radius = 22 * (1 - progress * 0.4);
 
-    if (this.facing === 'right') {
-      ctx.arc(cx + 10, cy, 22, -Math.PI / 3, Math.PI / 3);
-    } else if (this.facing === 'left') {
-      ctx.arc(cx - 10, cy, 22, (2 * Math.PI) / 3, (4 * Math.PI) / 3);
-    } else if (this.facing === 'up') {
-      ctx.arc(cx, cy - 10, 22, (7 * Math.PI) / 6, (11 * Math.PI) / 6);
-    } else {
-      ctx.arc(cx, cy + 10, 22, Math.PI / 6, (5 * Math.PI) / 6);
+    // Anillo rúnico dorado/esmeralda
+    ctx.strokeStyle = 'rgba(74, 222, 128, ' + (progress * 0.9) + ')';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, radius, radius * 0.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Resplandor interior
+    ctx.fillStyle = 'rgba(250, 204, 21, ' + (progress * 0.35) + ')';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, radius * 0.7, radius * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Motes ascendentes de luz
+    for (let i = 0; i < 4; i++) {
+      const angle = (Date.now() / 200 + i * (Math.PI / 2));
+      const mx = cx + Math.cos(angle) * (radius * 0.6);
+      const my = cy - ((1 - progress) * 28) + Math.sin(angle) * 4;
+      ctx.fillStyle = 'rgba(244, 244, 245, ' + (progress) + ')';
+      ctx.fillRect(mx - 1.5, my - 1.5, 3, 3);
     }
 
-    ctx.stroke();
-
-    // Brillo blanco en el filo
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
     ctx.restore();
   }
+
+  /**
+   * Renderiza la estela de velocidad traslúcida (Ghost Afterimage).
+   * @private
+   */
+  _drawDashTrail(ctx, px, py) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#38bdf8';
+    // Silueta rápida detrás del jugador
+    const backX = px - (this.facing === 'right' ? 8 : this.facing === 'left' ? -8 : 0);
+    const backY = py - (this.facing === 'down' ? 8 : this.facing === 'up' ? -8 : 0);
+    ctx.fillRect(backX + 8, backY + 12, 16, 16);
+    ctx.restore();
+  }
+
 }

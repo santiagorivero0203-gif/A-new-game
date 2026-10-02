@@ -21,6 +21,7 @@ export class ResourceManager {
   /**
    * Carga una imagen estándar de forma asíncrona y la cachea.
    * Si la imagen ya está cacheada, devuelve la referencia existente.
+   * Tolerante: si falla, rechaza la promesa para que loadBatch maneje el fallback.
    * @param {string} key - Identificador único del asset
    * @param {string} src - Ruta al archivo de imagen
    * @returns {Promise<HTMLImageElement>}
@@ -38,49 +39,11 @@ export class ResourceManager {
         resolve(img);
       };
       img.onerror = (err) => {
-        console.error(`[ResourceManager] Error cargando imagen [${key}] desde ${src}`, err);
-        reject(err);
+        // Rechazar limpiamente sin alertar en consola si DEBUG_MODE está inactivo
+        reject(new Error(`[ResourceManager] No se pudo cargar la imagen [${key}] desde '${src}'`));
       };
       img.src = src;
     });
-  }
-
-  /**
-   * Carga una imagen y convierte el fondo claro/blanco en transparencia alfa.
-   * Ideal para spritesheets aislados sobre fondo blanco.
-   * @param {string} key - Identificador único
-   * @param {string} src - Ruta al archivo
-   * @param {number} [threshold=235] - Umbral de brillo RGB (0..255)
-   * @returns {Promise<HTMLCanvasElement>}
-   */
-  async loadTransparentImage(key, src, threshold = 235) {
-    if (this.images.has(key)) {
-      return this.images.get(key);
-    }
-
-    const img = await this.loadImage(`_raw_${key}`, src);
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || img.width;
-    canvas.height = img.naturalHeight || img.height;
-    const ctx = canvas.getContext('2d');
-
-    ctx.drawImage(img, 0, 0);
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imgData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      // Si el pixel es casi blanco puro, hacerlo transparente
-      if (r >= threshold && g >= threshold && b >= threshold) {
-        data[i + 3] = 0;
-      }
-    }
-
-    ctx.putImageData(imgData, 0, 0);
-    this.images.set(key, canvas);
-    return canvas;
   }
 
   /**
@@ -95,34 +58,56 @@ export class ResourceManager {
     }
     try {
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} al cargar ${url}`);
+      }
       const data = await response.json();
       this.jsons.set(key, data);
       return data;
     } catch (err) {
-      console.error(`[ResourceManager] Error cargando JSON [${key}] desde ${url}`, err);
       throw err;
     }
   }
 
   /**
-   * Carga múltiples assets en paralelo.
-   * @param {Array<{type: string, key: string, url: string, transparent?: boolean, threshold?: number}>} assetList
-   * @returns {Promise<Array>}
+   * Carga múltiples assets en paralelo tolerando ausencias con Promise.allSettled.
+   * Un asset faltante (404 / no existente) nunca impide el arranque del juego ni bloquea a los demás.
+   * 
+   * Formato esperado de los assets:
+   * - Formato: PNG con canal alfa propio (RGBA de 32-bit), sin clave de color ni thresholding.
+   * - Terreno / Tiles: 32x32 px exactos para repetición seamless.
+   * - Sprites de entidades: proporciones alineadas a cuadrícula de 32x32 px.
+   * 
+   * @param {Array<{type: string, key: string, url: string, tileSize?: number, required?: boolean}>} assetList
+   * @returns {Promise<PromiseSettledResult<any>[]>}
    */
   async loadBatch(assetList) {
+    if (!Array.isArray(assetList)) return [];
+
     const promises = assetList.map(asset => {
       if (asset.type === 'image') {
-        if (asset.transparent) {
-          return this.loadTransparentImage(asset.key, asset.url, asset.threshold);
-        }
         return this.loadImage(asset.key, asset.url);
       }
-      if (asset.type === 'json') return this.loadJSON(asset.key, asset.url);
-      console.warn(`[ResourceManager] Tipo de asset desconocido: ${asset.type}`);
+      if (asset.type === 'json') {
+        return this.loadJSON(asset.key, asset.url);
+      }
       return Promise.resolve();
     });
 
-    return Promise.all(promises);
+    const results = await Promise.allSettled(promises);
+
+    const isDebug = typeof window !== 'undefined' && window.DEBUG_MODE;
+
+    results.forEach((res, index) => {
+      if (res.status === 'rejected') {
+        const asset = assetList[index];
+        if (isDebug) {
+          console.warn(`[ResourceManager] Asset opcional ausente [${asset.key}] (${asset.url}):`, res.reason?.message || res.reason);
+        }
+      }
+    });
+
+    return results;
   }
 
   /**
@@ -143,3 +128,4 @@ export class ResourceManager {
     return this.jsons.get(key);
   }
 }
+

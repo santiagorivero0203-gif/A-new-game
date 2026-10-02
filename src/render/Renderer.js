@@ -13,10 +13,19 @@ export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
+  }
+
+  /**
+   * Reestablece el suavizado de imagen en false tras cualquier cambio de dimensiones del canvas.
+   */
+  resize() {
+    this.ctx.imageSmoothingEnabled = false;
   }
 
   /**
    * Limpia el canvas principal antes de iniciar el nuevo fotograma.
+   * Utiliza las dimensiones reales del canvas.
    */
   clear() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -24,10 +33,12 @@ export class Renderer {
 
   /**
    * Prepara el canvas y aplica la matriz de transformación de la cámara.
+   * Asegura que el modo pixel-perfect (imageSmoothingEnabled = false) permanezca activo.
    * @param {import('./Camera.js').Camera} camera
    */
   begin(camera) {
     this.clear();
+    this.ctx.imageSmoothingEnabled = false;
     camera.applyTransform(this.ctx);
   }
 

@@ -15,6 +15,7 @@ export class LightManager {
   constructor(canvas, isInterior = false) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
 
     /**
      * Define si el mapa actual es un interior oscuro o un exterior a plena luz del día.
@@ -28,6 +29,13 @@ export class LightManager {
 
     /** @type {Array<Object>} Fuentes de luz activas */
     this.lights = [];
+  }
+
+  /**
+   * Reestablece el suavizado de imagen en false tras cualquier cambio de dimensiones del canvas.
+   */
+  resize() {
+    this.ctx.imageSmoothingEnabled = false;
   }
 
   /**
@@ -111,6 +119,7 @@ export class LightManager {
 
     // Limpiar fotograma anterior
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = false;
 
     // En exteriores a plena luz del día, no se aplica máscara de penumbra
     if (!this.isInterior) {

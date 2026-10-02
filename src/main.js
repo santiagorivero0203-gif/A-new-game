@@ -16,10 +16,13 @@ import { ResourceManager } from './core/ResourceManager.js';
 import { EntityManager } from './entities/EntityManager.js';
 import { Player } from './entities/Player.js';
 import { NPC } from './entities/NPC.js';
+import { Enemy } from './entities/Enemy.js';
 import { Tree } from './entities/Tree.js';
 import { House } from './entities/House.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
+import { CombatManager } from './systems/CombatManager.js';
+import { EquipmentManager } from './systems/EquipmentManager.js';
 import { Renderer } from './render/Renderer.js';
 import { LightManager } from './render/LightManager.js';
 import { Camera } from './render/Camera.js';
@@ -27,6 +30,25 @@ import { UIManager } from './ui/UIManager.js';
 import { Tilemap } from './world/Tilemap.js';
 import { FoliageSystem } from './world/FoliageSystem.js';
 import { CinematicManager, PROLOGUE_CUTSCENE } from './cinematics/CinematicManager.js';
+import { VFXRenderer } from './render/VFXRenderer.js';
+import { LevelLoader } from './world/LevelLoader.js';
+import startingClearingLevel from './data/levels/starting_clearing.json';
+
+/**
+ * @typedef {Object} AssetManifestItem
+ * @property {string} key - Identificador único del asset
+ * @property {string} url - Ruta bajo /assets/...
+ * @property {string} type - Tipo ('image' | 'json')
+ * @property {number} tileSize - Tamaño nominal en píxeles (32x32)
+ * @property {boolean} required - Si es estrictamente requerido
+ * 
+ * ESPECIFICACIÓN DEL FORMATO DE ASSETS (Pixel-Perfect):
+ * - Formato: PNG con canal alfa nativo RGBA (32-bit), sin color key ni thresholding.
+ * - Tiles de terreno: 32x32 px exactos sin bordes transparentes para ensamble seamless.
+ * - Sprites de entidades: proporciones alineadas a cuadrícula modular de 32x32 px.
+ * - Spritesheets: alineación estricta en celdas de cuadrícula de 32x32 px.
+ */
+import assetsManifest from './data/assets.json';
 
 // Capas de renderizado del Motor (Nativo 960x540 - Panorámico 16:9)
 const mainCanvas = document.getElementById('main-canvas');
@@ -45,16 +67,23 @@ const btnToMainMenu = document.getElementById('btn-to-main-menu');
 const btnCloseSettings = document.getElementById('btn-close-settings');
 const btnCloseSettingsX = document.getElementById('btn-close-settings-x');
 
+// Elementos de la Pantalla de Título
+const pressEnterMsg = document.getElementById('press-enter-msg');
+const menuCard = document.getElementById('menu-card');
+
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
-const inputManager = new InputManager();
+const inputManager = new InputManager(mainCanvas);
 const stateManager = new StateManager();
 const entityManager = new EntityManager();
 
 const physicsSystem = new PhysicsSystem(entityManager);
 const interactionSystem = new InteractionSystem(entityManager, inputManager, stateManager);
+const equipmentManager = new EquipmentManager();
+const combatManager = new CombatManager(equipmentManager);
 
 const renderer = new Renderer(mainCanvas);
+const vfxRenderer = new VFXRenderer(); // Renderizado de VFX procedimentales y partículas
 const lightManager = new LightManager(lightCanvas, false); // isInterior = false (Luz de día clara)
 const uiManager = new UIManager(); // Gestiona el DOM Overlay moderno
 const cinematicManager = new CinematicManager(stateManager); // Sistema de cinemáticas narrativas
@@ -63,96 +92,83 @@ const camera = new Camera(mainCanvas.width, mainCanvas.height);
 // Sistema de físicas ambientales de vegetación reactiva
 const foliageSystem = new FoliageSystem(entityManager);
 
-// 2. Nivel "El Bosque" de 40x40 Casillas (1280x1280 px)
-const MAP_COLS = 40;
-const MAP_ROWS = 40;
-const TILE_SIZE = 32;
-const MAP_WIDTH = MAP_COLS * TILE_SIZE;   // 1280 px
-const MAP_HEIGHT = MAP_ROWS * TILE_SIZE; // 1280 px
+// 2. Carga Data-Driven del Nivel "El Claro Sagrado"
+const levelInfo = LevelLoader.loadLevel(startingClearingLevel, {
+  entityManager,
+  foliageSystem,
+  camera
+});
 
-camera.setRoomBounds({ x: 0, y: 0, width: MAP_WIDTH, height: MAP_HEIGHT });
-const tilemap = new Tilemap(MAP_COLS, MAP_ROWS, TILE_SIZE);
+const tilemap = new Tilemap(
+  startingClearingLevel.map.cols,
+  startingClearingLevel.map.rows,
+  startingClearingLevel.map.tileSize
+);
 
-// 3. Jugador ubicado en el centro del claro
-const player = new Player(624, 624);
+// 3. Jugador ubicado en el punto de spawn del nivel
+const player = new Player(levelInfo.playerSpawn.x, levelInfo.playerSpawn.y);
 entityManager.addEntity(player);
+stateManager.set('player', player);
+stateManager.set('player_health', player.health);
+stateManager.set('player_energy', player.energy);
+stateManager.set('player_posture', 100);
 
-// 4. Cabaña de madera estilo Minish Cap
-const cabin = new House(560, 260);
-entityManager.addEntity(cabin);
+// 4. Adaptabilidad y Redimensionado Reactivo Full-Screen (Pixel-Perfect sin barras negras)
+function resizeCanvases() {
+  const dpr = window.devicePixelRatio || 1;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
 
-// Guardián sabio cerca de la cabaña
-const elderNPC = new NPC(640, 410);
-entityManager.addEntity(elderNPC);
+  // Ambos canvas ocupan la resolución física completa con escalado de Device Pixel Ratio
+  mainCanvas.width = Math.round(width * dpr);
+  mainCanvas.height = Math.round(height * dpr);
+  lightCanvas.width = Math.round(width * dpr);
+  lightCanvas.height = Math.round(height * dpr);
 
-// 5. Vegetación Reactiva con Físicas de Viento y Contacto
-foliageSystem.addFoliage(530, 560);
-foliageSystem.addFoliage(570, 680);
-foliageSystem.addFoliage(690, 580);
-foliageSystem.addFoliage(740, 660);
-foliageSystem.addFoliage(450, 490);
-foliageSystem.addFoliage(810, 470);
-foliageSystem.addFoliage(510, 360);
-foliageSystem.addFoliage(680, 350);
+  // Reaplicar imageSmoothingEnabled = false tras cualquier cambio de dimensiones del canvas
+  renderer.resize();
+  lightManager.resize();
 
-// 6. Generación de Árboles Frondosos con Y-Sorting Estricto
-const trees = [];
-function spawnTree(x, y) {
-  const tree = new Tree(x, y);
-  entityManager.addEntity(tree);
-  trees.push(tree);
+  // Actualizar viewport de la cámara con cálculo de zoom pixel-perfect
+  camera.setViewportSize(width, height, dpr);
 }
+window.addEventListener('resize', resizeCanvases);
+window.addEventListener('orientationchange', resizeCanvases);
+resizeCanvases();
 
-// Árboles en el claro para pruebas de profundidad en 360°
-spawnTree(400, 520);
-spawnTree(480, 710);
-spawnTree(800, 540);
-spawnTree(890, 710);
-spawnTree(380, 360);
-spawnTree(780, 320);
-spawnTree(310, 600);
-spawnTree(960, 600);
-
-// Perímetro denso de bosque
-for (let x = 0; x < MAP_WIDTH; x += 75) {
-  spawnTree(x, 0);
-  spawnTree(x + 35, 60);
-  spawnTree(x, MAP_HEIGHT - 110);
-  spawnTree(x + 35, MAP_HEIGHT - 70);
-}
-for (let y = 100; y < MAP_HEIGHT - 120; y += 75) {
-  if (y > 560 && y < 700) continue; // Camino central
-  spawnTree(0, y);
-  spawnTree(55, y + 35);
-  spawnTree(MAP_WIDTH - 85, y);
-  spawnTree(MAP_WIDTH - 140, y + 35);
-}
-
-// 7. Carga Asíncrona de Assets Next-Gen Pixel Art
+// 7. Carga Asíncrona de Assets Next-Gen Pixel Art desde Manifiesto
 async function initAssets() {
-  try {
-    await resourceManager.loadBatch([
-      { type: 'image', key: 'grass_tile', url: '/assets/tiles/grass.jpg' },
-      { type: 'image', key: 'dirt_tile', url: '/assets/tiles/dirt.jpg' },
-      { type: 'image', key: 'tree_sprite', url: '/assets/sprites/tree.jpg', transparent: true, threshold: 242 },
-      { type: 'image', key: 'house_sprite', url: '/assets/sprites/house.jpg', transparent: true, threshold: 242 },
-      { type: 'image', key: 'bush_sprite', url: '/assets/sprites/bush.jpg', transparent: true, threshold: 242 }
-    ]);
+  await resourceManager.loadBatch(assetsManifest);
 
-    const treeImg = resourceManager.getImage('tree_sprite');
-    if (treeImg) trees.forEach(t => t.setSprite(treeImg));
+  // Árboles
+  const treeImg = resourceManager.getImage('tree_sprite');
+  if (treeImg) {
+    const trees = entityManager.getByTag('tree');
+    trees.forEach(t => {
+      if (typeof t.setSprite === 'function') t.setSprite(treeImg);
+    });
+  }
 
-    const houseImg = resourceManager.getImage('house_sprite');
-    if (houseImg) cabin.setSprite(houseImg);
+  // Cabaña / Casas
+  const houseImg = resourceManager.getImage('house_sprite');
+  if (houseImg) {
+    const houses = entityManager.getByTag('house');
+    houses.forEach(h => {
+      if (typeof h.setSprite === 'function') h.setSprite(houseImg);
+    });
+  }
 
-    const bushImg = resourceManager.getImage('bush_sprite');
-    if (bushImg) foliageSystem.setGlobalSprite(bushImg);
+  // Follaje / Arbustos reactivos
+  const bushImg = resourceManager.getImage('bush_sprite');
+  if (bushImg) {
+    foliageSystem.setGlobalSprite(bushImg);
+  }
 
-    tilemap.build(resourceManager);
-    if (DEBUG_MODE) console.log('[Be a Legend] Assets inicializados.');
-  } catch (err) {
-    console.warn('[Be a Legend] Fallback procedural activo:', err);
-    tilemap.build(null);
+  // Terreno: combina imágenes cargadas con fallback procedimental por tile
+  tilemap.build(resourceManager);
+
+  if (typeof window !== 'undefined' && window.DEBUG_MODE) {
+    console.log('[Be a Legend] Assets procesados desde el manifiesto.');
   }
 }
 tilemap.build(null);
@@ -176,20 +192,25 @@ function update(deltaTime) {
   const gameContext = {
     deltaTime,
     input: inputManager,
+    state: stateManager,
     physics: physicsSystem,
-    state: stateManager
+    player,
+    camera,
+    entityManager,
+    combatManager,
+    equipmentManager,
+    vfxRenderer,
+    engine,
+    time: engine.lastTime,
+    ctx: null
   };
+  combatManager.update(gameContext);
   entityManager.update(gameContext);
   interactionSystem.update(deltaTime);
+  vfxRenderer.update(deltaTime, combatManager.activeAttacks);
 
   // Físicas ambientales de vegetación reactiva al paso del jugador
   foliageSystem.updateInteraction(player);
-
-  // Game Feel: Screen Shake en impactos de espada
-  if (inputManager.isAttackPressed && !wasAttackPressed) {
-    camera.shake(0.38, 0.22); // Temblor visceral
-  }
-  wasAttackPressed = inputManager.isAttackPressed;
 
   // Cámara cinemática suave siguiendo al jugador (LERP exponencial)
   const playerCenter = {
@@ -208,6 +229,9 @@ function render(deltaTime) {
 
   // Entidades del mundo ordenadas con Y-Sorting estricto
   renderer.drawEntities(entityManager.getEntities());
+
+  // Efectos visuales procedimentales, proyectiles y partículas luminosas
+  vfxRenderer.render(renderer.ctx, combatManager.activeAttacks, player);
 
   renderer.end(camera);
 
@@ -234,17 +258,54 @@ engine.pause();
 // Bandera de depuración global (false en producción)
 const DEBUG_MODE = false;
 
+// Pre-cargar cinemáticas en segundo plano mientras el usuario está en el menú
+if (cinematicManager && PROLOGUE_CUTSCENE) {
+  cinematicManager.preloadSequence(PROLOGUE_CUTSCENE).catch(err => {
+    console.warn('[Be a Legend] Aviso en pre-carga de cinemáticas:', err);
+  });
+}
+
 // 11. Conexión de la Lógica de Estados y UI HTML
-btnPlay.addEventListener('click', () => {
+function startGame() {
+  if (stateManager.get('game_state') !== 'STATE_MENU') return;
   mainMenuEl.classList.add('hidden');
 
-  // Iniciar la cinemática del prólogo narrativo antes de la partida
+  // Iniciar la cinemática del prólogo narrativo o entrar a jugar
   engine.resume();
   cinematicManager.play(PROLOGUE_CUTSCENE, () => {
     stateManager.set('game_state', 'STATE_PLAYING');
     if (DEBUG_MODE) console.log('[Game State] PLAYING tras prólogo cinemático.');
   });
+}
+
+btnPlay.addEventListener('click', (e) => {
+  e.stopPropagation();
+  startGame();
 });
+
+function handleTitleScreenAdvance() {
+  if (stateManager.get('game_state') !== 'STATE_MENU') return;
+
+  if (pressEnterMsg && !pressEnterMsg.classList.contains('hidden')) {
+    // Si está en el prompt inicial, pasar al menú
+    pressEnterMsg.classList.add('hidden');
+    if (menuCard) {
+      menuCard.classList.remove('hidden');
+      if (btnPlay) btnPlay.focus();
+    }
+  } else {
+    // Si el menú ya está desplegado, iniciar la partida directamente
+    startGame();
+  }
+}
+
+// Clic global en cualquier zona de la portada para avanzar
+if (mainMenuEl) {
+  mainMenuEl.addEventListener('click', (e) => {
+    if (e.target.closest('#btn-settings') || e.target.closest('#btn-play')) return;
+    handleTitleScreenAdvance();
+  });
+}
 
 function openPauseMenu() {
   if (stateManager.get('game_state') === 'STATE_PLAYING') {
@@ -267,6 +328,9 @@ btnResume.addEventListener('click', resumeGame);
 btnToMainMenu.addEventListener('click', () => {
   pauseMenuEl.classList.add('hidden');
   mainMenuEl.classList.remove('hidden');
+  // Resetear la pantalla de título al volver al menú
+  if (pressEnterMsg) pressEnterMsg.classList.remove('hidden');
+  if (menuCard) menuCard.classList.add('hidden');
   stateManager.set('game_state', 'STATE_MENU');
   engine.pause();
 });
@@ -279,6 +343,7 @@ inputManager.onPause(() => {
 
 inputManager.onSkillEquipped((newPower) => {
   stateManager.set('equipped_power', newPower);
+  player.equipAbility(newPower);
   if (DEBUG_MODE) console.log(`[Reliquia] Poder equipado: ${newPower}`);
 });
 
@@ -289,29 +354,42 @@ if (btnCloseSettingsX) {
   btnCloseSettingsX.addEventListener('click', () => settingsModalEl.classList.add('hidden'));
 }
 
-// Atajos de desarrollo para pruebas internas (Detrás de DEBUG_MODE)
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyH') {
-    const current = !!stateManager.get('health_critical');
-    stateManager.set('health_critical', !current);
-    if (DEBUG_MODE) console.log(`[Health] Crítico: ${!current}`);
+  // Transición del título al menú o inicio inmediato de partida
+  if (stateManager.get('game_state') === 'STATE_MENU') {
+    if (e.code === 'Enter' || e.code === 'Space') {
+      e.preventDefault();
+      handleTitleScreenAdvance();
+      return;
+    }
   }
-  if (e.code === 'KeyM') {
-    const active = inputManager.toggleTouchControls();
-    if (DEBUG_MODE) console.log(`[Gamepad Táctil] Forzado: ${active}`);
+
+  // Comandos de Debug (Solo activos bajo DEBUG_MODE = true)
+  if (DEBUG_MODE) {
+    if (e.code === 'KeyH') {
+      const current = !!stateManager.get('health_critical');
+      stateManager.set('health_critical', !current);
+      console.log(`[Health] Crítico: ${!current}`);
+    }
+    if (e.code === 'KeyM') {
+      const active = inputManager.toggleTouchControls();
+      console.log(`[Gamepad Táctil] Forzado: ${active}`);
+    }
   }
 });
 
-// 12. Herramientas de Depuración Internas (Under the Hood)
-window.DEBUG_MODE = DEBUG_MODE;
-window.setKarma = (val) => stateManager.set('karma_level', val);
-window.triggerShake = (intensity = 0.5) => camera.shake(intensity, 0.25);
-window.toggleCritical = () => {
-  const c = !stateManager.get('health_critical');
-  stateManager.set('health_critical', c);
-  return c;
-};
-window.toggleMobileControls = () => inputManager.toggleTouchControls();
+// 12. Herramientas de Depuración Internas (Protegidas bajo DEBUG_MODE)
+if (DEBUG_MODE) {
+  window.DEBUG_MODE = true;
+  window.setKarma = (val) => stateManager.set('karma_level', val);
+  window.triggerShake = (intensity = 0.5) => camera.shake(intensity, 0.25);
+  window.toggleCritical = () => {
+    const c = !stateManager.get('health_critical');
+    stateManager.set('health_critical', c);
+    return c;
+  };
+  window.toggleMobileControls = () => inputManager.toggleTouchControls();
+}
 window.playIntroCinematic = () => {
   cinematicManager.play(PROLOGUE_CUTSCENE, () => {
     stateManager.set('game_state', 'STATE_PLAYING');
