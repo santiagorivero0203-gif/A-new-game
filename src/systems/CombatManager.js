@@ -29,8 +29,7 @@ export class CombatManager {
     this.activeAttacks = [];
 
     // --- Sistema Defensivo ---
-    /** @type {number} Medidor de postura del jugador (0 a 100). */
-    this.guard_meter = 100;
+    // (Movido al jugador en Fase 2)
   }
 
   /**
@@ -44,12 +43,12 @@ export class CombatManager {
 
     // Recuperar postura pasivamente si no se está defendiendo o en Guard Break
     if (player && player.fsmState !== 'STATE_DEFEND' && player.fsmState !== 'STATE_GUARD_BREAK') {
-      this.guard_meter = Math.min(100, this.guard_meter + (15 * dt)); // Recupera 15/s
+      player.guard_meter = Math.min(player.max_guard || 100, player.guard_meter + (15 * dt)); // Recupera 15/s
     }
 
     // Sincronizar medidor de postura con StateManager para el HUD
-    if (context.state && typeof context.state.set === 'function') {
-      context.state.set('player_posture', this.guard_meter);
+    if (context.state && typeof context.state.set === 'function' && player) {
+      context.state.set('player_posture', player.guard_meter);
     }
 
     // Decaimiento de Momentum
@@ -233,15 +232,15 @@ export class CombatManager {
             }
             
             const postureDamage = (attack.damage || 20) * drainRate * elementalMultiplier;
-            this.guard_meter -= postureDamage;
+            entity.guard_meter -= postureDamage;
             
             if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-              console.log(`[Bloqueo] Coste de postura: ${postureDamage}. Restante: ${this.guard_meter}`);
+              console.log(`[Bloqueo] Coste de postura: ${postureDamage}. Restante: ${entity.guard_meter}`);
             }
 
-            if (this.guard_meter <= 0) {
+            if (entity.guard_meter <= 0) {
               // GUARD BREAK con Knockback físico al jugador
-              this.guard_meter = 0;
+              entity.guard_meter = 0;
               entity.fsmState = 'STATE_GUARD_BREAK';
               entity.stateTimer = 2.0;
               this._applyKnockback(entity, attackCenter.x, attackCenter.y, 18, physics);
@@ -305,6 +304,9 @@ export class CombatManager {
       // Recarga activa de energía elemental al conectar ataques de espada física
       if (attack.element === 'physical') {
         attack.owner.energy = Math.min(attack.owner.max_energy, attack.owner.energy + 6);
+        if (context.engine) {
+          context.engine.hitStop(0.04); // HitStop ligero en golpes normales
+        }
       }
       
       // Chequear Riposte Crítico si el objetivo está aturdido

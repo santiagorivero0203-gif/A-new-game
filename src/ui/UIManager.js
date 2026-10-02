@@ -29,7 +29,9 @@ export class UIManager {
       document.getElementById('heart-3')
     ];
     this.btnQuickPause = document.getElementById('btn-quick-pause');
+    this.btnQuickPause = document.getElementById('btn-quick-pause');
     this.hudEnergyFill = document.getElementById('hud-energy-fill');
+    this.hudPostureWrap = document.getElementById('hud-posture-wrap');
     this.hudPostureFill = document.getElementById('hud-posture-fill');
 
     // 1.1 Medidor de Poder Elemental Vertical (Derecha)
@@ -75,6 +77,95 @@ export class UIManager {
     this._lastJoyX = 0;
     this._lastJoyY = 0;
     this._lastSkillLabel = null;
+
+    // --- Damage Numbers Pool ---
+    this.damageNumbersPool = [];
+    this.activeDamageNumbers = [];
+    this.damageNumbersContainer = document.getElementById('damage-numbers-container');
+    if (!this.damageNumbersContainer) {
+      this.damageNumbersContainer = document.createElement('div');
+      this.damageNumbersContainer.id = 'damage-numbers-container';
+      if (this.overlayEl) {
+        this.overlayEl.appendChild(this.damageNumbersContainer);
+      } else {
+        document.body.appendChild(this.damageNumbersContainer);
+      }
+    }
+  }
+
+  /**
+   * Spawnea un número de daño en el overlay DOM usando un elemento reutilizable.
+   * @param {number} worldX 
+   * @param {number} worldY 
+   * @param {number|string} amount 
+   * @param {string} color 
+   */
+  spawnDamageNumber(worldX, worldY, amount, color) {
+    let el;
+    if (this.damageNumbersPool.length > 0) {
+      el = this.damageNumbersPool.pop();
+    } else {
+      el = document.createElement('div');
+      el.className = 'damage-number';
+      this.damageNumbersContainer.appendChild(el);
+    }
+    
+    // Forzar reflow para reiniciar la animación CSS si es necesario
+    el.style.animation = 'none';
+    el.offsetHeight; /* trigger reflow */
+    el.style.animation = '';
+
+    el.textContent = amount;
+    el.style.color = color;
+    el.style.opacity = '1';
+    el.classList.add('animate');
+
+    const damageData = {
+      el: el,
+      worldX: worldX + (Math.random() * 10 - 5),
+      worldY: worldY - 10, // Inicialmente un poco arriba
+      timer: 0.85, // Duración visible
+      velY: -20, // Velocidad de subida (píxeles por segundo)
+    };
+
+    this.activeDamageNumbers.push(damageData);
+  }
+
+  /**
+   * Actualiza las posiciones de los números flotantes basados en la cámara actual
+   * @param {import('../render/Camera.js').Camera} camera 
+   * @param {number} deltaTime 
+   */
+  updateDamageNumbers(camera, deltaTime) {
+    if (!camera) return;
+
+    for (let i = this.activeDamageNumbers.length - 1; i >= 0; i--) {
+      const data = this.activeDamageNumbers[i];
+      data.timer -= deltaTime;
+      
+      if (data.timer <= 0) {
+        // Retornar al pool
+        data.el.style.opacity = '0';
+        data.el.classList.remove('animate');
+        this.damageNumbersPool.push(data.el);
+        this.activeDamageNumbers.splice(i, 1);
+        continue;
+      }
+
+      // Mover hacia arriba en el mundo
+      data.worldY += data.velY * deltaTime;
+
+      // Calcular posición en pantalla
+      const screenPos = camera.worldToScreen({ x: data.worldX, y: data.worldY });
+      
+      // Aplicar transform (usamos translate3d para aceleración GPU)
+      data.el.style.transform = `translate3d(${screenPos.x}px, ${screenPos.y}px, 0)`;
+      
+      // Fade out al final
+      if (data.timer < 0.3) {
+        data.el.style.opacity = (data.timer / 0.3).toString();
+      }
+    }
   }
 
   /**
@@ -146,8 +237,18 @@ export class UIManager {
       }
     }
 
-    // 2.1 Actualizar barra de postura / equilibrio de guardia
-    const posture = stateManager ? (stateManager.get('player_posture') ?? stateManager.get('guard_meter') ?? 100) : 100;
+    // 2.1 Actualizar barra de postura / equilibrio de guardia (visible solo defendiendo o no llena)
+    const posture = stateManager ? (stateManager.get('player_posture') ?? 100) : 100;
+    const isDefending = stateManager ? stateManager.get('player_defending') : false;
+    
+    if (this.hudPostureWrap) {
+      if (posture < 100 || isDefending) {
+        this.hudPostureWrap.style.opacity = '1';
+      } else {
+        this.hudPostureWrap.style.opacity = '0';
+      }
+    }
+
     if (Math.abs(posture - this._lastPosture) > 0.5) {
       this._lastPosture = posture;
       const clampedPosture = Math.max(0, Math.min(100, posture));
@@ -347,8 +448,9 @@ export class UIManager {
    * @param {import('../core/InputManager.js').InputManager} inputManager
    * @param {import('../core/StateManager.js').StateManager} stateManager
    * @param {number} [deltaTime=0.016]
+   * @param {import('../render/Camera.js').Camera} [camera=null]
    */
-  render(inputManager, stateManager, deltaTime = 0.016) {
+  render(inputManager, stateManager, deltaTime = 0.016, camera = null) {
     const gameState = stateManager ? stateManager.get('game_state') : 'STATE_PLAYING';
     this.setGameState(gameState);
 
@@ -367,5 +469,10 @@ export class UIManager {
 
     // 4. Actualizar gamepad táctil (solo en móvil)
     this.updateVirtualGamepad(inputManager, equipped);
+
+    // 5. Actualizar números de daño flotantes
+    if (camera) {
+      this.updateDamageNumbers(camera, deltaTime);
+    }
   }
 }

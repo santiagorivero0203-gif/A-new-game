@@ -9,6 +9,9 @@
  * @version 1.6.0
  */
 
+// Bandera de depuración global (false en producción)
+window.DEBUG_MODE = false;
+
 import { Engine } from './core/Engine.js';
 import { InputManager } from './core/InputManager.js';
 import { StateManager } from './core/StateManager.js';
@@ -175,8 +178,6 @@ tilemap.build(null);
 initAssets();
 
 // 8. Ciclo de Actualización (Update)
-let wasAttackPressed = false;
-
 function update(deltaTime) {
   inputManager.update();
 
@@ -242,7 +243,7 @@ function render(deltaTime) {
   // Capa de Interfaz y Virtual Gamepad
   const gameState = stateManager.get('game_state');
   if (gameState === 'STATE_PLAYING') {
-    uiManager.render(inputManager, stateManager, deltaTime);
+    uiManager.render(inputManager, stateManager, deltaTime, camera);
   } else {
     uiManager.clear();
   }
@@ -254,9 +255,6 @@ stateManager.set('game_state', 'STATE_MENU');
 stateManager.set('health_critical', false); // Estado de salud para la viñeta roja
 engine.start();
 engine.pause();
-
-// Bandera de depuración global (false en producción)
-const DEBUG_MODE = false;
 
 // Pre-cargar cinemáticas en segundo plano mientras el usuario está en el menú
 if (cinematicManager && PROLOGUE_CUTSCENE) {
@@ -365,7 +363,7 @@ window.addEventListener('keydown', (e) => {
   }
 
   // Comandos de Debug (Solo activos bajo DEBUG_MODE = true)
-  if (DEBUG_MODE) {
+  if (window.DEBUG_MODE) {
     if (e.code === 'KeyH') {
       const current = !!stateManager.get('health_critical');
       stateManager.set('health_critical', !current);
@@ -379,8 +377,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 // 12. Herramientas de Depuración Internas (Protegidas bajo DEBUG_MODE)
-if (DEBUG_MODE) {
-  window.DEBUG_MODE = true;
+if (window.DEBUG_MODE) {
   window.setKarma = (val) => stateManager.set('karma_level', val);
   window.triggerShake = (intensity = 0.5) => camera.shake(intensity, 0.25);
   window.toggleCritical = () => {
@@ -389,10 +386,10 @@ if (DEBUG_MODE) {
     return c;
   };
   window.toggleMobileControls = () => inputManager.toggleTouchControls();
+  window.playIntroCinematic = () => {
+    cinematicManager.play(PROLOGUE_CUTSCENE, () => {
+      stateManager.set('game_state', 'STATE_PLAYING');
+      engine.resume();
+    });
+  };
 }
-window.playIntroCinematic = () => {
-  cinematicManager.play(PROLOGUE_CUTSCENE, () => {
-    stateManager.set('game_state', 'STATE_PLAYING');
-    engine.resume();
-  });
-};

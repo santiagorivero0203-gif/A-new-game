@@ -57,6 +57,10 @@ export class Player extends Entity {
     this.energy = 100;
     this.max_energy = 100;
 
+    /** @type {number} Postura / Equilibrio de guardia (0 - 100) */
+    this.guard_meter = 100;
+    this.max_guard = 100;
+
     /** @type {number} Regeneración pasiva de energía por segundo */
     this.energy_regen_rate = 4; // Tasa equilibrada (no se llena tan rápido)
 

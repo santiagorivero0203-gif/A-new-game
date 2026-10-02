@@ -25,9 +25,6 @@ export class Enemy extends Entity {
     this.max_health = 80;
 
     this.hurtTimer = 0;
-    this.floatingText = null;
-    this.floatingColor = '#FFFFFF';
-    this.floatingTimer = 0;
 
     this.initialX = x;
     this.initialY = y;
@@ -59,7 +56,7 @@ export class Enemy extends Entity {
     this.health = Math.max(0, this.health - amount);
     this.hurtTimer = 0.22;
 
-    // Determinar texto flotante y color
+    // Determinar color base elemental
     const atkElem = attack.element;
     const defElem = this.elementalAffinity;
     const isSuper = (
@@ -73,19 +70,16 @@ export class Enemy extends Entity {
       (atkElem === 'fuego' && defElem === 'kinetic')
     );
 
-    let label = `-${Math.round(amount)}`;
+    let color = '#f43f5e';
     if (isSuper) {
-      label += ' ¡CRÍTICO!';
-      this.floatingColor = '#facc15';
+      color = '#facc15';
     } else if (isResist) {
-      label += ' (Resist)';
-      this.floatingColor = '#94a3b8';
-    } else {
-      this.floatingColor = '#f43f5e';
+      color = '#94a3b8';
     }
 
-    this.floatingText = label;
-    this.floatingTimer = 0.85;
+    if (context.uiManager && context.camera) {
+      context.uiManager.spawnDamageNumber(this.pos.x + this.width / 2, this.pos.y, Math.round(amount), color);
+    }
 
     // Muerte con respawn automático a los 5 segundos para seguir entrenando
     if (this.health <= 0) {
@@ -106,7 +100,6 @@ export class Enemy extends Entity {
     const dt = context.deltaTime || 0.016;
 
     if (this.hurtTimer > 0) this.hurtTimer -= dt;
-    if (this.floatingTimer > 0) this.floatingTimer -= dt;
 
     if (this.isDead) {
       this.respawnTimer -= dt;
