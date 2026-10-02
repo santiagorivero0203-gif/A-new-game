@@ -23,11 +23,8 @@ export class UIManager {
     this.hudRelicIcon = document.getElementById('hud-relic-icon');
     this.hudRelicCircle = this.hudRelicIcon ? this.hudRelicIcon.querySelector('circle') : null;
     this.hudPowerName = document.getElementById('hud-power-name');
-    this.heartElements = [
-      document.getElementById('heart-1'),
-      document.getElementById('heart-2'),
-      document.getElementById('heart-3')
-    ];
+    this.hudHeartsContainer = document.getElementById('hud-hearts');
+    this.heartElements = [];
     this.btnQuickPause = document.getElementById('btn-quick-pause');
     this.btnQuickPause = document.getElementById('btn-quick-pause');
     this.hudEnergyFill = document.getElementById('hud-energy-fill');
@@ -266,7 +263,26 @@ export class UIManager {
 
     // 3. Actualizar corazones y viñeta según salud y criticidad
     const health = stateManager ? (stateManager.get('player_health') ?? 3) : 3;
+    const max_health = stateManager ? (stateManager.get('player_max_health') ?? 3) : 3;
     const isCritical = !!(stateManager && stateManager.get('health_critical')) || (health <= 1);
+    
+    // Si la cantidad máxima de corazones cambia, reconstruir el DOM
+    if (this.hudHeartsContainer && this.heartElements.length !== max_health) {
+      this.hudHeartsContainer.innerHTML = '';
+      this.heartElements = [];
+      for (let i = 0; i < max_health; i++) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'heart-svg filled');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z');
+        svg.appendChild(path);
+        this.hudHeartsContainer.appendChild(svg);
+        this.heartElements.push(svg);
+      }
+      this._lastHealth = -1; // Forzar actualización de llenado
+    }
+
     if (health !== this._lastHealth || isCritical !== this._lastCritical) {
       this._lastHealth = health;
       this._lastCritical = isCritical;

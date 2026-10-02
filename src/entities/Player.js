@@ -3,6 +3,7 @@ import { Vector2 } from '../utils/Vector2.js';
 import { FireAbility } from '../combat/FireAbility.js';
 import { KineticAbility } from '../combat/KineticAbility.js';
 import { EarthAbility } from '../combat/EarthAbility.js';
+import { PLAYER_STATS } from '../data/PlayerStats.js';
 
 /**
  * @module Player
@@ -23,7 +24,7 @@ export class Player extends Entity {
     this.tags.push('player');
 
     /** @type {number} Velocidad de movimiento en píxeles por segundo */
-    this.speed = 160;
+    this.speed = PLAYER_STATS.speed || 160;
 
     /** @type {Vector2} Vector de velocidad del frame actual */
     this.velocity = new Vector2(0, 0);
@@ -49,20 +50,20 @@ export class Player extends Entity {
     this.fsmState = 'STATE_IDLE';
     this.stateTimer = 0;
 
-    /** @type {number} Salud del héroe (3 corazones) */
-    this.health = 3;
-    this.max_health = 3;
+    /** @type {number} Salud del héroe */
+    this.health = PLAYER_STATS.health || 3;
+    this.max_health = PLAYER_STATS.max_health || 3;
 
     /** @type {number} Reserva de Energía Elemental milenaria (0 - 100) */
-    this.energy = 100;
-    this.max_energy = 100;
+    this.energy = PLAYER_STATS.energy || 100;
+    this.max_energy = PLAYER_STATS.max_energy || 100;
 
     /** @type {number} Postura / Equilibrio de guardia (0 - 100) */
-    this.guard_meter = 100;
-    this.max_guard = 100;
+    this.guard_meter = PLAYER_STATS.guard_meter || 100;
+    this.max_guard = PLAYER_STATS.max_guard || 100;
 
     /** @type {number} Regeneración pasiva de energía por segundo */
-    this.energy_regen_rate = 4; // Tasa equilibrada (no se llena tan rápido)
+    this.energy_regen_rate = PLAYER_STATS.energy_regen_rate || 4;
 
     /** @type {number} Temporizador de recuperación post-tajo (cooldown mínimo de espada) */
     this.swordCooldown = 0;
@@ -193,6 +194,7 @@ export class Player extends Entity {
     if (isContext && contextOrDt.state) {
       contextOrDt.state.set('player_energy', this.energy);
       contextOrDt.state.set('player_health', this.health);
+      contextOrDt.state.set('player_max_health', this.max_health);
       contextOrDt.state.set('health_critical', this.health <= 1);
     }
 
