@@ -6,6 +6,8 @@
  * @author Be a Legend Team
  * @version 1.2.0
  */
+import { ProceduralAssets } from './ProceduralAssets.js';
+
 export class ResourceManager {
   constructor() {
     /** @type {Map<string, HTMLImageElement|HTMLCanvasElement>} Caché de imágenes y sprites procesados */
@@ -26,7 +28,7 @@ export class ResourceManager {
    * @param {string} src - Ruta al archivo de imagen
    * @returns {Promise<HTMLImageElement>}
    */
-  loadImage(key, src) {
+  loadImage(key, src, tileSize = 32) {
     return new Promise((resolve, reject) => {
       if (this.images.has(key)) {
         return resolve(this.images.get(key));
@@ -34,6 +36,13 @@ export class ResourceManager {
 
       const img = new Image();
       img.crossOrigin = 'anonymous';
+
+      // Interceptar protocolo procedural:// (Nano Banana pipeline)
+      if (src.startsWith('procedural://')) {
+        const procKey = src.replace('procedural://', '');
+        src = ProceduralAssets.generate(procKey, tileSize);
+      }
+
       img.onload = () => {
         this.images.set(key, img);
         resolve(img);
@@ -86,7 +95,7 @@ export class ResourceManager {
 
     const promises = assetList.map(asset => {
       if (asset.type === 'image') {
-        return this.loadImage(asset.key, asset.url);
+        return this.loadImage(asset.key, asset.url, asset.tileSize);
       }
       if (asset.type === 'json') {
         return this.loadJSON(asset.key, asset.url);

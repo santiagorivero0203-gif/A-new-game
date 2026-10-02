@@ -1,35 +1,35 @@
 [
   {
     "key": "grass_tile",
-    "url": "/assets/tiles/grass.png",
+    "url": "procedural://grass_tile",
     "type": "image",
     "tileSize": 32,
     "required": false
   },
   {
     "key": "dirt_tile",
-    "url": "/assets/tiles/dirt.png",
+    "url": "procedural://dirt_tile",
     "type": "image",
     "tileSize": 32,
     "required": false
   },
   {
     "key": "tree_sprite",
-    "url": "/assets/sprites/tree.png",
+    "url": "procedural://tree_sprite",
     "type": "image",
     "tileSize": 32,
     "required": false
   },
   {
     "key": "house_sprite",
-    "url": "/assets/sprites/house.png",
+    "url": "procedural://house_sprite",
     "type": "image",
     "tileSize": 32,
     "required": false
   },
   {
     "key": "bush_sprite",
-    "url": "/assets/sprites/bush.png",
+    "url": "procedural://bush_sprite",
     "type": "image",
     "tileSize": 32,
     "required": false
