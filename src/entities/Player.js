@@ -68,8 +68,8 @@ export class Player extends Entity {
 
     /** @type {number} Temporizador de recuperación post-tajo (cooldown mínimo de espada) */
     this.swordCooldown = 0;
-    /** @type {number} Tiempo mínimo de delay entre tajos de espada (380ms recovery + 220ms tajo = 600ms ciclo) */
-    this.SWORD_RECOVERY_TIME = 0.38;
+    /** @type {number} Tiempo mínimo de delay entre tajos de espada (160ms recovery + 200ms tajo = 360ms ciclo ágil) */
+    this.SWORD_RECOVERY_TIME = 0.16;
 
     /** @type {number} Cooldown interno de curación del guante (2.5 segundos) */
     this.healCooldown = 0;
@@ -158,6 +158,7 @@ export class Player extends Entity {
     this.dashDirection.set(dx / len, dy / len);
     this.dashSpeed = speed;
     this.dashTimer = duration;
+    this.stateTimer = duration;
     this.isDashing = true;
     this.applyEffect('iframe', duration + 0.05);
   }
@@ -195,7 +196,13 @@ export class Player extends Entity {
     if (this.dashCooldown > 0) this.dashCooldown -= deltaTime;
     if (this.dashTimer > 0) {
       this.dashTimer -= deltaTime;
-      if (this.dashTimer <= 0) this.isDashing = false;
+      if (this.dashTimer <= 0) {
+        this.isDashing = false;
+        // Restablecer el estado lógico a STATE_IDLE al finalizar el dash para liberar movimiento y ataque
+        if (this.fsmState === 'STATE_DASH') {
+          this.fsmState = 'STATE_IDLE';
+        }
+      }
     }
 
     // Sincronizar estado global con StateManager

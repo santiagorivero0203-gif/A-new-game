@@ -9,8 +9,8 @@ export const WEAPONS = {
     id: 'training_sword',
     name: 'Espada de Práctica',
     damage: 16,
-    recoveryTime: 0.38, // 380ms de recovery anti-spam
-    duration: 0.22,     // 220ms de ventana activa de tajo
+    recoveryTime: 0.16, // 160ms de recovery para fluidez en combate
+    duration: 0.20,     // 200ms de ventana activa de tajo
     knockback: 32,      // Fuerza de retroceso en píxeles
     lungeForce: 10,     // Push-Forward hacia adelante en píxeles
     energyOnHit: 6,     // Recarga activa de energía elemental
@@ -21,8 +21,8 @@ export const WEAPONS = {
     id: 'relic_blade',
     name: 'Filo Sagrado de la Reliquia',
     damage: 28,
-    recoveryTime: 0.28,
-    duration: 0.22,
+    recoveryTime: 0.12, // 120ms de recovery
+    duration: 0.20,
     knockback: 42,
     lungeForce: 14,
     energyOnHit: 10,

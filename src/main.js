@@ -204,6 +204,7 @@ function update(deltaTime) {
     equipmentManager,
     skillTreeManager,
     vfxRenderer,
+    uiManager,
     engine,
     time: engine.lastTime,
     ctx: null
@@ -275,7 +276,9 @@ function startGame() {
   engine.resume();
   cinematicManager.play(PROLOGUE_CUTSCENE, () => {
     stateManager.set('game_state', 'STATE_PLAYING');
-    if (DEBUG_MODE) console.log('[Game State] PLAYING tras prólogo cinemático.');
+    if (typeof window !== 'undefined' && window.DEBUG_MODE) {
+      console.log('[Game State] PLAYING tras prólogo cinemático.');
+    }
   });
 }
 
@@ -345,7 +348,9 @@ inputManager.onPause(() => {
 inputManager.onSkillEquipped((newPower) => {
   stateManager.set('equipped_power', newPower);
   player.equipAbility(newPower);
-  if (DEBUG_MODE) console.log(`[Reliquia] Poder equipado: ${newPower}`);
+  if (typeof window !== 'undefined' && window.DEBUG_MODE) {
+    console.log(`[Reliquia] Poder equipado: ${newPower}`);
+  }
 });
 
 btnSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));

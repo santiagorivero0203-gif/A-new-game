@@ -261,12 +261,12 @@ export class InputManager {
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
-      // Acciones con Buffer de Entrada (100ms)
-      if (KEYBINDINGS.ATTACK.includes(e.code)) this.triggerAction('attack', 100);
-      if (KEYBINDINGS.ABILITY.includes(e.code)) this.triggerAction('ability', 100);
-      if (KEYBINDINGS.STRONG_ATTACK.includes(e.code)) this.triggerAction('strong', 100);
-      if (KEYBINDINGS.HEAL.includes(e.code)) this.triggerAction('heal', 100);
-      if (KEYBINDINGS.DASH.includes(e.code)) this.triggerAction('dash', 100);
+      // Acciones con Buffer de Entrada Responsivo (180ms para encadenar combos y absorber cooldowns)
+      if (KEYBINDINGS.ATTACK.includes(e.code)) this.triggerAction('attack', 180);
+      if (KEYBINDINGS.ABILITY.includes(e.code)) this.triggerAction('ability', 180);
+      if (KEYBINDINGS.STRONG_ATTACK.includes(e.code)) this.triggerAction('strong', 180);
+      if (KEYBINDINGS.HEAL.includes(e.code)) this.triggerAction('heal', 180);
+      if (KEYBINDINGS.DASH.includes(e.code)) this.triggerAction('dash', 180);
 
       // Acciones continuas sin buffer
       if (KEYBINDINGS.DEFEND.includes(e.code)) this.isDefendPressed = true;
@@ -336,29 +336,24 @@ export class InputManager {
     window.addEventListener('mousedown', (e) => {
       this._updateMousePosition(e.clientX, e.clientY);
 
-      // Clic Izquierdo (Botón 0): Ataque básico de Espada
+      // Clic Izquierdo (Botón 0): Ataque básico de Espada canalizado con buffer de 180ms
       if (e.button === 0) {
-        this.isAttackPressed = true;
+        this.triggerAction('attack', 180);
       }
       // Botón Central (Botón 1): Guardia / Escudo
       if (e.button === 1) {
         this.isDefendPressed = true;
       }
-      // Clic Derecho (Botón 2): Habilidad Elemental Equipada
+      // Clic Derecho (Botón 2): Habilidad Elemental Equipada con buffer de 180ms
       if (e.button === 2) {
-        this.isAbilityPressed = true;
+        this.triggerAction('ability', 180);
       }
     });
 
     window.addEventListener('mouseup', (e) => {
-      if (e.button === 0) {
-        this.isAttackPressed = false;
-      }
+      // Solo liberamos guardia continua; los ataques y habilidades son consumidos por Player.js o el timeout del buffer
       if (e.button === 1) {
         this.isDefendPressed = false;
-      }
-      if (e.button === 2) {
-        this.isAbilityPressed = false;
       }
     });
   }
