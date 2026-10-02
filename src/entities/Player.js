@@ -177,7 +177,14 @@ export class Player extends Entity {
     const physics = isContext ? contextOrDt.physics : legacyPhysics;
     const combatManager = isContext ? contextOrDt.combatManager : null;
 
-    // 0. Regeneración pasiva y gestión de temporizadores de utilidad
+    // 0. Aplicar habilidades del SkillTreeManager si está disponible
+    const skillTree = isContext ? contextOrDt.skillTreeManager : null;
+    if (skillTree) {
+      this.max_health = PLAYER_STATS.max_health + (skillTree.hasSkill('max_health_up') ? 1 : 0);
+      this.energy_regen_rate = PLAYER_STATS.energy_regen_rate + (skillTree.hasSkill('energy_regen') ? 2 : 0);
+    }
+
+    // Regeneración pasiva y gestión de temporizadores de utilidad
     if (this.fsmState !== 'STATE_GUARD_BREAK') {
       this.energy = Math.min(this.max_energy, this.energy + this.energy_regen_rate * deltaTime);
     }
@@ -286,7 +293,8 @@ export class Player extends Entity {
         const dashCost = 10;
         if (this.energy >= dashCost) {
           this.energy -= dashCost;
-          this.dashCooldown = 0.55;
+          // Cooldown base 0.55s, con habilidad 'dash_cooldown' se reduce a 0.35s
+          this.dashCooldown = (skillTree && skillTree.hasSkill('dash_cooldown')) ? 0.35 : 0.55;
           this.attackTimer = 0; // Abortar ataque activo inmediatamente (Animation Cancel)
           if (combatManager) {
             combatManager.cancelAttacksFrom(this); // Cancelar hitboxes activas del jugador

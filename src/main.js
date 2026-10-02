@@ -26,6 +26,7 @@ import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { InteractionSystem } from './systems/InteractionSystem.js';
 import { CombatManager } from './systems/CombatManager.js';
 import { EquipmentManager } from './systems/EquipmentManager.js';
+import { SkillTreeManager } from './systems/SkillTreeManager.js';
 import { Renderer } from './render/Renderer.js';
 import { LightManager } from './render/LightManager.js';
 import { Camera } from './render/Camera.js';
@@ -84,6 +85,7 @@ const physicsSystem = new PhysicsSystem(entityManager);
 const interactionSystem = new InteractionSystem(entityManager, inputManager, stateManager);
 const equipmentManager = new EquipmentManager();
 const combatManager = new CombatManager(equipmentManager);
+const skillTreeManager = new SkillTreeManager(stateManager);
 
 const renderer = new Renderer(mainCanvas);
 const vfxRenderer = new VFXRenderer(); // Renderizado de VFX procedimentales y partículas
@@ -200,6 +202,7 @@ function update(deltaTime) {
     entityManager,
     combatManager,
     equipmentManager,
+    skillTreeManager,
     vfxRenderer,
     engine,
     time: engine.lastTime,

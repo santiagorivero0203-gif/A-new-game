@@ -172,8 +172,9 @@ export class CombatManager {
         const facingAttacker = this._isFacingAttacker(entity, attackCenter.x, attackCenter.y);
         
         if (facingAttacker) {
-          // Chequear ventana de Parry (0.15s desde que se presionó defender)
-          const isParry = entity.stateTimer <= 0.15;
+          // Chequear ventana de Parry (0.15s base, 0.25s con habilidad)
+          const parryWindow = (context.skillTreeManager && context.skillTreeManager.hasSkill('parry_window')) ? 0.25 : 0.15;
+          const isParry = entity.stateTimer <= parryWindow;
           
           if (isParry) {
             // PARRY PERFECTO (Recompensa)
