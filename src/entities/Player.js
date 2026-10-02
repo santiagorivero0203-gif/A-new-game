@@ -290,22 +290,22 @@ export class Player extends Entity {
       const canDashCancel = this.fsmState !== 'STATE_GUARD_BREAK' && !this.isDashing;
       if (input.isDashPressed && this.dashCooldown <= 0 && canDashCancel) {
         if (typeof input.consumeDash === 'function') input.consumeDash();
-        const dashCost = 10;
+        const dashCost = PLAYER_STATS.dash_cost;
         if (this.energy >= dashCost) {
           this.energy -= dashCost;
           // Cooldown base 0.55s, con habilidad 'dash_cooldown' se reduce a 0.35s
-          this.dashCooldown = (skillTree && skillTree.hasSkill('dash_cooldown')) ? 0.35 : 0.55;
+          this.dashCooldown = (skillTree && skillTree.hasSkill('dash_cooldown')) ? PLAYER_STATS.dash_cooldown_upgraded : PLAYER_STATS.dash_cooldown_base;
           this.attackTimer = 0; // Abortar ataque activo inmediatamente (Animation Cancel)
           if (combatManager) {
             combatManager.cancelAttacksFrom(this); // Cancelar hitboxes activas del jugador
           }
-          this.swordCooldown = 0.10; // Reiniciar cooldown de espada tras esquiva
+          this.swordCooldown = PLAYER_STATS.sword_cooldown; // Reiniciar cooldown de espada tras esquiva
           this.fsmState = 'STATE_DASH';
           const dx = this.facing === 'right' ? 1 : this.facing === 'left' ? -1 : 0;
           const dy = this.facing === 'down' ? 1 : this.facing === 'up' ? -1 : 0;
           const useX = (moveX !== 0 || moveY !== 0) ? moveX : dx;
           const useY = (moveX !== 0 || moveY !== 0) ? moveY : dy;
-          this.startDash(useX, useY, 420, 0.24);
+          this.startDash(useX, useY, PLAYER_STATS.dash_speed, PLAYER_STATS.dash_duration);
         }
       }
 
@@ -313,12 +313,12 @@ export class Player extends Entity {
       if (input.isHealPressed && this.healCooldown <= 0 && canAttack) {
         if (typeof input.consumeHeal === 'function') input.consumeHeal();
 
-        const healCost = 30;
+        const healCost = PLAYER_STATS.heal_cost || 30;
         if (this.health < this.max_health) {
           if (this.energy >= healCost) {
             this.energy -= healCost;
             this.health = Math.min(this.max_health, this.health + 1);
-            this.healCooldown = 2.5; // 2.5 segundos de cooldown
+            this.healCooldown = PLAYER_STATS.heal_cooldown || 2.5; // 2.5 segundos de cooldown
             this.healTimer = 0.85;   // Duración de animación y pulso curativo esmeralda
             if (isContext && contextOrDt.state) {
               contextOrDt.state.set('player_health', this.health);
@@ -328,7 +328,7 @@ export class Player extends Entity {
         } else {
           // Si la salud ya está al máximo (3/3), no falla en silencio:
           // Activa un Escudo de Vitalidad con halo de protección
-          const barrierCost = 20;
+          const barrierCost = PLAYER_STATS.barrier_cost || 20;
           if (this.energy >= barrierCost) {
             this.energy -= barrierCost;
             this.healCooldown = 2.0;
