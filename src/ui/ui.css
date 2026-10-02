@@ -624,6 +624,9 @@
   justify-content: space-between;
   align-items: center;
   padding: 8% 0 10% 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .menu-card {
@@ -709,6 +712,10 @@
   cursor: pointer;
   z-index: 10;
   transition: opacity 0.3s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  padding: 12px 24px;
+  text-align: center;
 }
 
 .press-enter-msg.hidden {
@@ -1478,7 +1485,7 @@
     height: 90px;
   }
 }
-/* --- Números de Daño Flotantes (DOM Overlay) --- */
+/* --- Nï¿½meros de Daï¿½o Flotantes (DOM Overlay) --- */
 #damage-numbers-container {
   position: absolute;
   top: 0;

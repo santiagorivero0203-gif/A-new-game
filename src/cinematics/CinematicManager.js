@@ -151,19 +151,31 @@ export class CinematicManager {
   }
 
   _bindEvents() {
+    const handleSkip = (e) => {
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+      this.skip();
+    };
+
     if (this.btnSkip) {
-      this.btnSkip.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.skip();
-      });
+      this.btnSkip.addEventListener('click', handleSkip);
+      this.btnSkip.addEventListener('touchend', handleSkip, { passive: false });
     }
 
+    const handleAdvance = (e) => {
+      if (!this.isPlaying) return;
+      if (e.target.closest('#btn-skip-cinematic')) return;
+      this.advance();
+    };
+
     if (this.overlay) {
-      this.overlay.addEventListener('click', (e) => {
+      this.overlay.addEventListener('click', handleAdvance);
+      this.overlay.addEventListener('touchend', (e) => {
         if (!this.isPlaying) return;
         if (e.target.closest('#btn-skip-cinematic')) return;
+        if (e.cancelable) e.preventDefault();
         this.advance();
-      });
+      }, { passive: false });
     }
 
     window.addEventListener('keydown', (e) => {

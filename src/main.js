@@ -282,32 +282,63 @@ function startGame() {
   });
 }
 
-btnPlay.addEventListener('click', (e) => {
-  e.stopPropagation();
-  startGame();
-});
+// Helper para botones táctiles responsivos con cero retardo
+function addTouchClick(el, fn) {
+  if (!el) return;
+  el.addEventListener('click', fn);
+  el.addEventListener('touchend', (e) => {
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    fn(e);
+  }, { passive: false });
+}
+
+addTouchClick(btnPlay, () => startGame());
 
 function handleTitleScreenAdvance() {
   if (stateManager.get('game_state') !== 'STATE_MENU') return;
+  startGame();
+}
 
-  if (pressEnterMsg && !pressEnterMsg.classList.contains('hidden')) {
-    // Si está en el prompt inicial, pasar al menú
-    pressEnterMsg.classList.add('hidden');
-    if (menuCard) {
-      menuCard.classList.remove('hidden');
-      if (btnPlay) btnPlay.focus();
-    }
+// Detección de dispositivo táctil o móvil para adaptar el mensaje de bienvenida
+const isTouchDevice = (
+  ('ontouchstart' in window) ||
+  (navigator.maxTouchPoints > 0) ||
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+  (navigator.userAgentData && navigator.userAgentData.mobile === true)
+);
+
+if (pressEnterMsg) {
+  if (isTouchDevice) {
+    pressEnterMsg.innerHTML = '<span id="press-start-label">TOCA LA PANTALLA PARA COMENZAR</span>';
   } else {
-    // Si el menú ya está desplegado, iniciar la partida directamente
-    startGame();
+    pressEnterMsg.innerHTML = '<span id="press-start-label">PRESIONA ENTER O HAZ CLIC PARA COMENZAR</span>';
   }
 }
 
-// Clic global en cualquier zona de la portada para avanzar
+// Tocar o hacer clic en cualquier parte de la pantalla principal para iniciar
 if (mainMenuEl) {
-  mainMenuEl.addEventListener('click', (e) => {
-    if (e.target.closest('#btn-settings') || e.target.closest('#btn-play')) return;
+  const onMenuInteract = (e) => {
+    if (stateManager.get('game_state') !== 'STATE_MENU') return;
+    if (e.target.closest('#btn-settings') || e.target.closest('#settings-modal')) return;
+
+    if (e.type.startsWith('touch') || e.pointerType === 'touch') {
+      inputManager.isTouchDevice = true;
+    }
+
     handleTitleScreenAdvance();
+  };
+
+  mainMenuEl.addEventListener('click', onMenuInteract);
+  mainMenuEl.addEventListener('touchend', (e) => {
+    if (e.target.closest('#btn-settings') || e.target.closest('#settings-modal')) return;
+    if (e.cancelable) e.preventDefault();
+    onMenuInteract(e);
+  }, { passive: false });
+  mainMenuEl.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') {
+      onMenuInteract(e);
+    }
   });
 }
 
@@ -327,14 +358,11 @@ function resumeGame() {
   }
 }
 
-btnResume.addEventListener('click', resumeGame);
+addTouchClick(btnResume, resumeGame);
 
-btnToMainMenu.addEventListener('click', () => {
+addTouchClick(btnToMainMenu, () => {
   pauseMenuEl.classList.add('hidden');
   mainMenuEl.classList.remove('hidden');
-  // Resetear la pantalla de título al volver al menú
-  if (pressEnterMsg) pressEnterMsg.classList.remove('hidden');
-  if (menuCard) menuCard.classList.add('hidden');
   stateManager.set('game_state', 'STATE_MENU');
   engine.pause();
 });
@@ -353,11 +381,11 @@ inputManager.onSkillEquipped((newPower) => {
   }
 });
 
-btnSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));
-btnPauseSettings.addEventListener('click', () => settingsModalEl.classList.remove('hidden'));
-btnCloseSettings.addEventListener('click', () => settingsModalEl.classList.add('hidden'));
+addTouchClick(btnSettings, () => settingsModalEl.classList.remove('hidden'));
+addTouchClick(btnPauseSettings, () => settingsModalEl.classList.remove('hidden'));
+addTouchClick(btnCloseSettings, () => settingsModalEl.classList.add('hidden'));
 if (btnCloseSettingsX) {
-  btnCloseSettingsX.addEventListener('click', () => settingsModalEl.classList.add('hidden'));
+  addTouchClick(btnCloseSettingsX, () => settingsModalEl.classList.add('hidden'));
 }
 
 window.addEventListener('keydown', (e) => {
