@@ -4,6 +4,7 @@ import { FireAbility } from '../combat/FireAbility.js';
 import { KineticAbility } from '../combat/KineticAbility.js';
 import { EarthAbility } from '../combat/EarthAbility.js';
 import { PLAYER_STATS } from '../data/PlayerStats.js';
+import { KEYBINDINGS } from '../core/InputManager.js';
 
 /**
  * @module Player
@@ -226,11 +227,16 @@ export class Player extends Entity {
     let moveY = 0;
 
     if (input) {
-      // 1. Entradas de teclado físico
-      if (input.isKeyPressed('KeyW') || input.isKeyPressed('ArrowUp')) { moveY -= 1; this.facing = 'up'; }
-      if (input.isKeyPressed('KeyS') || input.isKeyPressed('ArrowDown')) { moveY += 1; this.facing = 'down'; }
-      if (input.isKeyPressed('KeyA') || input.isKeyPressed('ArrowLeft')) { moveX -= 1; this.facing = 'left'; }
-      if (input.isKeyPressed('KeyD') || input.isKeyPressed('ArrowRight')) { moveX += 1; this.facing = 'right'; }
+      // 1. Entradas de teclado físico usando KEYBINDINGS
+      const isUp = KEYBINDINGS.UP.some(k => input.isKeyPressed(k));
+      const isDown = KEYBINDINGS.DOWN.some(k => input.isKeyPressed(k));
+      const isLeft = KEYBINDINGS.LEFT.some(k => input.isKeyPressed(k));
+      const isRight = KEYBINDINGS.RIGHT.some(k => input.isKeyPressed(k));
+
+      if (isUp) { moveY -= 1; this.facing = 'up'; }
+      if (isDown) { moveY += 1; this.facing = 'down'; }
+      if (isLeft) { moveX -= 1; this.facing = 'left'; }
+      if (isRight) { moveX += 1; this.facing = 'right'; }
 
       // 2. Entrada de Joystick Táctil Virtual
       if (input.joystickVector && input.joystickVector.lengthSquared() > 0.02) {

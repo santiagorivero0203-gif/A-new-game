@@ -10,6 +10,25 @@ import { Vector2 } from '../utils/Vector2.js';
  * @author Be a Legend Team
  * @version 2.1.0
  */
+export const KEYBINDINGS = {
+  ATTACK: ['KeyJ', 'KeyZ'],
+  ABILITY: ['KeyK', 'KeyX'],
+  STRONG_ATTACK: ['KeyL'],
+  HEAL: ['KeyQ', 'KeyC'],
+  DASH: ['Space'],
+  DEFEND: ['ShiftLeft', 'ShiftRight'],
+  POWER_1: ['Digit1'],
+  POWER_2: ['Digit2'],
+  POWER_3: ['Digit3'],
+  POWER_CYCLE: ['KeyR', 'KeyE'],
+  RADIAL_MENU: ['Tab'],
+  PAUSE: ['Escape', 'KeyP'],
+  UP: ['KeyW', 'ArrowUp'],
+  DOWN: ['KeyS', 'ArrowDown'],
+  LEFT: ['KeyA', 'ArrowLeft'],
+  RIGHT: ['KeyD', 'ArrowRight']
+};
+
 export class InputManager {
   /**
    * @param {HTMLCanvasElement} [canvas] - Elemento de canvas principal opcional
@@ -242,42 +261,30 @@ export class InputManager {
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
-      // Ataque de espada físico (J o Z)
-      if (e.code === 'KeyJ' || e.code === 'KeyZ') this.isAttackPressed = true;
+      // Acciones con Buffer de Entrada (100ms)
+      if (KEYBINDINGS.ATTACK.includes(e.code)) this.triggerAction('attack', 100);
+      if (KEYBINDINGS.ABILITY.includes(e.code)) this.triggerAction('ability', 100);
+      if (KEYBINDINGS.STRONG_ATTACK.includes(e.code)) this.triggerAction('strong', 100);
+      if (KEYBINDINGS.HEAL.includes(e.code)) this.triggerAction('heal', 100);
+      if (KEYBINDINGS.DASH.includes(e.code)) this.triggerAction('dash', 100);
 
-      // Habilidad elemental equipada (K o X)
-      if (e.code === 'KeyK' || e.code === 'KeyX') this.isAbilityPressed = true;
+      // Acciones continuas sin buffer
+      if (KEYBINDINGS.DEFEND.includes(e.code)) this.isDefendPressed = true;
 
-      // Habilidad elemental potente / alternativa (KeyL)
-      if (e.code === 'KeyL') this.isStrongAttackPressed = true;
+      if (KEYBINDINGS.POWER_1.includes(e.code)) this.setPower('Fuego');
+      if (KEYBINDINGS.POWER_2.includes(e.code)) this.setPower('Embestida');
+      if (KEYBINDINGS.POWER_3.includes(e.code)) this.setPower('Raíces');
 
-      // Curación milenaria del guante (Q o C)
-      if (e.code === 'KeyQ' || e.code === 'KeyC') this.isHealPressed = true;
-
-      // Dash / Esquiva física (Espacio)
-      if (e.code === 'Space') this.isDashPressed = true;
-
-      // Guardia y Parry (ShiftLeft o ShiftRight)
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.isDefendPressed = true;
-
-      // Teclas numéricas para selección directa de poderes (1, 2, 3)
-      if (e.code === 'Digit1') this.setPower('Fuego');
-      if (e.code === 'Digit2') this.setPower('Embestida');
-      if (e.code === 'Digit3') this.setPower('Raíces');
-
-      // Teclas de ciclo rápido de poder (R o E)
-      if (e.code === 'KeyR' || e.code === 'KeyE') {
+      if (KEYBINDINGS.POWER_CYCLE.includes(e.code)) {
         this.cyclePower(1);
       }
 
-      // Menú radial de reliquia (Tab)
-      if (e.code === 'Tab') {
+      if (KEYBINDINGS.RADIAL_MENU.includes(e.code)) {
         e.preventDefault();
         this.isRadialMenuOpen = true;
       }
 
-      // Pausa (Escape o P)
-      if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (KEYBINDINGS.PAUSE.includes(e.code)) {
         if (this._onPauseCallback) this._onPauseCallback();
       }
     });
@@ -285,14 +292,11 @@ export class InputManager {
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
 
-      if (e.code === 'KeyJ' || e.code === 'KeyZ') this.isAttackPressed = false;
-      if (e.code === 'KeyK' || e.code === 'KeyX') this.isAbilityPressed = false;
-      if (e.code === 'KeyL') this.isStrongAttackPressed = false;
-      if (e.code === 'KeyQ' || e.code === 'KeyC') this.isHealPressed = false;
-      if (e.code === 'Space') this.isDashPressed = false;
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.isDefendPressed = false;
+      // No forzamos = false para las acciones cacheadas con triggerAction (permitiendo que el buffer de 100ms persista hasta que el timeout lo limpie).
+      // Solo limpiamos acciones continuas como defensa
+      if (KEYBINDINGS.DEFEND.includes(e.code)) this.isDefendPressed = false;
 
-      if (e.code === 'Tab') {
+      if (KEYBINDINGS.RADIAL_MENU.includes(e.code)) {
         this.isRadialMenuOpen = false;
       }
     });
