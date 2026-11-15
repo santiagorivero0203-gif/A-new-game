@@ -389,7 +389,23 @@ export class SkillTreeManager {
         svgType: 'tempest_twin'
       },
 
-      // --- Rama 2: Frenesí de Combate ---
+      // --- Rama 2: Frenesí de Combate y Resistencia ---
+      stamina_mastery: {
+        id: 'stamina_mastery',
+        name: 'Pulmones de Titán',
+        description: 'Aumenta la reserva total de Resistencia y acelera la recuperación para carreras continuas.',
+        mechanicsText: '+25 Resistencia máxima y +20% regeneración por rango.',
+        tree: 'wrath',
+        tier: 0,
+        lane: 2,
+        dependsOn: [],
+        reqTreePoints: 0,
+        maxRank: 3,
+        cost: 20,
+        costScale: 1.4,
+        badge: 'RESISTENCIA',
+        svgType: 'boots'
+      },
       swift_recovery: {
         id: 'swift_recovery',
         name: 'Recuperación Ágil',

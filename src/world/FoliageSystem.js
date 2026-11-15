@@ -220,6 +220,8 @@ export class FoliageSystem {
     const playerCenterX = playerHitbox.x + playerHitbox.width / 2;
     const playerCenterY = playerHitbox.y + playerHitbox.height / 2;
 
+    const contactRadius = 34;
+    let inGrass = false;
     for (let i = 0; i < this.foliageList.length; i++) {
       const foliage = this.foliageList[i];
       const foliageHitbox = foliage.getHitbox();
@@ -230,14 +232,16 @@ export class FoliageSystem {
       const dy = foliageCenterY - playerCenterY;
       const distSq = dx * dx + dy * dy;
 
-      // Radio de contacto efectivo (~34px)
-      const contactRadius = 34;
       if (distSq < contactRadius * contactRadius) {
+        inGrass = true;
         const pushX = (player.velocity.x !== 0) ? player.velocity.x : (dx !== 0 ? Math.sign(dx) * 20 : 0);
         const pushY = (player.velocity.y !== 0) ? player.velocity.y : 0;
         foliage.applyPush(pushX, pushY);
       }
     }
+
+    player.inTallGrass = inGrass;
+    player.isStealthHidden = inGrass && !!player.isProne;
   }
 
   /**

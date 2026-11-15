@@ -563,7 +563,7 @@ export class CelSpriteAtlas {
   // =========================================================================
 
   /**
-   * Genera u obtiene el sprite detallado de un enemigo (44x44 px).
+   * Genera u obtiene el sprite detallado de un enemigo en pixel-art entero de 16-bits (44x44 px).
    * Soporta los 5 arquetipos oficiales: `hound`, `artillery`, `tank`, `duelist` y `slime`.
    * @param {'hound'|'artillery'|'tank'|'duelist'|'slime'|string} [archetype='hound']
    * @param {'plantas'|'fuego'|'kinetic'|'astral'|'normal'|string} [element='plantas']
@@ -571,7 +571,7 @@ export class CelSpriteAtlas {
    * @returns {HTMLCanvasElement}
    */
   static getEnemySprite(archetype = 'hound', element = 'plantas', isHurt = false) {
-    const key = `enemy_v3_${archetype}_${element}_${isHurt ? 1 : 0}`;
+    const key = `enemy_v4_${archetype}_${element}_${isHurt ? 1 : 0}`;
     return CelSpriteAtlas.getOrBake(key, 44, 44, (ctx) => {
       const cx = 22;
       const ox = INK;
@@ -581,146 +581,210 @@ export class CelSpriteAtlas {
       const fillLight = isHurt ? '#ffffff' : pal.light;
 
       if (archetype === 'hound') {
-        // Sabueso depredador pixel-art en grilla entera
-        // Cola curvada trasera
+        // Sabueso depredador lupino en grilla pixel-art nítida
+        // Cola arqueada trasera
         ctx.fillStyle = ox;
-        ctx.fillRect(cx - 15, 13, 4, 8);
-        ctx.fillRect(cx - 13, 19, 5, 6);
+        ctx.fillRect(cx - 17, 13, 5, 4);
+        ctx.fillRect(cx - 15, 17, 4, 8);
+        ctx.fillRect(cx - 12, 22, 4, 4);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 14, 14, 2, 7);
-        ctx.fillRect(cx - 12, 20, 4, 3);
+        ctx.fillRect(cx - 16, 14, 3, 2);
+        ctx.fillRect(cx - 14, 16, 2, 7);
+        ctx.fillStyle = fillLight;
+        ctx.fillRect(cx - 16, 14, 1, 2);
 
-        // Patas musculosas con garras
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 30, 5, 8, 1, fillDark, ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 5, 30, 5, 8, 1, fillDark, ox, 1);
+        // Patas musculosas con garras afiladas
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 30, 5, 9, 1, fillDark, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 5, 30, 5, 9, 1, fillDark, ox, 1);
         ctx.fillStyle = '#f8fafc';
-        ctx.fillRect(cx - 9, 36, 3, 1);
-        ctx.fillRect(cx + 6, 36, 3, 1);
+        ctx.fillRect(cx - 9, 37, 1, 1);
+        ctx.fillRect(cx - 7, 37, 1, 1);
+        ctx.fillRect(cx + 6, 37, 1, 1);
+        ctx.fillRect(cx + 8, 37, 1, 1);
 
-        // Torso lupino y vientre sombreado
+        // Torso lupino compacto con pecho iluminado y vientre frío
         CelSpriteAtlas._inkEllipse(ctx, cx, 26, 12, 8, fillBase, ox, 1);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 8, 29, 16, 3);
+        ctx.fillRect(cx - 9, 29, 18, 3);
+        ctx.fillStyle = fillLight;
+        ctx.fillRect(cx - 7, 21, 14, 2);
 
         // Púas dorsales elementales escalonadas
         for (let i = -1; i <= 1; i++) {
           const sx = cx + i * 5;
           ctx.fillStyle = ox;
-          ctx.fillRect(sx - 2, 15, 5, 4);
-          ctx.fillRect(sx - 1, 13, 3, 2);
+          ctx.fillRect(sx - 2, 16, 5, 4);
+          ctx.fillRect(sx - 1, 14, 3, 2);
           ctx.fillStyle = fillLight;
           ctx.fillRect(sx - 1, 15, 3, 3);
         }
 
-        // Cabeza lupina angular + orejas puntiagudas
+        // Orejas triangulares puntiagudas
         ctx.fillStyle = ox;
-        ctx.fillRect(cx - 11, 5, 5, 8);
-        ctx.fillRect(cx + 6, 5, 5, 8);
+        ctx.fillRect(cx - 11, 5, 5, 7);
+        ctx.fillRect(cx + 6, 5, 5, 7);
+        ctx.fillRect(cx - 10, 3, 3, 2);
+        ctx.fillRect(cx + 7, 3, 3, 2);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 10, 6, 3, 6);
-        ctx.fillRect(cx + 7, 6, 3, 6);
+        ctx.fillRect(cx - 10, 5, 3, 6);
+        ctx.fillRect(cx + 7, 5, 3, 6);
+        ctx.fillStyle = fillBase;
+        ctx.fillRect(cx - 9, 6, 1, 4);
+        ctx.fillRect(cx + 8, 6, 1, 4);
 
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 10, 18, 12, 3, fillBase, ox, 1);
+        // Cabeza lupina angular + hocico + colmillos
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 10, 18, 13, 3, fillBase, ox, 1);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 7, 18, 14, 3);
-        // Hocico, ojos feroces y colmillos blancos
+        ctx.fillRect(cx - 7, 19, 14, 3);
+        ctx.fillStyle = ox;
+        ctx.fillRect(cx - 2, 16, 4, 2);
         ctx.fillStyle = isHurt ? '#f97316' : '#fef08a';
-        ctx.fillRect(cx - 6, 14, 3, 2);
-        ctx.fillRect(cx + 3, 14, 3, 2);
+        ctx.fillRect(cx - 6, 13, 3, 2);
+        ctx.fillRect(cx + 3, 13, 3, 2);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(cx - 4, 20, 2, 2);
         ctx.fillRect(cx + 2, 20, 2, 2);
       } else if (archetype === 'artillery') {
         // Esporífero Artillero con sombrero fúngico bioluminiscente
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 29, 6, 10, 1, fillDark, ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 29, 6, 10, 1, fillDark, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 30, 6, 9, 1, fillDark, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 30, 6, 9, 1, fillDark, ox, 1);
         CelSpriteAtlas._inkEllipse(ctx, cx, 27, 10, 8, fillBase, ox, 1);
-        // Sombrero ancho manchado
-        const capColor = isHurt ? '#ffffff' : (element === 'fuego' ? '#fb7185' : '#a855f7');
-        CelSpriteAtlas._inkEllipse(ctx, cx, 14, 15, 9, capColor, ox, 1);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#3b0764';
-        ctx.fillRect(cx - 11, 18, 22, 3);
-        // Motas brillantes en píxeles enteros
+        ctx.fillStyle = fillDark;
+        ctx.fillRect(cx - 7, 30, 14, 3);
+
+        // Sombrero ancho con láminas inferiores oscuras y cúpula brillante
+        const capColor = isHurt ? '#ffffff' : (element === 'fuego' ? '#fb7185' : element === 'kinetic' ? '#6366f1' : '#9333ea');
+        const capDark = isHurt ? '#fef08a' : (element === 'fuego' ? '#9f1239' : element === 'kinetic' ? '#312e81' : '#3b0764');
+        CelSpriteAtlas._inkEllipse(ctx, cx, 13, 15, 9, capColor, ox, 1);
+        ctx.fillStyle = capDark;
+        ctx.fillRect(cx - 12, 17, 24, 3);
         ctx.fillStyle = fillLight;
-        ctx.fillRect(cx - 9, 10, 4, 3);
-        ctx.fillRect(cx + 5, 9, 4, 3);
-        ctx.fillRect(cx - 1, 7, 3, 2);
+        ctx.fillRect(cx - 10, 9, 4, 3);
+        ctx.fillRect(cx + 5, 8, 4, 3);
+        ctx.fillRect(cx - 2, 6, 4, 2);
+
         // Ojos y boca mortero
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(cx - 6, 23, 2, 2);
-        ctx.fillRect(cx + 4, 23, 2, 2);
+        ctx.fillStyle = ox;
+        ctx.fillRect(cx - 6, 23, 3, 2);
+        ctx.fillRect(cx + 3, 23, 3, 2);
         ctx.fillStyle = '#fef08a';
         ctx.fillRect(cx - 5, 23, 1, 1);
-        ctx.fillRect(cx + 5, 23, 1, 1);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 28, 3, 3, '#0b101d', fillLight, 1);
+        ctx.fillRect(cx + 4, 23, 1, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 29, 3, 3, '#0b101d', fillLight, 1);
       } else if (archetype === 'tank') {
-        // Gólem / Centinela Pavés Blindado en pixel-art detallado
-        // Botas pesadas de hierro
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 34, 7, 6, 1, '#1e293b', ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 34, 7, 6, 1, '#1e293b', ox, 1);
+        // Centinela Pavés Blindado estilo 16-bit (yelmo curvo con cuernos, maza derecha y escudo pavés heráldico)
+        const steelMid = isHurt ? '#ffffff' : '#475569';
+        const steelDark = isHurt ? '#fef08a' : '#1e293b';
+        const steelLight = isHurt ? '#ffffff' : '#94a3b8';
 
-        // Coraza de acero y hombreras remachadas
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 12, 15, 24, 21, 3, isHurt ? '#ffffff' : '#334155', ox, 1);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#1e1b4b';
-        ctx.fillRect(cx - 10, 27, 20, 7);
-        ctx.fillStyle = isHurt ? '#ffffff' : '#94a3b8';
-        ctx.fillRect(cx - 9, 17, 18, 2);
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 14, 7, 11, 2, fillBase, ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 9, 14, 7, 11, 2, fillDark, ox, 1);
-        // Núcleo pectoral rúnico
-        CelSpriteAtlas._inkEllipse(ctx, cx, 24, 4, 4, fillLight, ox, 1);
+        // Grebas y botas pesadas remachadas
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 34, 7, 7, 1, steelDark, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 34, 7, 7, 1, steelDark, ox, 1);
+        ctx.fillStyle = steelLight;
+        ctx.fillRect(cx - 9, 35, 5, 1);
+        ctx.fillRect(cx + 4, 35, 5, 1);
 
-        // Escudo pavés blasonado en flanco izquierdo y maza en derecho
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 18, 19, 9, 17, 2, isHurt ? '#ffffff' : '#78350f', ox, 1);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#fbbf24';
-        ctx.fillRect(cx - 17, 20, 7, 2);
-        ctx.fillRect(cx - 17, 32, 7, 2);
+        // Maza de armas en el flanco derecho
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 11, 20, 4, 14, 1, '#78350f', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx + 14, 18, 5, 5, steelMid, ox, 1);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(cx + 13, 12, 2, 2);
+        ctx.fillRect(cx + 18, 17, 2, 2);
         ctx.fillStyle = fillLight;
-        ctx.fillRect(cx - 15, 25, 3, 4);
+        ctx.fillRect(cx + 13, 17, 2, 2);
 
-        // Yelmo con cresta metálica, cuernos y visera T brillante
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 5, 18, 12, 2, isHurt ? '#ffffff' : '#1e293b', ox, 1);
-        ctx.fillStyle = isHurt ? '#ffffff' : '#64748b';
-        ctx.fillRect(cx - 7, 6, 14, 2);
+        // Coraza pectoral metálica esculpida + hombreras
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 16, 22, 19, 4, steelMid, ox, 1);
+        ctx.fillStyle = steelDark;
+        ctx.fillRect(cx - 9, 28, 18, 6);
+        ctx.fillStyle = steelLight;
+        ctx.fillRect(cx - 8, 18, 16, 2);
+        // Cinturón de placas doradas
+        ctx.fillStyle = isHurt ? '#ffffff' : '#eab308';
+        ctx.fillRect(cx - 10, 27, 20, 2);
+        // Núcleo pectoral rúnico
+        CelSpriteAtlas._inkEllipse(ctx, cx + 1, 22, 3, 3, fillBase, ox, 1);
+        ctx.fillStyle = fillLight;
+        ctx.fillRect(cx, 21, 2, 2);
+
+        // Hombreras escalonadas
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 14, 15, 7, 9, 2, fillBase, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 7, 15, 7, 9, 2, fillDark, ox, 1);
+        ctx.fillStyle = fillLight;
+        ctx.fillRect(cx - 12, 16, 4, 2);
+
+        // Yelmo curvo de caballero con crestas y cuernos curvados
+        CelSpriteAtlas._inkEllipse(ctx, cx, 10, 9, 7, steelDark, ox, 1);
+        ctx.fillStyle = steelLight;
+        ctx.fillRect(cx - 5, 5, 10, 2);
+        // Cresta central elemental
         ctx.fillStyle = ox;
-        ctx.fillRect(cx - 11, 6, 3, 4);
-        ctx.fillRect(cx + 8, 6, 3, 4);
-        ctx.fillStyle = '#cbd5e1';
-        ctx.fillRect(cx - 10, 7, 2, 2);
-        ctx.fillRect(cx + 8, 7, 2, 2);
+        ctx.fillRect(cx - 2, 2, 4, 5);
+        ctx.fillStyle = fillBase;
+        ctx.fillRect(cx - 1, 3, 2, 3);
+        // Cuernos curvados a ambos lados
+        ctx.fillStyle = ox;
+        ctx.fillRect(cx - 12, 5, 3, 5);
+        ctx.fillRect(cx + 9, 5, 3, 5);
+        ctx.fillRect(cx - 11, 3, 2, 2);
+        ctx.fillRect(cx + 9, 3, 2, 2);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(cx - 11, 6, 2, 3);
+        ctx.fillRect(cx + 9, 6, 2, 3);
+        // Visera oscura en T con dos ojos brillantes
+        ctx.fillStyle = '#090919';
+        ctx.fillRect(cx - 6, 10, 12, 3);
+        ctx.fillRect(cx - 1, 12, 2, 4);
         ctx.fillStyle = isHurt ? '#f97316' : pal.glow;
-        ctx.fillRect(cx - 6, 10, 12, 2);
-        ctx.fillRect(cx - 1, 12, 2, 3);
+        ctx.fillRect(cx - 5, 11, 3, 2);
+        ctx.fillRect(cx + 2, 11, 3, 2);
+
+        // Escudo pavés blasonado curvado en flanco izquierdo (roble + marco metálico + emblema)
+        const shieldWood = isHurt ? '#ffffff' : '#78350f';
+        const shieldRim = isHurt ? '#fef08a' : '#cbd5e1';
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 19, 18, 12, 18, 3, shieldRim, ox, 1);
+        ctx.fillStyle = shieldWood;
+        ctx.fillRect(cx - 17, 20, 8, 14);
+        ctx.fillStyle = isHurt ? '#fef08a' : '#451a03';
+        ctx.fillRect(cx - 17, 29, 8, 5);
+        // Emblema cruciforme dorado/elemental en el centro del escudo
+        ctx.fillStyle = fillBase;
+        ctx.fillRect(cx - 14, 22, 2, 9);
+        ctx.fillRect(cx - 16, 25, 6, 2);
+        ctx.fillStyle = fillLight;
+        ctx.fillRect(cx - 14, 25, 2, 2);
       } else if (archetype === 'duelist') {
-        // Acechador Duelista encapuchado con máscara ósea y dagas pixel-art
-        // Capa escalonada en V
-        ctx.fillStyle = ox;
-        ctx.fillRect(cx - 12, 17, 24, 17);
-        ctx.fillRect(cx - 9, 34, 18, 4);
-        ctx.fillStyle = isHurt ? '#ffffff' : '#1e1b4b';
-        ctx.fillRect(cx - 11, 18, 22, 15);
-        ctx.fillRect(cx - 8, 33, 16, 4);
+        // Acechador Duelista encapuchado con máscara ósea y dagas curvas pixel-art
+        // Capa ondeante escalonada
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 17, 22, 17, 3, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
+        ctx.fillStyle = fillDark;
+        ctx.fillRect(cx - 9, 29, 18, 4);
         ctx.fillStyle = isHurt ? '#fef08a' : '#4338ca';
-        ctx.fillRect(cx - 5, 18, 10, 14);
-        // Máscara ósea
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 7, 7, 14, 11, 3, isHurt ? '#ffffff' : '#f8fafc', ox, 1);
+        ctx.fillRect(cx - 4, 18, 8, 14);
+        // Bufanda y hombreras oscuras
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 15, 20, 5, 2, fillDark, ox, 1);
+
+        // Capucha en punta + máscara ósea sombreada
+        CelSpriteAtlas._inkEllipse(ctx, cx, 11, 8, 7, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 6, 8, 12, 10, 3, isHurt ? '#ffffff' : '#f8fafc', ox, 1);
         ctx.fillStyle = isHurt ? '#fef08a' : '#94a3b8';
-        ctx.fillRect(cx - 5, 15, 10, 2);
+        ctx.fillRect(cx - 4, 15, 8, 2);
         ctx.fillStyle = isHurt ? '#f97316' : pal.glow;
         ctx.fillRect(cx - 4, 11, 3, 2);
         ctx.fillRect(cx + 1, 11, 3, 2);
-        // Hojas duales pixel-art en escalera diagonal
+
+        // Hojas duales pixel-art afiladas en diagonal
         const bladeCol = isHurt ? '#ffffff' : '#e2e8f0';
         for (let d = 0; d < 7; d++) {
           ctx.fillStyle = ox;
           ctx.fillRect(cx + 9 + d, 25 - d, 3, 3);
-          ctx.fillRect(cx - 11 - d, 26 - d, 3, 3);
+          ctx.fillRect(cx - 12 - d, 26 - d, 3, 3);
           ctx.fillStyle = bladeCol;
           ctx.fillRect(cx + 10 + d, 25 - d, 2, 2);
           ctx.fillRect(cx - 11 - d, 26 - d, 2, 2);
         }
       } else {
-        // Slime Elemental gelatinoso 100% scanlines enteras sin curvas
+        // Slime Elemental gelatinoso con base plana y núcleo rúnico
         CelSpriteAtlas._inkEllipse(ctx, cx, 26, 13, 11, fillBase, ox, 1);
         ctx.fillStyle = fillDark;
         ctx.fillRect(cx - 11, 31, 22, 4);
@@ -947,52 +1011,63 @@ export class CelSpriteAtlas {
   }
 
   /**
-   * Espadón oxidado de un antiguo caballero clavado en piedra (48x56 px).
-   * Prop de narrativa ambiental.
+   * Espadón oxidado de un antiguo caballero clavado en piedra en grilla pixel-art nítida (48x56 px).
+   * Elimina rotaciones fraccionarias para conservar bordes de 1px totalmente definidos.
    * @returns {HTMLCanvasElement}
    */
   static getRustedGreatswordSprite() {
-    return CelSpriteAtlas.getOrBake('prop_rusted_greatsword', 48, 56, (ctx) => {
-      ctx.fillStyle = COOL_SHADOW_TINT;
-      ctx.beginPath();
-      ctx.ellipse(24, 49, 15, 4.5, 0, 0, Math.PI * 2);
-      ctx.fill();
+    return CelSpriteAtlas.getOrBake('prop_rusted_greatsword_v2', 48, 56, (ctx) => {
+      // Sombra elíptica fría bajo el túmulo
+      CelSpriteAtlas._inkEllipse(ctx, 24, 49, 15, 4, COOL_SHADOW_TINT, null, 0);
 
-      // Túmulo de piedra en la base
-      CelSpriteAtlas._inkRoundRect(ctx, 11, 38, 26, 12, 5, '#475569', INK, 2);
+      // Túmulo de piedra rúnica escalonado + musgo
+      CelSpriteAtlas._inkRoundRect(ctx, 10, 38, 28, 12, 3, '#475569', INK, 1);
       ctx.fillStyle = '#1e1b4b';
-      ctx.fillRect(14, 44, 20, 4.5);
+      ctx.fillRect(12, 45, 24, 4);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(13, 39, 22, 2);
+      ctx.fillStyle = '#15803d';
+      ctx.fillRect(12, 40, 6, 3);
+      ctx.fillRect(30, 41, 6, 3);
+      ctx.fillStyle = '#84cc16';
+      ctx.fillRect(13, 40, 4, 1);
 
-      ctx.save();
-      ctx.translate(24, 40);
-      ctx.rotate(-0.14);
+      // Hoja ancha de acero clavada ligeramente inclinada en escalera pixel-art entera
+      for (let i = 0; i < 24; i++) {
+        const y = 39 - i;
+        const dx = Math.floor(i / 6);
+        const bx = 21 - dx;
+        ctx.fillStyle = INK;
+        ctx.fillRect(bx - 1, y, 8, 1);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(bx, y, 2, 1);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(bx + 2, y, 2, 1);
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(bx + 4, y, 2, 1);
+      }
 
-      // Hoja ancha de acero oxidado (gradiente escalonado con óxido cálido y sombra violeta)
-      ctx.fillStyle = '#64748b';
-      ctx.beginPath();
-      ctx.moveTo(-4, 0);
-      ctx.lineTo(-4.5, -24);
-      ctx.lineTo(4.5, -24);
-      ctx.lineTo(3.5, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Manchas de herrumbre ámbar
+      // Manchas de herrumbre ámbar sobre la hoja
       ctx.fillStyle = '#b45309';
-      ctx.fillRect(-2.5, -18, 3.5, 6);
-      ctx.fillRect(0.5, -9, 2.5, 5);
-      // Filo iluminado
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillRect(-3.5, -22, 1.5, 19);
+      ctx.fillRect(21, 29, 3, 4);
+      ctx.fillRect(19, 21, 2, 4);
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(22, 30, 1, 2);
 
-      // Guarda rota y empuñadura
-      CelSpriteAtlas._inkRoundRect(ctx, -10, -27, 19, 4, 1.5, '#78350f', INK, 1.8);
-      CelSpriteAtlas._inkRoundRect(ctx, -2.5, -36, 5, 9, 1.5, '#4a1d3a', INK, 1.8);
-      CelSpriteAtlas._inkEllipse(ctx, 0, -37.5, 3.5, 3, '#eab308', INK, 1.5);
-      ctx.restore();
+      // Guarda cruciforme inclinada 1px por peldaño sin antialiasing
+      CelSpriteAtlas._inkRoundRect(ctx, 9, 14, 8, 3, 1, '#78350f', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 16, 13, 8, 3, 1, '#92400e', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 23, 12, 7, 3, 1, '#78350f', INK, 1);
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(18, 13, 4, 2);
+
+      // Empuñadura y pomo dorado ancestral
+      CelSpriteAtlas._inkRoundRect(ctx, 17, 5, 5, 8, 1, '#4a1d3a', INK, 1);
+      ctx.fillStyle = '#7c2d12';
+      ctx.fillRect(18, 7, 3, 2);
+      CelSpriteAtlas._inkEllipse(ctx, 19, 4, 3, 3, '#eab308', INK, 1);
+      ctx.fillStyle = '#fef9c3';
+      ctx.fillRect(18, 3, 1, 1);
     });
   }
 

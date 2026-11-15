@@ -41,6 +41,10 @@ export class UIManager {
     this.hudPostureFill = document.getElementById('hud-posture-fill');
     this.hudPostureGhostFill = document.getElementById('hud-posture-ghost-fill');
     this.hudPostureText = document.getElementById('hud-posture-text');
+    this.threatVignetteEl = document.getElementById('threat-corner-vignette');
+    this.hudStaminaWrap = document.getElementById('hud-stamina-wrap');
+    this.hudStaminaFill = document.getElementById('hud-stamina-fill');
+    this.hudStaminaText = document.getElementById('hud-stamina-text');
 
     // 1.B Botones Rápidos Superiores Derechos (Top-Right)
     this.btnQuickPause = document.getElementById('btn-quick-pause');
@@ -123,6 +127,9 @@ export class UIManager {
     this._lastEnergy = -1;
     this._lastPosture = -1;
     this._lastDefending = null;
+    this._lastStamina = -1;
+    this._lastStaminaExhausted = null;
+    this._lastThreatLevel = null;
     this._lastGameState = null;
     this._lastRadialIndex = -1;
     this._lastRadialOpen = false;
@@ -455,6 +462,45 @@ export class UIManager {
 
       if (this.vignetteEl) {
         this.vignetteEl.classList.toggle('active', isCritical);
+      }
+    }
+
+    // 5. Barra de Resistencia / Stamina (Sprint y Tácticas de Sigilo)
+    const stamina = stateManager ? (stateManager.get('player_stamina') ?? 100) : 100;
+    const maxStamina = stateManager ? (stateManager.get('player_max_stamina') ?? 100) : 100;
+    const staminaExhausted = !!(stateManager && stateManager.get('player_stamina_exhausted'));
+
+    if (Math.abs(stamina - this._lastStamina) > 0.4 || staminaExhausted !== this._lastStaminaExhausted) {
+      this._lastStamina = stamina;
+      this._lastStaminaExhausted = staminaExhausted;
+      const clampedStamina = Math.max(0, Math.min(maxStamina, stamina));
+      const staminaRatio = maxStamina > 0 ? (clampedStamina / maxStamina) : 1;
+
+      if (this.hudStaminaFill) {
+        this.hudStaminaFill.style.transform = `scaleX(${staminaRatio})`;
+        this.hudStaminaFill.classList.toggle('exhausted', staminaExhausted);
+      }
+      if (this.hudStaminaText) {
+        this.hudStaminaText.textContent = staminaExhausted ? 'AGOTADO' : `${Math.round(staminaRatio * 100)}%`;
+        this.hudStaminaText.style.color = staminaExhausted ? '#f87171' : '#7dd3fc';
+      }
+    }
+
+    // 6. Viñeta Táctica de Amenaza en Esquinas de Pantalla (Threat Corner Vignette)
+    const threatLevel = stateManager ? (stateManager.get('threat_level') || 'calm') : 'calm';
+    if (threatLevel !== this._lastThreatLevel) {
+      this._lastThreatLevel = threatLevel;
+      if (this.threatVignetteEl) {
+        this.threatVignetteEl.className = 'threat-corner-vignette';
+        if (threatLevel === 'danger') {
+          this.threatVignetteEl.classList.add('threat-danger');
+        } else if (threatLevel === 'alert') {
+          this.threatVignetteEl.classList.add('threat-alert');
+        } else if (threatLevel === 'stealth') {
+          this.threatVignetteEl.classList.add('threat-stealth');
+        } else {
+          this.threatVignetteEl.classList.add('hidden');
+        }
       }
     }
   }

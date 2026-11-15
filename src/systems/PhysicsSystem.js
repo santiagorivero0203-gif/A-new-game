@@ -21,6 +21,48 @@ export class PhysicsSystem {
     this._resultPos = new Vector2();
     /** @type {{x: number, y: number, width: number, height: number}|null} Límites físicos del nivel */
     this.worldBounds = null;
+    /** @type {import('../world/Tilemap.js').Tilemap|null} Mapa lógico para colisiones automáticas con agua, magma y acantilados */
+    this.tilemap = null;
+  }
+
+  /**
+   * Asocia el mapa de losetas activo para bloquear automáticamente el acceso
+   * a celdas de agua, magma, vacío astral (`tile === 3`) y acantilados (`tile === 2`).
+   * @param {import('../world/Tilemap.js').Tilemap|null} tilemap
+   */
+  setTilemap(tilemap) {
+    this.tilemap = tilemap;
+  }
+
+  /**
+   * Comprueba si un rectángulo AABB solapa alguna loseta sólida o letal del Tilemap
+   * (`tile === 2` acantilado o `tile === 3` agua/lava/vacío), excluyendo puentes (`tile === 4`).
+   * @param {{x: number, y: number, width: number, height: number}} rect
+   * @returns {boolean}
+   */
+  isRectBlockedByTilemap(rect) {
+    if (!this.tilemap || !Array.isArray(this.tilemap.grid) || this.tilemap.grid.length === 0) {
+      return false;
+    }
+
+    const ts = this.tilemap.tileSize || 32;
+    const inset = Math.min(2, Math.floor(Math.min(rect.width, rect.height) * 0.25));
+    const minCol = Math.max(0, Math.floor((rect.x + inset) / ts));
+    const maxCol = Math.min(this.tilemap.cols - 1, Math.floor((rect.x + rect.width - inset) / ts));
+    const minRow = Math.max(0, Math.floor((rect.y + inset) / ts));
+    const maxRow = Math.min(this.tilemap.rows - 1, Math.floor((rect.y + rect.height - inset) / ts));
+
+    for (let r = minRow; r <= maxRow; r++) {
+      const row = this.tilemap.grid[r];
+      if (!row) continue;
+      for (let c = minCol; c <= maxCol; c++) {
+        const tile = row[c];
+        if (tile === 2 || tile === 3) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**
@@ -47,6 +89,42 @@ export class PhysicsSystem {
   }
 
   /**
+   * Determina si existe Línea de Visión (Line of Sight) directa entre dos puntos del mundo
+   * sin obstáculos sólidos interpuestos (extraído y optimizado de The-last-endo).
+   * @param {number} x1 Coordenada X origen
+   * @param {number} y1 Coordenada Y origen
+   * @param {number} x2 Coordenada X destino
+   * @param {number} y2 Coordenada Y destino
+   * @returns {boolean} True si no hay muros u obstáculos bloqueando la vista
+   */
+  hasLineOfSight(x1, y1, x2, y2) {
+    const solids = this.entityManager.getSolids();
+    if (!solids || solids.length === 0) return true;
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= 18) return true;
+
+    // Muestreo con paso de 20 px
+    const steps = Math.ceil(dist / 20);
+    const stepX = dx / steps;
+    const stepY = dy / steps;
+
+    for (let i = 1; i < steps; i++) {
+      const cx = x1 + stepX * i;
+      const cy = y1 + stepY * i;
+      for (let s = 0; s < solids.length; s++) {
+        const b = solids[s];
+        if (cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
    * Resuelve el movimiento de una entidad permitiendo deslizarse contra muros.
    * Evalúa el eje X primero; si colisiona, cancela solo el movimiento en X.
    * Luego evalúa el eje Y; si colisiona, cancela solo el movimiento en Y.
@@ -61,6 +139,7 @@ export class PhysicsSystem {
     let finalY = targetY;
 
     const originalHitbox = entity.getHitbox();
+    const currentlyInBlockedTile = this.isRectBlockedByTilemap(originalHitbox);
     const testBox = this._testBox;
     testBox.width = originalHitbox.width;
     testBox.height = originalHitbox.height;
@@ -91,6 +170,9 @@ export class PhysicsSystem {
         break;
       }
     }
+    if (!collidedX && !currentlyInBlockedTile && this.isRectBlockedByTilemap(testBox)) {
+      collidedX = true;
+    }
 
     if (collidedX) {
       finalX = entity.pos.x; // Revertir avance en X
@@ -109,6 +191,9 @@ export class PhysicsSystem {
         collidedY = true;
         break;
       }
+    }
+    if (!collidedY && !currentlyInBlockedTile && this.isRectBlockedByTilemap(testBox)) {
+      collidedY = true;
     }
 
     if (collidedY) {

@@ -63,6 +63,9 @@
       <!-- Viñeta Ambiental de Salud Crítica -->
       <div id="vignette-overlay" class="vignette-overlay"></div>
 
+      <!-- Indicador Táctico de Peligro Ambiental en Esquinas (Threat Vignette) -->
+      <div id="threat-corner-vignette" class="threat-corner-vignette hidden"></div>
+
       <!-- =========================================================================
            CAPA 1: HUD DE GAMEPLAY (Visible ESTRICTAMENTE en STATE_PLAYING)
            Cumple las 4 reglas de Responsive Game HUD (16:9 <-> 9:16)
@@ -157,6 +160,24 @@
                   </div>
                   <div class="rpg-bar-ticks">
                     <span class="rpg-tick" style="left: 50%;"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- BARRA 4: RESISTENCIA / STAMINA -->
+              <div class="rpg-bar-row stamina-row" id="hud-stamina-wrap">
+                <div class="rpg-bar-header">
+                  <div class="rpg-bar-title-group">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="rpg-stat-icon stamina-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
+                      <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
+                    </svg>
+                    <span class="rpg-bar-label">RESISTENCIA</span>
+                  </div>
+                  <span class="rpg-bar-value" id="hud-stamina-text">100%</span>
+                </div>
+                <div class="rpg-bar-chassis stamina-chassis">
+                  <div id="hud-stamina-fill" class="rpg-bar-fill hud-stamina-fill" style="transform: scaleX(1);">
+                    <div class="rpg-bar-shine"></div>
                   </div>
                 </div>
               </div>
@@ -346,6 +367,22 @@
                 <path d="M12 4v16M4 12h16" />
               </svg>
               <span class="touch-sub-label">CURAR</span>
+            </button>
+
+            <!-- Carrera / Sprint Táctico ([F]) -->
+            <button id="touch-btn-sprint" class="touch-mini-btn sprint-btn" aria-label="Correr" title="Sprint con Resistencia [F]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
+                <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
+              </svg>
+              <span class="touch-sub-label">CORRER</span>
+            </button>
+
+            <!-- Modo Sigilo / Agacharse en Grama Alta ([C]) -->
+            <button id="touch-btn-stealth" class="touch-mini-btn stealth-btn" aria-label="Sigilo" title="Agacharse / Sigilo [C]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+              </svg>
+              <span class="touch-sub-label">SIGILO</span>
             </button>
 
             <!-- Habilidad Fuerte -->

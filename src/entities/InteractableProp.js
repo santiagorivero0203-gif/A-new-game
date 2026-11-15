@@ -33,11 +33,12 @@ export class InteractableProp extends Entity {
    * @param {string} [config.grantsElement] - Elemento que despierta ('Fuego', 'All', etc.)
    */
   constructor(config) {
-    const dims = InteractableProp._getDimensions(config.propType);
+    const normalizedType = InteractableProp._normalizePropType(config.propType);
+    const dims = InteractableProp._getDimensions(normalizedType);
     super(config.x, config.y, dims.w, dims.h);
 
-    this.propId = config.id || `${config.propType}_${Math.round(config.x)}_${Math.round(config.y)}`;
-    this.propType = config.propType;
+    this.propId = config.id || `${normalizedType}_${Math.round(config.x)}_${Math.round(config.y)}`;
+    this.propType = normalizedType;
     this.label = config.label || '';
     this.grantsElement = config.grantsElement || 'Fuego';
 
@@ -64,11 +65,26 @@ export class InteractableProp extends Entity {
   }
 
   /**
+   * Normaliza alias históricos de `propType` usados en archivos JSON de niveles.
+   * @private
+   * @param {string} propType
+   * @returns {string}
+   */
+  static _normalizePropType(propType) {
+    if (propType === 'thorn_gate') return 'burnable_vines';
+    if (propType === 'elemental_Switch_fire' || propType === 'elemental_switch_fire') {
+      return 'runic_obelisk';
+    }
+    return propType;
+  }
+
+  /**
    * Retorna dimensiones canónicas por tipo de prop.
    * @private
    */
   static _getDimensions(propType) {
-    switch (propType) {
+    const normalizedType = InteractableProp._normalizePropType(propType);
+    switch (normalizedType) {
       case 'cave_mouth': return { w: 192, h: 156 };
       case 'starter_sword': return { w: 48, h: 58 };
       case 'cliff_rock':

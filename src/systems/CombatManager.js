@@ -693,6 +693,14 @@ export class CombatManager {
 
       // Multiplicador Crítico de Riposte sobre enemigos Aturdidos (x3.0 -> x3.8 R1 / x4.4 R2 con `mirror_ricochet`)
       let isCriticalRiposte = false;
+      if (attack.isStealthStrike) {
+        hitSoundType = 'critical';
+        if (context && context.engine) context.engine.hitStop(0.06);
+        if (context && context.camera) context.camera.shake(0.38, 0.18);
+        if (context && context.uiManager && context.camera) {
+          context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 14, '¡SIGILO CRÍTICO x3!', '#facc15');
+        }
+      }
       if (entity.hasTag('staggered') && !attack.isMagmaZone) {
         const mirrorRank = skillTree ? skillTree.getSkillRank('mirror_ricochet') : 0;
         const riposteMult = mirrorRank >= 2 ? 4.4 : (mirrorRank === 1 ? 3.8 : 3.0);

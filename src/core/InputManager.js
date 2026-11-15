@@ -14,8 +14,10 @@ export const KEYBINDINGS = {
   ATTACK: ['KeyJ', 'KeyZ'],
   ABILITY: ['KeyK', 'KeyX'],
   STRONG_ATTACK: ['KeyL'],
-  HEAL: ['KeyQ', 'KeyC'],
+  HEAL: ['KeyQ', 'KeyH'],
   DASH: ['Space'],
+  SPRINT: ['KeyF', 'KeyV'],
+  STEALTH: ['KeyC', 'ControlLeft', 'ControlRight'],
   DEFEND: ['ShiftLeft', 'ShiftRight'],
   POWER_1: ['Digit1'],
   POWER_2: ['Digit2'],
@@ -87,6 +89,12 @@ export class InputManager {
 
     /** @type {boolean} Si el comando de dash/esquiva rápida está activo */
     this.isDashPressed = false;
+
+    /** @type {boolean} Si la acción de sprint/correr con resistencia está activa */
+    this.isSprintPressed = false;
+
+    /** @type {boolean} Si el comando de sigilo/agacharse al suelo está activo */
+    this.isStealthPressed = false;
 
     /** @type {string} Poder elemental actualmente equipado ('Fuego', 'Embestida', 'Raíces') */
     this.currentPower = 'Fuego';
@@ -243,6 +251,11 @@ export class InputManager {
         clearTimeout(this._timerStrong);
         this._timerStrong = setTimeout(() => { this.isStrongAttackPressed = false; }, durationMs);
         break;
+      case 'stealth':
+        this.isStealthPressed = true;
+        clearTimeout(this._timerStealth);
+        this._timerStealth = setTimeout(() => { this.isStealthPressed = false; }, durationMs);
+        break;
     }
   }
 
@@ -286,6 +299,14 @@ export class InputManager {
   }
 
   /**
+   * Consume la acción de alternar sigilo en este fotograma.
+   */
+  consumeStealth() {
+    this.isStealthPressed = false;
+    clearTimeout(this._timerStealth);
+  }
+
+  /**
    * Enlaza los manejadores de eventos globales (Teclado físico, ratón y rueda).
    * @private
    */
@@ -321,10 +342,14 @@ export class InputManager {
       }
       if (KEYBINDINGS.HEAL.includes(e.code)) this.triggerAction('heal', 200);
       if (KEYBINDINGS.DASH.includes(e.code)) this.triggerAction('dash', 200);
+      if (KEYBINDINGS.STEALTH.includes(e.code) && !e.repeat) this.triggerAction('stealth', 200);
 
       // Acciones continuas sin buffer
       if (KEYBINDINGS.DEFEND.includes(e.code)) {
         this.isDefendPressed = true;
+      }
+      if (KEYBINDINGS.SPRINT.includes(e.code)) {
+        this.isSprintPressed = true;
       }
 
       if (KEYBINDINGS.POWER_1.includes(e.code)) this.setPower('Fuego');
@@ -355,6 +380,7 @@ export class InputManager {
       // No forzamos = false para las acciones cacheadas con triggerAction (permitiendo que el buffer de 100ms persista hasta que el timeout lo limpie).
       // Solo limpiamos acciones continuas como defensa
       if (KEYBINDINGS.DEFEND.includes(e.code)) this.isDefendPressed = false;
+      if (KEYBINDINGS.SPRINT.includes(e.code)) this.isSprintPressed = false;
 
       if (KEYBINDINGS.RADIAL_MENU.includes(e.code)) {
         this.isRadialMenuOpen = false;
@@ -532,7 +558,13 @@ export class InputManager {
     // 3.6 Botón de Curación Milenaria del Guante
     bindBtn('touch-btn-heal', () => { this.isHealPressed = true; }, () => { this.isHealPressed = false; }, 'heal');
 
-    // 3.7 Selector Rápido de Elemento (Cicla entre Fuego, Embestida y Raíces)
+    // 3.7 Botón de Sprint / Carrera con Resistencia
+    bindBtn('touch-btn-sprint', () => { this.isSprintPressed = true; }, () => { this.isSprintPressed = false; }, 'sprint');
+
+    // 3.8 Botón de Sigilo / Agacharse en Grama Alta
+    bindBtn('touch-btn-stealth', () => { this.isStealthPressed = true; }, () => { this.isStealthPressed = false; }, 'stealth');
+
+    // 3.9 Selector Rápido de Elemento (Cicla entre Fuego, Embestida y Raíces)
     const btnSwitch = document.getElementById('touch-btn-switch');
     if (btnSwitch) {
       const handleSwitch = (e) => {

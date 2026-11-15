@@ -18,18 +18,16 @@
     { "x": 1556, "y": 636, "radius": 150, "color": "#fb923c", "intensity": 0.7, "flickerSpeed": 2.4 }
   ],
   "colliders": [
-    { "x": 0, "y": 0, "width": 1728, "height": 118 },
-    { "x": 400, "y": 330, "width": 224, "height": 220 },
-    { "x": 990, "y": 560, "width": 260, "height": 240 }
+    { "x": 0, "y": 0, "width": 1728, "height": 124 }
   ],
   "props": [
     { "propType": "world_portal", "x": 130, "y": 608, "portalColor": "#4ade80", "targetWorld": "cave_exit_intro", "worldLabel": "Claro de las Reliquias" },
-    { "propType": "crystal_rock", "x": 270, "y": 280 },
-    { "propType": "crystal_rock", "x": 650, "y": 310 },
+    { "propType": "crystal_rock", "x": 270, "y": 260 },
+    { "propType": "crystal_rock", "x": 640, "y": 240 },
     {
       "propType": "broken_statue",
       "x": 448,
-      "y": 684,
+      "y": 692,
       "biomeTint": "marsh",
       "loreTitle": "Efigie Sumergida de las Esporas",
       "loreText": "El musgo bioluminiscente conserva la memoria de antiguos druidas que sellaron estas marismas.",
@@ -37,16 +35,16 @@
     },
     {
       "propType": "rusted_greatsword",
-      "x": 790,
-      "y": 340,
+      "x": 930,
+      "y": 310,
       "loreTitle": "Espada del Vigía del Cieno",
       "loreText": "La hoja absorbió la humedad cenagosa, pero su empuñadura aún retiene calor rúnico.",
       "essenceReward": 18
     },
     {
       "propType": "runic_obelisk",
-      "x": 830,
-      "y": 530,
+      "x": 704,
+      "y": 710,
       "runeColor": "#2dd4bf",
       "loreTitle": "Obelisco de las Aguas Brillantes",
       "loreText": "Las esporas retroceden ante el pulso cinético de la Reliquia.",
@@ -60,18 +58,19 @@
   "entities": [
     { "type": "npc", "variant": "tarak", "name": "Tarak", "x": 310, "y": 605 },
     { "type": "enemy", "archetype": "slime", "element": "plantas", "x": 540, "y": 640 },
-    { "type": "enemy", "archetype": "slime", "element": "kinetic", "x": 620, "y": 580 },
-    { "type": "enemy", "archetype": "artillery", "element": "plantas", "x": 720, "y": 460 },
+    { "type": "enemy", "archetype": "slime", "element": "kinetic", "x": 620, "y": 616 },
+    { "type": "enemy", "archetype": "artillery", "element": "plantas", "x": 720, "y": 480 },
     { "type": "enemy", "archetype": "hound", "element": "plantas", "x": 930, "y": 635 },
     { "type": "enemy", "archetype": "duelist", "element": "kinetic", "x": 1080, "y": 400 },
     { "type": "enemy", "archetype": "tank", "element": "plantas", "x": 1280, "y": 450 },
     { "type": "enemy", "archetype": "artillery", "element": "kinetic", "x": 1450, "y": 440 }
   ],
   "foliage": [
-    { "x": 340, "y": 680, "count": 6 },
-    { "x": 670, "y": 710, "count": 8 },
-    { "x": 960, "y": 330, "count": 7 },
-    { "x": 1310, "y": 500, "count": 8 }
+    { "x": 340, "y": 720 },
+    { "x": 650, "y": 730 },
+    { "x": 960, "y": 330 },
+    { "x": 1310, "y": 500 },
+    { "x": 1420, "y": 730 }
   ],
   "clearingTrees": [
     { "x": 190, "y": 390 },

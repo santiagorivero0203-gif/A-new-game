@@ -19,14 +19,14 @@
     { "x": 1520, "y": 580, "radius": 160, "color": "#a855f7", "intensity": 0.75, "flickerSpeed": 2.0 }
   ],
   "colliders": [
-    { "x": 0, "y": 0, "width": 1728, "height": 148 },
-    { "x": 790, "y": 150, "width": 145, "height": 395 },
-    { "x": 790, "y": 665, "width": 145, "height": 480 }
+    { "x": 0, "y": 0, "width": 1728, "height": 156 }
   ],
   "props": [
     { "propType": "world_portal", "x": 115, "y": 568, "portalColor": "#2dd4bf", "targetWorld": "marsh_of_spores", "worldLabel": "Pantano de Esporas" },
     { "propType": "cliff_rock", "x": 360, "y": 310 },
+    { "propType": "cliff_rock", "x": 220, "y": 740 },
     { "propType": "crystal_rock", "x": 620, "y": 340 },
+    { "propType": "crystal_rock", "x": 1320, "y": 290 },
     {
       "propType": "broken_statue",
       "x": 520,
@@ -67,6 +67,12 @@
     { "type": "enemy", "archetype": "artillery", "element": "fuego", "x": 1360, "y": 730 },
     { "type": "enemy", "archetype": "duelist", "element": "kinetic", "x": 1410, "y": 480 },
     { "type": "enemy", "archetype": "tank", "element": "kinetic", "x": 1260, "y": 740 }
+  ],
+  "foliage": [
+    { "x": 310, "y": 430 },
+    { "x": 680, "y": 460 },
+    { "x": 1060, "y": 820 },
+    { "x": 1480, "y": 790 }
   ]
 }
 

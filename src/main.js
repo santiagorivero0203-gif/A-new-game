@@ -103,6 +103,8 @@ const playerLight = {
 const POWER_LIGHT_COLORS = {
   Fuego: '#fb923c',
   Plantas: '#4ade80',
+  Raíces: '#4ade80',
+  Embestida: '#38bdf8',
   Kinetic: '#38bdf8'
 };
 
@@ -176,6 +178,7 @@ const tilemap = new Tilemap(
   initialMapCfg.tileSize || 32,
   currentLevelData.layoutPreset || currentWorldKey
 );
+physicsSystem.setTilemap(tilemap);
 
 // 3. Instanciación de Santi en la boca de la cueva de cristales
 const player = new Player(levelInfo.playerSpawn.x, levelInfo.playerSpawn.y);
@@ -201,6 +204,10 @@ stateManager.set('player_health', player.health);
 stateManager.set('player_max_health', player.max_health);
 stateManager.set('player_energy', player.energy);
 stateManager.set('player_posture', 100);
+stateManager.set('player_stamina', player.stamina || 100);
+stateManager.set('player_max_stamina', player.max_stamina || 100);
+stateManager.set('player_stamina_exhausted', false);
+stateManager.set('threat_level', 'calm');
 stateManager.set('intro_stage', 0);
 stateManager.set('current_world', currentWorldKey);
 stateManager.set(
@@ -241,11 +248,14 @@ function loadWorld(worldKey) {
   player.pos.set(levelInfo.playerSpawn.x, levelInfo.playerSpawn.y);
   player.velocity.set(0, 0);
 
-  if (worldKey !== 'cave_exit_intro' && player.unlockedElements.size === 0) {
-    player.unlockElement('Fuego');
-    player.unlockElement('Plantas');
-    player.unlockElement('Kinetic');
-    stateManager.set('gauntlet_tier', Math.max(1, stateManager.get('gauntlet_tier') || 1));
+  if (worldKey !== 'cave_exit_intro') {
+    if (typeof player.unlockSword === 'function') player.unlockSword();
+    if (typeof player.unlockAllElements === 'function') player.unlockAllElements();
+    stateManager.set('gauntlet_tier', Math.max(2, stateManager.get('gauntlet_tier') || 2));
+    stateManager.set('unlocked_powers', ['Fuego', 'Embestida', 'Raíces']);
+    if (!player.currentAbility || !player.hasElement(player.currentAbility)) {
+      player.equipAbility('Fuego');
+    }
   }
 
   _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
@@ -377,13 +387,17 @@ function update(deltaTime) {
   const equippedPower = stateManager.get('equipped_power') || 'Fuego';
   playerLight.color = POWER_LIGHT_COLORS[equippedPower] || '#38bdf8';
 
-  // Foco táctico de cámara (Cue-Focus Zero-GC sobre enemigos cercanos en combate)
+  // Foco táctico de cámara y evaluación de amenaza ambiental (Zero-GC)
   let combatFocus = null;
   const rawEntities = entityManager.rawEntities;
   let focusX = 0;
   let focusY = 0;
   let enemyCount = 0;
+  let hasAggroEnemy = false;
+  let hasAlertEnemy = false;
   const focusRangeSq = 340 * 340;
+  const alertRangeSq = 270 * 270;
+
   for (let i = 0; i < rawEntities.length; i++) {
     const ent = rawEntities[i];
     if (!ent || !ent.active || ent.isDead || !ent.hasTag('enemy')) continue;
@@ -391,17 +405,42 @@ function update(deltaTime) {
     const ey = ent.pos.y + ent.height / 2;
     const dx = ex - _playerCenterCache.x;
     const dy = ey - _playerCenterCache.y;
-    if (dx * dx + dy * dy <= focusRangeSq) {
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq <= focusRangeSq) {
       focusX += ex;
       focusY += ey;
       enemyCount++;
     }
+
+    if (ent.aiState === 'CHASE' || ent.aiState === 'TELEGRAPH' || ent.aiState === 'ATTACK') {
+      hasAggroEnemy = true;
+    } else if (distSq <= alertRangeSq) {
+      hasAlertEnemy = true;
+    }
   }
+
   if (enemyCount > 0) {
     _combatFocusCache.x = focusX / enemyCount;
     _combatFocusCache.y = focusY / enemyCount;
     combatFocus = _combatFocusCache;
   }
+
+  // Sincronización del nivel de amenaza táctica e indicadores de esquinas
+  let currentThreat = 'calm';
+  if ((waveManager && waveManager.isWaveActive) || hasAggroEnemy) {
+    currentThreat = 'danger';
+  } else if (hasAlertEnemy) {
+    currentThreat = 'alert';
+  } else if (player.isStealthHidden) {
+    currentThreat = 'stealth';
+  }
+  stateManager.set('threat_level', currentThreat);
+  stateManager.set('player_stamina', player.stamina);
+  stateManager.set('player_max_stamina', player.max_stamina);
+  stateManager.set('player_stamina_exhausted', player.staminaExhausted);
+  stateManager.set('player_is_prone', player.isProne);
+  stateManager.set('player_stealth_hidden', player.isStealthHidden);
 
   camera.update(_playerCenterCache, deltaTime, player.aimDir, combatFocus);
 

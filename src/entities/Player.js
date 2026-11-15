@@ -68,6 +68,17 @@ export class Player extends Entity {
     this.max_guard = PLAYER_STATS.max_guard || 100;
     this.energy_regen_rate = PLAYER_STATS.energy_regen_rate || 6;
 
+    // --- Sistema de Resistencia (Stamina) y Sprint ---
+    this.stamina = 100;
+    this.max_stamina = 100;
+    this.isSprinting = false;
+    this.staminaExhausted = false;
+
+    // --- Sistema de Sigilo (Prone / Grama Alta estilo The Last of Us 2) ---
+    this.isProne = false;
+    this.inTallGrass = false;
+    this.isStealthHidden = false;
+
     // --- Sistema de Combo Rítmico AAA y Pre-Buffer ---
     /** @type {number} Temporizador activo del swing actual */
     this.attackTimer = 0;
@@ -106,10 +117,12 @@ export class Player extends Entity {
     this.scaleY = 1.0;
 
     // --- Arsenal Elemental del Guantelete y Progresión Diegética ---
+    const kineticAbility = new KineticAbility();
     const earthAbility = new EarthAbility();
     this.abilities = {
       'Fuego': new FireAbility(),
-      'Embestida': new KineticAbility(),
+      'Embestida': kineticAbility,
+      'Kinetic': kineticAbility,
       'Plantas': earthAbility,
       'Raíces': earthAbility
     };
@@ -139,12 +152,33 @@ export class Player extends Entity {
   }
 
   /**
+   * Normaliza alias de nombres elementales hacia las claves canónicas del Guantelete.
+   * Garantiza compatibilidad entre `'Kinetic'`/`'Embestida'` y `'Raíces'`/`'Plantas'`.
+   * @private
+   * @param {string} name
+   * @returns {string}
+   */
+  _normalizeElementName(name) {
+    if (!name) return '';
+    const key = String(name).trim().toLowerCase();
+    if (key === 'kinetic' || key === 'cinetico' || key === 'cinético' || key === 'embestida') {
+      return 'Embestida';
+    }
+    if (key === 'raíces' || key === 'raices' || key === 'tierra' || key === 'earth' || key === 'plantas') {
+      return 'Plantas';
+    }
+    if (key === 'fire' || key === 'fuego') {
+      return 'Fuego';
+    }
+    return name;
+  }
+
+  /**
    * Despierta un conducto elemental específico en el Guantelete.
    * @param {string} name
    */
   unlockElement(name) {
-    let targetName = name;
-    if (targetName === 'Raíces' || targetName === 'Raices') targetName = 'Plantas';
+    const targetName = this._normalizeElementName(name);
     if (this.abilities[targetName]) {
       this.unlockedElements.add(targetName);
       this.currentAbility = targetName;
@@ -166,8 +200,7 @@ export class Player extends Entity {
    * @returns {boolean}
    */
   hasElement(name) {
-    let targetName = name;
-    if (targetName === 'Raíces' || targetName === 'Raices') targetName = 'Plantas';
+    const targetName = this._normalizeElementName(name);
     return this.unlockedElements.has(targetName);
   }
 
@@ -286,8 +319,7 @@ export class Player extends Entity {
    * @returns {boolean} true si se equipó con éxito
    */
   equipAbility(name) {
-    let targetName = name;
-    if (targetName === 'Raíces' || targetName === 'Raices') targetName = 'Plantas';
+    const targetName = this._normalizeElementName(name);
     if (!this.hasElement(targetName)) {
       return false;
     }
@@ -671,9 +703,16 @@ export class Player extends Entity {
     if (combatManager) {
       const self = this;
       const isWhirlwind = isFinisher && hasWhirlwind;
-      const reachScale = isFinisher ? 1.22 : 1.0;
+      const isStealthStrike = !!this.isStealthHidden;
+      const stealthMult = isStealthStrike ? 3.0 : 1.0;
+      const reachScale = isFinisher ? 1.22 : (isStealthStrike ? 1.15 : 1.0);
       const sizeScale = isFinisher ? 1.32 : 1.05;
       const whirlwindRadius = 77; // 154x154 px de barrido 360° (+20% alcance circular)
+
+      if (isStealthStrike) {
+        this.isProne = false;
+        this.isStealthHidden = false;
+      }
 
       const initialHitbox = isWhirlwind
         ? { x: cx - whirlwindRadius, y: cy - whirlwindRadius, width: whirlwindRadius * 2, height: whirlwindRadius * 2 }
@@ -683,7 +722,7 @@ export class Player extends Entity {
         owner: this,
         type: isFinisher ? 'strong' : 'weak',
         element: 'physical',
-        damage: Math.round(baseDamage * damageMult),
+        damage: Math.round(baseDamage * damageMult * stealthMult),
         duration: stepDuration,
         maxDuration: stepDuration,
         hitbox: initialHitbox,
@@ -692,6 +731,7 @@ export class Player extends Entity {
         isSweep: true,
         isFinisher,
         isWhirlwind,
+        isStealthStrike,
         isPerfectTempo,
         comboStep: currentStep,
         swingDir,
@@ -950,6 +990,33 @@ export class Player extends Entity {
       // Actualizar siempre la orientación si el jugador presiona una dirección (incluso durante combos de ataque)
       if ((moveX !== 0 || moveY !== 0) && !this.isDashing) {
         this._syncFacingFromVector(moveX, moveY);
+      }
+
+      // 1.5 Alternar Sigilo / Cuerpo a Tierra (Prone) y Gestión de Sprint con Resistencia
+      if (input.isStealthPressed) {
+        this.isProne = !this.isProne;
+        if (typeof input.consumeStealth === 'function') input.consumeStealth();
+      }
+
+      const wantsSprint = (input.isSprintPressed || (input.isKeyPressed && (input.isKeyPressed('KeyF') || input.isKeyPressed('KeyV')))) && !this.isProne;
+      const isMoving = (moveX !== 0 || moveY !== 0);
+
+      if (wantsSprint && isMoving && !this.staminaExhausted && this.stamina > 0) {
+        this.isSprinting = true;
+        this.stamina = Math.max(0, this.stamina - 24 * deltaTime);
+        if (this.stamina <= 0) {
+          this.staminaExhausted = true;
+          this.isSprinting = false;
+        }
+      } else {
+        this.isSprinting = false;
+        const staminaRank = skillTree ? skillTree.getSkillRank('stamina_mastery') : 0;
+        this.max_stamina = 100 + staminaRank * 25;
+        const regenRate = 28 * (1 + staminaRank * 0.20);
+        this.stamina = Math.min(this.max_stamina, this.stamina + regenRate * deltaTime);
+        if (this.stamina >= 20) {
+          this.staminaExhausted = false;
+        }
       }
 
       if (canMove) {
@@ -1316,11 +1383,21 @@ export class Player extends Entity {
       if (this.velocity.lengthSquared() > 1) {
         this.velocity.normalize();
       }
-      // Ligero impulso de agilidad (+8%) cuando el jugador alcanza Rango A o S de combo
-      const speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.08 : 1.0;
+      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Sprint (+62%) y Sigilo/Prone (-48%)
+      let speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.08 : 1.0;
+      if (this.isSprinting) speedMult *= 1.62;
+      else if (this.isProne) speedMult *= 0.52;
       this.velocity.multiplyScalar(this.speed * speedMult * deltaTime);
       nextX = this.pos.x + this.velocity.x;
       nextY = this.pos.y + this.velocity.y;
+    }
+
+    if (context && context.state) {
+      context.state.set('player_stamina', this.stamina);
+      context.state.set('player_max_stamina', this.max_stamina);
+      context.state.set('player_is_stealth', this.isStealthHidden);
+      context.state.set('player_is_prone', this.isProne);
+      context.state.set('player_is_sprinting', this.isSprinting);
     }
 
     if (physics) {
@@ -1383,6 +1460,15 @@ export class Player extends Entity {
     // Pivote pixel-art entero para bob vertical sin escalado borroso
     ctx.save();
     ctx.translate(0, bobY);
+
+    if (this.isProne) {
+      ctx.translate(x + 16, y + 20);
+      ctx.scale(1.18, 0.62);
+      ctx.translate(-(x + 16), -(y + 20));
+      if (this.isStealthHidden) {
+        ctx.globalAlpha = 0.78;
+      }
+    }
 
     // Determinar color de gema del Guantelete (apagado en pizarra si aún está latente)
     let relicColor = '#64748b';

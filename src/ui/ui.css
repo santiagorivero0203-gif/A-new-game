@@ -107,6 +107,55 @@
   50% { opacity: 1; }
 }
 
+/* Viñeta Táctica de Amenaza Ambiental en Esquinas (Threat Corner Vignette) */
+.threat-corner-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.threat-corner-vignette.threat-danger {
+  opacity: 1;
+  background:
+    radial-gradient(circle at top left, rgba(239, 68, 68, 0.58) 0%, transparent 28%),
+    radial-gradient(circle at top right, rgba(239, 68, 68, 0.58) 0%, transparent 28%),
+    radial-gradient(circle at bottom left, rgba(239, 68, 68, 0.58) 0%, transparent 28%),
+    radial-gradient(circle at bottom right, rgba(239, 68, 68, 0.58) 0%, transparent 28%);
+  animation: threat-pulse-danger 0.75s ease-in-out infinite alternate;
+}
+
+.threat-corner-vignette.threat-alert {
+  opacity: 1;
+  background:
+    radial-gradient(circle at top left, rgba(245, 158, 11, 0.48) 0%, transparent 24%),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.48) 0%, transparent 24%),
+    radial-gradient(circle at bottom left, rgba(245, 158, 11, 0.48) 0%, transparent 24%),
+    radial-gradient(circle at bottom right, rgba(245, 158, 11, 0.48) 0%, transparent 24%);
+  animation: threat-pulse-alert 1.5s ease-in-out infinite alternate;
+}
+
+.threat-corner-vignette.threat-stealth {
+  opacity: 1;
+  background:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.42) 0%, transparent 22%),
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.42) 0%, transparent 22%),
+    radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.42) 0%, transparent 22%),
+    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.42) 0%, transparent 22%);
+}
+
+@keyframes threat-pulse-danger {
+  0% { opacity: 0.65; }
+  100% { opacity: 1; }
+}
+
+@keyframes threat-pulse-alert {
+  0% { opacity: 0.45; }
+  100% { opacity: 0.85; }
+}
+
 #damage-numbers-container {
   position: absolute;
   inset: 0;
@@ -453,6 +502,19 @@
 
 .hud-posture-fill.posture-danger {
   background: linear-gradient(90deg, #dc2626 0%, #f87171 100%);
+}
+
+/* Barra 4: Resistencia / Stamina Cel-Shaded */
+.stamina-icon { color: #38bdf8; }
+.stamina-chassis {
+  height: 9px;
+}
+.hud-stamina-fill {
+  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+}
+.hud-stamina-fill.exhausted {
+  background: linear-gradient(90deg, #dc2626 0%, #f87171 100%);
+  animation: bar-critical-flash 0.38s ease-in-out infinite;
 }
 
 .rpg-bar-segments,
@@ -1073,6 +1135,8 @@ body.touch-controls-active .dialogue-card {
 .heal-btn { right: 146px; bottom: 106px; width: 44px; height: 44px; color: var(--cel-emerald); }
 .switch-btn { right: 92px; bottom: 132px; width: 44px; height: 44px; color: var(--cel-gold); }
 .interact-btn { right: 32px; bottom: 152px; width: 44px; height: 44px; color: #fde047; }
+.sprint-btn { right: 202px; bottom: 44px; width: 44px; height: 44px; color: #38bdf8; }
+.stealth-btn { right: 204px; bottom: 104px; width: 44px; height: 44px; color: #34d399; }
 
 .btn-subtext,
 .touch-sub-label {
