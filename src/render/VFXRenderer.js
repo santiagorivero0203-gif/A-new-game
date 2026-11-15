@@ -1,283 +1,624 @@
 /**
  * @module VFXRenderer
- * @description Sistema integral de efectos visuales (VFX) procedimentales y partículas dinámicas.
- * Renderiza animaciones fluidas y sprites procedimentales de alta fidelidad para:
- * - 🔥 Fuego: Bolas de Ceniza incandescentes con estela de chispas y Erupción Cíclica radial.
- * - ⚡ Cinético: Distorsión de viento, arcos eléctricos y cono de plasma del Taladro Humano.
- * - 🌿 Tierra: Látigo de enredaderas espinosas con hojas y Prisión del Bosque envolvente.
- * - 🛡️ Defensa: Barrera hexagonal y destello estelar dorado en Parry Perfecto.
- * - 💨 Físico: Estelas de Dash, chispas de impacto de espada y ráfagas de polvo.
+ * @description Sistema integral de efectos visuales (VFX) procedimentales AAA y partículas dinámicas (v3.1).
+ * Optimizado para 60/120 FPS estables con cero micro-tirones:
+ * - Object Pooling Zero-GC (`_particlePool` y `_effectPool`) + remoción `O(1)` swap-and-pop (cero `Array.splice`).
+ * - Sprite de proyectil ígneo pre-horneado en `<canvas>` offscreen (`_getFireballSprite`) para evitar
+ *   `createRadialGradient` en cada fotograma.
+ * - Soporte visual completo para las 18 habilidades del Árbol (`isWhirlwind`, `isMagmaZone`,
+ *   `isPhantomStep`, `aegis_nova`, `plasma_pulse` y ventana dinámica de `parry_window`).
  * @author Be a Legend Team
- * @version 1.0.0
+ * @version 3.1.0
  */
 export class VFXRenderer {
   constructor() {
-    /** @type {Array<Object>} Partículas activas en el mundo */
+    /** @type {Array<Object>} Partículas luminosas activas en el mundo */
     this.particles = [];
 
-    /** @type {Array<Object>} Efectos temporales de área o impacto */
+    /** @private Pool reutilizable de objetos partícula (evita presión en el Garbage Collector) */
+    this._particlePool = [];
+
+    /** @type {Array<Object>} Efectos de impacto, cortes cruzados y ondas expansivas */
     this.effects = [];
 
-    /** @type {number} Tiempo acumulado para animaciones sinusoidales */
+    /** @private Pool reutilizable de efectos de impacto */
+    this._effectPool = [];
+
+    /** @private Textura pre-horneada de Bola de Fuego (38x38) */
+    this._fireballCanvas = null;
+
+    /** @type {Array<Object>} Orbes elementales animados durante la secuencia de salida de la cueva */
+    this.introOrbs = [];
+
+    /** @type {number} Reloj interno acumulado para oscilaciones */
     this.time = 0;
   }
 
   /**
-   * Agrega una partícula genérica al sistema.
-   * @param {Object} p - Propiedades de la partícula
+   * Actualiza la lista de orbes elementales visibles durante la secuencia inicial in-engine.
+   * @param {Array<Object>} orbs
    */
-  addParticle(p) {
-    this.particles.push({
-      x: p.x,
-      y: p.y,
-      vx: p.vx || 0,
-      vy: p.vy || 0,
-      size: p.size || 3,
-      maxLife: p.life || 0.4,
-      life: p.life || 0.4,
-      color: p.color || '#fb923c',
-      decay: p.decay || 1,
-      type: p.type || 'circle'
-    });
+  setIntroOrbs(orbs) {
+    this.introOrbs = Array.isArray(orbs) ? orbs : [];
   }
 
   /**
-   * Agrega un efecto de impacto o explosión en coordenadas de mundo.
-   * @param {string} type - 'fire_burst', 'parry_spark', 'earth_root', 'dash_dust'
+   * Obtiene o pre-hornea una única vez la textura luminosa de Bola de Fuego en memoria.
+   * Elimina llamadas repetidas a `ctx.createRadialGradient` durante ráfagas de `ember_fan`.
+   * @private
+   * @returns {HTMLCanvasElement|null}
+   */
+  _getFireballSprite() {
+    if (this._fireballCanvas) return this._fireballCanvas;
+    if (typeof document === 'undefined') return null;
+
+    const size = 38;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const gctx = c.getContext('2d');
+    if (!gctx) return null;
+
+    const half = size / 2;
+    const grad = gctx.createRadialGradient(half, half, 2, half, half, half - 1);
+    grad.addColorStop(0, '#fffbeb');
+    grad.addColorStop(0.35, '#f59e0b');
+    grad.addColorStop(0.75, '#ea580c');
+    grad.addColorStop(1, 'rgba(220, 38, 38, 0)');
+
+    gctx.fillStyle = grad;
+    gctx.beginPath();
+    gctx.arc(half, half, half - 1, 0, Math.PI * 2);
+    gctx.fill();
+
+    gctx.fillStyle = '#ffffff';
+    gctx.beginPath();
+    gctx.arc(half, half, 4.4, 0, Math.PI * 2);
+    gctx.fill();
+
+    this._fireballCanvas = c;
+    return c;
+  }
+
+  /**
+   * Agrega una partícula dinámica reciclando instancias del pool Zero-GC.
+   * @param {Object} p
+   */
+  addParticle(p) {
+    if (this.particles.length >= 48) return; // Límite estricto Pixel-Art para 60/120 FPS constantes
+    const inst = this._particlePool.length > 0 ? this._particlePool.pop() : {};
+    inst.x = p.x;
+    inst.y = p.y;
+    inst.vx = p.vx || 0;
+    inst.vy = p.vy || 0;
+    inst.size = p.size || 3;
+    inst.maxLife = p.life || 0.4;
+    inst.life = inst.maxLife;
+    inst.color = p.color || '#fb923c';
+    inst.decay = p.decay || 1;
+    inst.type = p.type || 'circle';
+    this.particles.push(inst);
+  }
+
+  /**
+   * Instancia un efecto de impacto localizado y emite chispas secundarias según su tipo.
+   * @param {string} type - 'slash_hit'|'parry_spark'|'aegis_nova'|'plasma_pulse'|'fire_burst'|'wood_explosion'|'shield_clash'|'earth_root'|'dash_dust'
    * @param {number} x
    * @param {number} y
    * @param {Object} [options]
    */
   spawnImpact(type, x, y, options = {}) {
-    this.effects.push({
-      type,
-      x,
-      y,
-      timer: 0,
-      duration: options.duration || 0.35,
-      radius: options.radius || 24,
-      color: options.color || '#fb923c',
-      options
-    });
+    const fx = this._effectPool.length > 0 ? this._effectPool.pop() : {};
+    fx.type = type;
+    fx.x = x;
+    fx.y = y;
+    fx.timer = 0;
+    fx.duration = options.duration || 0.30;
+    fx.radius = options.radius || 24;
+    fx.color = options.color || '#fb923c';
+    fx.angle = options.angle ?? (Math.random() * Math.PI);
+    fx.isFinisher = !!options.isFinisher;
+    this.effects.push(fx);
+
+    // Emitir micro-ráfaga de partículas coherente con el impacto
+    if (type === 'slash_hit') {
+      const count = options.isFinisher ? 10 : 5;
+      const baseAng = options.angle || 0;
+      for (let i = 0; i < count; i++) {
+        const spread = baseAng + (Math.random() - 0.5) * 1.4;
+        const spd = 70 + Math.random() * 110;
+        this.addParticle({
+          x,
+          y,
+          vx: Math.cos(spread) * spd,
+          vy: Math.sin(spread) * spd,
+          size: options.isFinisher ? 3.5 : 2.5,
+          life: 0.24,
+          color: options.isFinisher ? '#fde047' : '#e0f2fe'
+        });
+      }
+    } else if (type === 'parry_spark') {
+      for (let i = 0; i < 12; i++) {
+        const ang = (Math.PI * 2 * i) / 12;
+        const spd = 85 + Math.random() * 75;
+        this.addParticle({
+          x,
+          y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          size: 3.2,
+          life: 0.32,
+          color: i % 2 === 0 ? '#fde047' : '#ffffff'
+        });
+      }
+    } else if (type === 'wood_explosion') {
+      for (let i = 0; i < 16; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = 60 + Math.random() * 130;
+        this.addParticle({
+          x,
+          y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          size: 4,
+          life: 0.42,
+          color: i % 3 === 0 ? '#4ade80' : (i % 2 === 0 ? '#fb923c' : '#fde047')
+        });
+      }
+    } else if (type === 'dash_dust') {
+      for (let i = 0; i < 5; i++) {
+        this.addParticle({
+          x: x + (Math.random() * 10 - 5),
+          y: y + (Math.random() * 6 - 3),
+          vx: (Math.random() - 0.5) * 45,
+          vy: -10 - Math.random() * 25,
+          size: 3,
+          life: 0.25,
+          color: '#cbd5e1'
+        });
+      }
+    } else if (type === 'aegis_nova') {
+      for (let i = 0; i < 14; i++) {
+        const ang = (Math.PI * 2 * i) / 14;
+        const spd = 95 + Math.random() * 65;
+        this.addParticle({
+          x,
+          y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          size: 3.6,
+          life: 0.36,
+          color: i % 2 === 0 ? '#facc15' : '#38bdf8'
+        });
+      }
+    } else if (type === 'plasma_pulse') {
+      for (let i = 0; i < 10; i++) {
+        const ang = (Math.PI * 2 * i) / 10;
+        const spd = 80 + Math.random() * 60;
+        this.addParticle({
+          x,
+          y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          size: 3.2,
+          life: 0.28,
+          color: i % 2 === 0 ? '#38bdf8' : '#e0f2fe'
+        });
+      }
+    }
   }
 
   /**
-   * Actualiza la física de las partículas y el ciclo de vida de los efectos.
-   * @param {number} dt - Delta time en segundos
-   * @param {Array<Object>} activeAttacks - Ataques en curso de CombatManager
+   * Actualiza partículas, efectos de impacto y estelas continuas de proyectiles en O(1) swap-and-pop.
+   * @param {number} dt
+   * @param {Array<Object>} activeAttacks
    */
   update(dt, activeAttacks = []) {
     this.time += dt;
 
-    // 1. Actualizar partículas
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= dt * p.decay;
       if (p.life <= 0) {
-        this.particles.splice(i, 1);
+        this._particlePool.push(p);
+        const lastIdx = this.particles.length - 1;
+        if (i !== lastIdx) {
+          this.particles[i] = this.particles[lastIdx];
+        }
+        this.particles.pop();
         continue;
       }
       p.x += p.vx * dt;
       p.y += p.vy * dt;
     }
 
-    // 2. Actualizar efectos especiales
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const fx = this.effects[i];
       fx.timer += dt;
       if (fx.timer >= fx.duration) {
-        this.effects.splice(i, 1);
+        this._effectPool.push(fx);
+        const lastIdx = this.effects.length - 1;
+        if (i !== lastIdx) {
+          this.effects[i] = this.effects[lastIdx];
+        }
+        this.effects.pop();
       }
     }
 
-    // 3. Emisión continua de partículas desde ataques activos
     if (activeAttacks) {
-      for (const atk of activeAttacks) {
-        if (atk.element === 'fuego' && atk.type === 'weak') {
-          // Estela de brasas incandescentes tras la bola de fuego
-          if (Math.random() < 0.65) {
+      for (let i = 0; i < activeAttacks.length; i++) {
+        const atk = activeAttacks[i];
+        if (atk.isReflected && atk.x !== undefined) {
+          this.addParticle({
+            x: atk.x + (Math.random() * 6 - 3),
+            y: atk.y + (Math.random() * 6 - 3),
+            vx: (Math.random() - 0.5) * 25,
+            vy: (Math.random() - 0.5) * 25,
+            size: 3.5,
+            life: 0.25,
+            color: '#fde047'
+          });
+        } else if (atk.isBladeWave && atk.x !== undefined && Math.random() < 0.65) {
+          this.addParticle({
+            x: atk.x + (Math.random() * 12 - 6),
+            y: atk.y + (Math.random() * 12 - 6),
+            vx: 0,
+            vy: 0,
+            size: 2.8,
+            life: 0.20,
+            color: '#38bdf8'
+          });
+        } else if (atk.isMagmaZone && Math.random() < 0.35) {
+          const ang = Math.random() * Math.PI * 2;
+          const dist = Math.random() * (atk.radius || 70);
+          this.addParticle({
+            x: (atk.originX || 0) + Math.cos(ang) * dist,
+            y: (atk.originY || 0) + Math.sin(ang) * dist,
+            vx: (Math.random() - 0.5) * 14,
+            vy: -18 - Math.random() * 22,
+            size: 3,
+            life: 0.32,
+            color: Math.random() > 0.45 ? '#fb923c' : '#fde047'
+          });
+        } else if (atk.isPhantomStep && atk.owner && Math.random() < 0.65) {
+          this.addParticle({
+            x: atk.owner.pos.x + 16 + (Math.random() * 14 - 7),
+            y: atk.owner.pos.y + 16 + (Math.random() * 14 - 7),
+            vx: (Math.random() - 0.5) * 35,
+            vy: (Math.random() - 0.5) * 35,
+            size: 2.8,
+            life: 0.22,
+            color: '#38bdf8'
+          });
+        } else if (atk.element === 'fuego' && atk.type === 'weak' && atk.x !== undefined) {
+          if (Math.random() < 0.55) {
             this.addParticle({
               x: atk.x + (Math.random() * 8 - 4),
               y: atk.y + (Math.random() * 8 - 4),
               vx: (Math.random() - 0.5) * 30,
               vy: (Math.random() - 0.5) * 30,
-              size: Math.random() * 3 + 2,
-              life: 0.3,
+              size: Math.random() * 2.8 + 1.8,
+              life: 0.24,
               color: Math.random() > 0.4 ? '#f97316' : '#facc15'
             });
           }
         }
       }
     }
+
+    if (this.introOrbs && this.introOrbs.length > 0) {
+      for (let i = 0; i < this.introOrbs.length; i++) {
+        const orb = this.introOrbs[i];
+        if (!orb || Math.random() >= 0.72) continue;
+        this.addParticle({
+          x: orb.x + (Math.random() * 6 - 3),
+          y: orb.y + (Math.random() * 6 - 3),
+          vx: (Math.random() - 0.5) * 18,
+          vy: (Math.random() - 0.5) * 18,
+          size: 3,
+          life: 0.28,
+          color: orb.color || '#fb923c'
+        });
+      }
+    }
   }
 
   /**
-   * Dibuja todos los efectos visuales, proyectiles y partículas en el canvas del mundo.
-   * Se ejecuta con la transformación de la cámara aplicada.
+   * Renderiza todos los ataques activos, escudos, auras y partículas en coordenadas de mundo.
    * @param {CanvasRenderingContext2D} ctx
-   * @param {Array<Object>} activeAttacks - Ataques activos de CombatManager
-   * @param {import('../entities/Player.js').Player} player - Referencia al jugador
+   * @param {Array<Object>} activeAttacks
+   * @param {import('../entities/Player.js').Player} player
    */
   render(ctx, activeAttacks = [], player = null) {
     ctx.save();
 
-    // 1. Renderizar Ataques Activos (Proyectiles y AoEs)
     if (activeAttacks) {
       for (const atk of activeAttacks) {
         this._renderAttack(ctx, atk);
       }
     }
 
-    // 2. Renderizar Escudo de Bloqueo del Jugador si está defendiendo
     if (player && player.fsmState === 'STATE_DEFEND') {
       this._renderShieldBarrier(ctx, player);
     }
 
-    // 2.1 Renderizar Aura de Curación / Escudo de Vitalidad del Jugador
     if (player && (player.healTimer > 0 || (typeof player.hasTag === 'function' && player.hasTag('vitality_shield')))) {
       this._renderHealAura(ctx, player);
     }
 
-    // 3. Renderizar Efectos de Impacto y Explosiones
     for (const fx of this.effects) {
       this._renderEffect(ctx, fx);
     }
 
-    // 4. Renderizar Partículas con Blending Aditivo para máxima luminosidad
-    ctx.globalCompositeOperation = 'lighter';
+    if (this.introOrbs && this.introOrbs.length > 0) {
+      this._renderIntroOrbs(ctx);
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
     for (const p of this.particles) {
       const alpha = Math.max(0, p.life / p.maxLife);
+      const sz = Math.max(1, Math.round(p.size * alpha));
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), sz, sz);
     }
-    ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1.0;
 
     ctx.restore();
   }
 
   /**
-   * Renderiza un ataque activo específico según su elemento y tipo.
+   * Renderiza los 4 Orbes Elementales de la secuencia inicial con núcleo blanco, halo pixel-art y estela.
+   * @private
+   * @param {CanvasRenderingContext2D} ctx
+   */
+  _renderIntroOrbs(ctx) {
+    ctx.save();
+    for (let i = 0; i < this.introOrbs.length; i++) {
+      const orb = this.introOrbs[i];
+      if (!orb) continue;
+      const ox = Math.round(orb.x);
+      const oy = Math.round(orb.y);
+      const r = Math.max(4, Math.round(orb.radius || 7));
+      const color = orb.color || '#fb923c';
+
+      if (Array.isArray(orb.trail)) {
+        for (let t = 0; t < orb.trail.length; t++) {
+          const pt = orb.trail[t];
+          const ratio = (t + 1) / (orb.trail.length + 1);
+          const sz = Math.max(2, Math.round(r * ratio));
+          ctx.globalAlpha = ratio * 0.55;
+          ctx.fillStyle = color;
+          ctx.fillRect(Math.round(pt.x - sz * 0.5), Math.round(pt.y - sz * 0.5), sz, sz);
+        }
+      }
+
+      // Halo exterior pixelado
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = color;
+      ctx.fillRect(ox - r, oy - r + 1, r * 2, (r - 1) * 2);
+      ctx.fillRect(ox - r + 1, oy - r, (r - 1) * 2, r * 2);
+
+      // Núcleo saturado y centro blanco luminoso
+      ctx.globalAlpha = 0.95;
+      const inner = Math.max(2, Math.round(r * 0.65));
+      ctx.fillStyle = color;
+      ctx.fillRect(ox - inner, oy - inner, inner * 2, inner * 2);
+      ctx.fillStyle = '#ffffff';
+      const core = Math.max(2, Math.round(r * 0.35));
+      ctx.fillRect(ox - Math.floor(core * 0.5), oy - Math.floor(core * 0.5), core, core);
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Emite partículas ambientales Zero-GC dentro del viewport de cámara según el clima del Bioma.
+   * Reutiliza un descriptor en caché y el Pool interno `_particlePool` sin alocar basura en memoria.
+   * @param {number} dt - Delta time en segundos.
+   * @param {import('./Camera.js').Camera|null} camera - Cámara activa para acotar la región visible.
+   * @param {'pollen'|'spores'|'embers'|'stardust'|string} [weatherKey='pollen'] - Tipo de clima ambiental.
+   */
+  updateBiomeWeather(dt, camera, weatherKey = 'pollen') {
+    if (!camera || typeof camera.getVisibleWorldBounds !== 'function') return;
+    if (this.particles.length > 16) return;
+
+    this._weatherAcc = (this._weatherAcc || 0) + dt;
+    const spawnInterval = 0.28;
+    if (this._weatherAcc < spawnInterval) return;
+    this._weatherAcc -= spawnInterval;
+
+    if (!this._weatherScratch) {
+      this._weatherScratch = { x: 0, y: 0, vx: 0, vy: 0, color: '#fef08a', size: 2.5, life: 2.2 };
+    }
+
+    const b = camera.getVisibleWorldBounds(48);
+    const spanW = Math.max(64, b.maxX - b.minX);
+    const spanH = Math.max(64, b.maxY - b.minY);
+    const p = this._weatherScratch;
+
+    p.x = b.minX + Math.random() * spanW;
+    p.y = b.minY + Math.random() * spanH;
+
+    if (weatherKey === 'spores') {
+      p.vx = (Math.random() - 0.5) * 14;
+      p.vy = -8 - Math.random() * 14;
+      p.color = Math.random() > 0.45 ? '#5eead4' : '#c084fc';
+      p.size = 2.6 + Math.random() * 1.4;
+      p.life = 2.4;
+    } else if (weatherKey === 'embers') {
+      p.vx = (Math.random() - 0.35) * 24;
+      p.vy = -26 - Math.random() * 28;
+      p.color = Math.random() > 0.35 ? '#fb923c' : '#fde047';
+      p.size = 2.2 + Math.random() * 1.6;
+      p.life = 1.6;
+    } else if (weatherKey === 'stardust') {
+      p.vx = (Math.random() - 0.5) * 10;
+      p.vy = (Math.random() - 0.5) * 10;
+      const r = Math.random();
+      p.color = r > 0.66 ? '#38bdf8' : (r > 0.33 ? '#e879f9' : '#fef9c3');
+      p.size = 2.4 + Math.random() * 1.3;
+      p.life = 2.1;
+    } else {
+      // 'pollen' (Claro de las Reliquias)
+      p.vx = 9 + Math.random() * 12;
+      p.vy = 5 + Math.random() * 9;
+      p.color = Math.random() > 0.35 ? '#fef08a' : '#bef264';
+      p.size = 2.1 + Math.random() * 1.1;
+      p.life = 2.6;
+    }
+
+    this.addParticle(p);
+  }
+
+  /**
+   * Despacha el renderizado específico según la naturaleza del ataque o proyectil.
    * @private
    */
   _renderAttack(ctx, atk) {
-    if (atk.element === 'physical' && atk.type === 'weak') {
+    // 1. Onda de Filo Sagrado (3er golpe potenciado)
+    if (atk.isBladeWave) {
+      this._renderBladeWave(ctx, atk);
+      return;
+    }
+
+    // 2. Proyectil Enemigo o Cometa Reflejado por Parry Deportivo
+    if (atk.type === 'projectile' || atk.isReflected) {
+      this._renderOrbProjectile(ctx, atk);
+      return;
+    }
+
+    // 3. Tajos del Combo Rítmico de Espada, Torbellino 360° y Dash-Strike (excluye novas radiales de sinergia)
+    if (atk.element === 'physical' && atk.isSweep && !atk.isFriendlySynergy) {
       this._renderSwordSweep(ctx, atk);
       return;
     }
 
+    // 4. Habilidades Elementales del Jugador
     if (atk.element === 'fuego') {
-      if (atk.type === 'weak') {
-        // 🔥 Bola de Ceniza / Fuego (Proyectil Procedimental)
-        const px = atk.x;
-        const py = atk.y;
-        const pulse = Math.sin(this.time * 20) * 2;
+      if (atk.isMagmaZone) {
+        const cx = atk.originX ?? (atk.hitbox.x + atk.hitbox.width / 2);
+        const cy = atk.originY ?? (atk.hitbox.y + atk.hitbox.height / 2);
+        const r = atk.radius || 72;
+        const lifeRatio = Math.min(1, atk.duration / 0.5);
+        const pulse = Math.sin(this.time * 10) * 3;
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-
-        const grad = ctx.createRadialGradient(px, py, 2, px, py, 14 + pulse);
-        grad.addColorStop(0, '#fffbeb');
-        grad.addColorStop(0.3, '#f59e0b');
-        grad.addColorStop(0.7, '#ea580c');
-        grad.addColorStop(1, 'rgba(220, 38, 38, 0)');
-
-        ctx.fillStyle = grad;
+        ctx.fillStyle = `rgba(234, 88, 12, ${0.18 * lifeRatio})`;
         ctx.beginPath();
-        ctx.arc(px, py, 14 + pulse, 0, Math.PI * 2);
+        ctx.arc(cx, cy, r + pulse, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = '#FFFFFF';
+        ctx.strokeStyle = `rgba(251, 146, 60, ${0.72 * lifeRatio})`;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(px, py, 4, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.arc(cx, cy, r + pulse, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = `rgba(253, 224, 71, ${0.52 * lifeRatio})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.66 - pulse * 0.5, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.restore();
+      } else if (atk.type === 'weak' && atk.x !== undefined) {
+        const px = atk.x;
+        const py = atk.y;
+        const scale = atk.isSideOrb ? 0.84 : 1.0;
+        const r = (16 + Math.sin(this.time * 22) * 1.8) * scale;
+        const fbSprite = this._getFireballSprite();
 
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        if (fbSprite) {
+          ctx.drawImage(fbSprite, px - r, py - r, r * 2, r * 2);
+        } else {
+          ctx.fillStyle = '#f97316';
+          ctx.beginPath();
+          ctx.arc(px, py, r * 0.75, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       } else if (atk.type === 'strong') {
-        // 🔥 Erupción Cíclica (AoE Radial Explosivo)
         const hit = atk.hitbox;
         if (!hit) return;
         const cx = hit.x + hit.width / 2;
         const cy = hit.y + hit.height / 2;
         const maxR = hit.width / 2;
-        const progress = 1 - Math.max(0, atk.duration / 0.5);
+        const progress = 1 - Math.max(0, atk.duration / 0.42);
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-
         ctx.strokeStyle = `rgba(249, 115, 22, ${1 - progress})`;
-        ctx.lineWidth = 6 * (1 - progress);
+        ctx.lineWidth = 7 * (1 - progress);
         ctx.beginPath();
         ctx.arc(cx, cy, maxR * progress, 0, Math.PI * 2);
         ctx.stroke();
 
-        const flameCount = 10;
+        const flameCount = 12;
         for (let i = 0; i < flameCount; i++) {
-          const angle = (i * (Math.PI * 2 / flameCount)) + (this.time * 4);
+          const angle = (i * (Math.PI * 2 / flameCount)) + (this.time * 5);
           const r = maxR * progress;
           const fx = cx + Math.cos(angle) * r;
           const fy = cy + Math.sin(angle) * r;
-
           ctx.fillStyle = i % 2 === 0 ? '#facc15' : '#ef4444';
           ctx.beginPath();
-          ctx.arc(fx, fy, 6 * (1 - progress), 0, Math.PI * 2);
+          ctx.arc(fx, fy, 6.5 * (1 - progress), 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
       }
-
     } else if (atk.element === 'kinetic') {
       const owner = atk.owner;
       if (!owner) return;
       const cx = owner.pos.x + owner.width / 2;
       const cy = owner.pos.y + owner.height / 2;
 
-      if (atk.type === 'weak') {
-        // ⚡ Onda Sónica Frontal de Embestida (Dash Shockwave)
+      if (atk.isPhantomStep) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 20 + Math.sin(this.time * 36) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (atk.type === 'weak') {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.2;
 
-        const dir = atk.chargeDir || { x: owner.facing === 'right' ? 1 : owner.facing === 'left' ? -1 : 0, y: owner.facing === 'down' ? 1 : owner.facing === 'up' ? -1 : 0 };
+        const dir = atk.chargeDir || { x: 1, y: 0 };
         const angle = Math.atan2(dir.y, dir.x);
 
-        // Cono de choque frente al cuerpo del jugador
         ctx.beginPath();
         ctx.arc(cx + dir.x * 12, cy + dir.y * 12, 24, angle - Math.PI / 3, angle + Math.PI / 3);
         ctx.stroke();
 
         ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.arc(cx + dir.x * 16, cy + dir.y * 16, 18, angle - Math.PI / 4, angle + Math.PI / 4);
         ctx.stroke();
         ctx.restore();
-
       } else if (atk.type === 'strong') {
-        // ⚡ Taladro Supersónico (Vórtice Cinético Perforante)
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = '#0284c7';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.8;
 
         for (let i = 0; i < 4; i++) {
-          const r = 18 + i * 8;
-          const offset = (this.time * 30 + i * 1.8) % (Math.PI * 2);
+          const r = 16 + i * 7;
+          const offset = (this.time * 32 + i * 1.8) % (Math.PI * 2);
           ctx.beginPath();
-          ctx.arc(cx, cy, r, offset, offset + Math.PI);
+          ctx.arc(cx, cy, r, offset, offset + Math.PI * 1.1);
           ctx.stroke();
         }
         ctx.restore();
       }
-
     } else if (atk.element === 'plantas' || atk.element === 'tierra') {
       if (atk.type === 'weak') {
-        // 🌿 Látigo de Espinas (Barrido Orgánico con Zarzas)
         const hit = atk.hitbox;
         const owner = atk.owner;
         if (!hit || !owner) return;
@@ -292,75 +633,59 @@ export class VFXRenderer {
         ctx.lineWidth = 4;
         ctx.lineCap = 'round';
 
-        // Látigo primario
         ctx.beginPath();
         ctx.moveTo(ox, oy);
-        const midX1 = (ox + tx) / 2 + Math.sin(this.time * 28) * 12;
-        const midY1 = (oy + ty) / 2 + Math.cos(this.time * 28) * 12;
+        const midX1 = (ox + tx) / 2 + Math.sin(this.time * 30) * 12;
+        const midY1 = (oy + ty) / 2 + Math.cos(this.time * 30) * 12;
         ctx.quadraticCurveTo(midX1, midY1, tx, ty);
         ctx.stroke();
 
-        // Zarcillo secundario entrelazado
-        ctx.strokeStyle = '#22c55e';
+        ctx.strokeStyle = '#4ade80';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(ox, oy);
-        const midX2 = (ox + tx) / 2 - Math.sin(this.time * 28) * 8;
-        const midY2 = (oy + ty) / 2 - Math.cos(this.time * 28) * 8;
+        const midX2 = (ox + tx) / 2 - Math.sin(this.time * 30) * 8;
+        const midY2 = (oy + ty) / 2 - Math.cos(this.time * 30) * 8;
         ctx.quadraticCurveTo(midX2, midY2, tx, ty);
         ctx.stroke();
 
-        // Hojas y espinas en el extremo
         ctx.fillStyle = '#4ade80';
         ctx.beginPath();
         ctx.arc(tx, ty, 6, 0, Math.PI * 2);
         ctx.fill();
-
-        ctx.fillStyle = '#facc15';
-        ctx.beginPath();
-        ctx.arc(tx - 3, ty - 3, 2.5, 0, Math.PI * 2);
-        ctx.fill();
         ctx.restore();
-
       } else if (atk.type === 'strong') {
-        // 🌿 Brote de Zarzas y Prisión Selvática (AoE Masivo de Raíces)
         const hit = atk.hitbox;
         if (!hit) return;
         const cx = hit.x + hit.width / 2;
         const cy = hit.y + hit.height / 2;
         const radius = hit.width / 2;
-        const progress = 1 - Math.max(0, atk.duration / 0.55);
+        const progress = 1 - Math.max(0, atk.duration / 0.50);
 
         ctx.save();
-        // Anillo exterior de enredaderas
         ctx.strokeStyle = `rgba(34, 197, 94, ${1 - progress * 0.5})`;
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(cx, cy, radius * (0.4 + progress * 0.6), 0, Math.PI * 2);
         ctx.stroke();
 
-        // Brote de 6 raíces gruesas emergiendo del suelo
-        const rootCount = 6;
+        const rootCount = 8;
         for (let i = 0; i < rootCount; i++) {
           const angle = (i * (Math.PI * 2 / rootCount)) + 0.2;
-          const r = radius * 0.75 * Math.min(1, progress * 1.4);
+          const r = radius * 0.78 * Math.min(1, progress * 1.4);
           const rx = cx + Math.cos(angle) * r;
           const ry = cy + Math.sin(angle) * r;
 
           ctx.fillStyle = '#14532d';
           ctx.beginPath();
-          ctx.arc(rx, ry, 7, 0, Math.PI * 2);
+          ctx.arc(rx, ry, 6.5, 0, Math.PI * 2);
           ctx.fill();
 
           ctx.strokeStyle = '#4ade80';
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(rx, ry, 9, 0, Math.PI * 2);
+          ctx.arc(rx, ry, 8.5, 0, Math.PI * 2);
           ctx.stroke();
-
-          // Espinas
-          ctx.fillStyle = '#86efac';
-          ctx.fillRect(rx - 2, ry - 10, 4, 4);
         }
         ctx.restore();
       }
@@ -368,36 +693,254 @@ export class VFXRenderer {
   }
 
   /**
-   * Renderiza el escudo protector translúcido cuando el jugador bloquea.
+   * Renderiza los orbes proyectil del Artillero Ágil y su versión dorada al ser devueltos con Parry.
+   * @private
+   */
+  _renderOrbProjectile(ctx, atk) {
+    const px = atk.x ?? (atk.hitbox.x + atk.hitbox.width / 2);
+    const py = atk.y ?? (atk.hitbox.y + atk.hitbox.height / 2);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    if (atk.isReflected) {
+      // Cometa Dorado Supersónico devuelto por el jugador
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.55)';
+      ctx.beginPath();
+      ctx.arc(px, py, 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Orbe hostil claramente legible para facilitar el timing de Parry
+      const isFire = atk.element === 'fuego';
+      const outer = isFire ? 'rgba(239, 68, 68, 0.55)' : 'rgba(168, 85, 247, 0.55)';
+      const ring = isFire ? '#fb923c' : '#4ade80';
+
+      ctx.fillStyle = outer;
+      ctx.beginPath();
+      ctx.arc(px, py, 11, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = ring;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(px, py, 7.5, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza la Onda de Filo Sagrado disparada en el 3er golpe del combo.
+   * @private
+   */
+  _renderBladeWave(ctx, atk) {
+    const px = atk.x;
+    const py = atk.y;
+    const ang = atk.aimAngle || 0;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(px, py);
+    ctx.rotate(ang);
+
+    // Medialuna exterior dorada/celeste
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.75)';
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(-6, 0, 20, -Math.PI * 0.42, Math.PI * 0.42);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(-4, 0, 21, -Math.PI * 0.36, Math.PI * 0.36);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza el barrido coreografiado de la espada según el paso del combo (1, 2, 3 o Dash-Strike).
+   * @private
+   */
+  _renderSwordSweep(ctx, atk) {
+    const owner = atk.owner;
+    const ox = owner ? (owner.pos.x + owner.width / 2) : (atk.originX || (atk.hitbox.x + atk.hitbox.width / 2));
+    const oy = owner ? (owner.pos.y + owner.height / 2) : (atk.originY || (atk.hitbox.y + atk.hitbox.height / 2));
+
+    let baseAngle = atk.aimAngle;
+    if (baseAngle === undefined) {
+      const f = atk.facing || 'right';
+      baseAngle = f === 'right' ? 0 : f === 'down' ? Math.PI / 2 : f === 'left' ? Math.PI : -Math.PI / 2;
+    }
+
+    const maxDur = atk.maxDuration || (atk.isFinisher ? 0.23 : 0.165);
+    const progress = 1 - Math.max(0, Math.min(1, atk.duration / maxDur));
+    const alpha = Math.sin(progress * Math.PI);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // Variante Especial: DASH-STRIKE (Estocada Supersónica Perforante)
+    if (atk.isDashStrike) {
+      ctx.translate(ox, oy);
+      ctx.rotate(baseAngle);
+
+      const reach = 18 + progress * 32;
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.85})`;
+      ctx.lineWidth = 9 * (1 - progress * 0.4);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(4, 0);
+      ctx.lineTo(reach, 0);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.lineTo(reach + 8, 0);
+      ctx.stroke();
+
+      // Anillo de compresión sónica
+      ctx.strokeStyle = `rgba(250, 204, 21, ${alpha * 0.7})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(16, 0, 5, 14 * (0.6 + progress * 0.5), 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.restore();
+      return;
+    }
+
+    // Variante Maestría: `whirlwind_finisher` (Tajo Astral 360° completo)
+    if (atk.isWhirlwind) {
+      const spin = baseAngle + progress * Math.PI * 2.1;
+      const rOuter = 44 + progress * 24;
+      const rInner = 30 + progress * 16;
+
+      ctx.strokeStyle = `rgba(250, 204, 21, ${alpha * 0.72})`;
+      ctx.lineWidth = 14 * (1 - progress * 0.25);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(ox, oy, rOuter, spin, spin + Math.PI * 1.82);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.78})`;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(ox, oy, rInner, -spin, -spin + Math.PI * 1.65);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.lineWidth = 3.8;
+      ctx.beginPath();
+      ctx.arc(ox, oy, rOuter + 1, spin, spin + Math.PI * 1.82);
+      ctx.stroke();
+
+      ctx.restore();
+      return;
+    }
+
+    // Combo 1 (Horario), Combo 2 (Antihorario Celeste), Combo 3 Finisher (Gran Medialuna Áurea 225°)
+    const isFinisher = !!atk.isFinisher;
+    const step = atk.comboStep || 1;
+    const dir = atk.swingDir || 1;
+
+    const sweepSpan = isFinisher ? Math.PI * 1.28 : (step === 2 ? Math.PI * 0.88 : Math.PI * 0.80);
+    const halfSpan = sweepSpan / 2;
+    const radius = (isFinisher ? 34 : 27) + progress * (isFinisher ? 18 : 13);
+
+    const headProgress = Math.min(1, progress * 1.35);
+    const tailProgress = Math.max(0, (progress - 0.25) * 1.1);
+
+    let startAngle, endAngle;
+    if (dir >= 0) {
+      startAngle = baseAngle - halfSpan + tailProgress * sweepSpan * 0.45;
+      endAngle = baseAngle - halfSpan + headProgress * sweepSpan;
+    } else {
+      endAngle = baseAngle + halfSpan - tailProgress * sweepSpan * 0.45;
+      startAngle = baseAngle + halfSpan - headProgress * sweepSpan;
+    }
+
+    // 1. Estela exterior coloreada según golpe del combo
+    const outerColor = isFinisher
+      ? `rgba(250, 204, 21, ${alpha * 0.65})`
+      : step === 2
+        ? `rgba(56, 189, 248, ${alpha * 0.58})`
+        : `rgba(224, 242, 254, ${alpha * 0.50})`;
+
+    ctx.strokeStyle = outerColor;
+    ctx.lineWidth = isFinisher ? 14 : 10;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(ox, oy, radius - 2, startAngle, endAngle);
+    ctx.stroke();
+
+    // 2. Filo incandescente de acero puro
+    ctx.strokeStyle = atk.isPerfectTempo || isFinisher
+      ? `rgba(254, 249, 195, ${alpha})`
+      : `rgba(255, 255, 255, ${alpha * 0.96})`;
+    ctx.lineWidth = isFinisher ? 4.5 : 3.5;
+    ctx.beginPath();
+    ctx.arc(ox, oy, radius + 1, startAngle, endAngle);
+    ctx.stroke();
+
+    // 3. Destello estelar en la punta activa de la hoja
+    const activeTipAngle = dir >= 0 ? endAngle : startAngle;
+    const tipX = ox + Math.cos(activeTipAngle) * (radius + 1);
+    const tipY = oy + Math.sin(activeTipAngle) * (radius + 1);
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, isFinisher ? 5.5 : 3.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza la barrera hexagonal orientándola suavemente hacia `player.aimDir`.
    * @private
    */
   _renderShieldBarrier(ctx, player) {
     const cx = player.pos.x + player.width / 2;
     const cy = player.pos.y + player.height / 2;
-    const isParryWindow = player.stateTimer < 0.15; // Primeros 150ms = Parry perfecto
+    const isParryWindow = player.stateTimer <= (player.parryWindowDuration || 0.16);
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
 
-    // Desplazamiento según facing
-    let sx = cx;
-    let sy = cy;
     const dist = 18;
-    if (player.facing === 'right') sx += dist;
-    else if (player.facing === 'left') sx -= dist;
-    else if (player.facing === 'down') sy += dist;
-    else if (player.facing === 'up') sy -= dist;
+    const ax = (player.aimDir && (player.aimDir.x !== 0 || player.aimDir.y !== 0))
+      ? player.aimDir.x
+      : (player.facing === 'right' ? 1 : player.facing === 'left' ? -1 : 0);
+    const ay = (player.aimDir && (player.aimDir.x !== 0 || player.aimDir.y !== 0))
+      ? player.aimDir.y
+      : (player.facing === 'down' ? 1 : player.facing === 'up' ? -1 : 0);
 
-    // Color: Dorado para parry perfecto, azul cielo para guardia estándar
+    const sx = cx + ax * dist;
+    const sy = cy + ay * dist;
+
     const shieldColor = isParryWindow ? '#facc15' : '#38bdf8';
     ctx.strokeStyle = shieldColor;
     ctx.lineWidth = isParryWindow ? 3 : 2;
-    ctx.fillStyle = isParryWindow ? 'rgba(250, 204, 21, 0.3)' : 'rgba(56, 189, 248, 0.2)';
+    ctx.fillStyle = isParryWindow ? 'rgba(250, 204, 21, 0.32)' : 'rgba(56, 189, 248, 0.20)';
 
-    // Dibujar escudo hexagonal
     ctx.beginPath();
     const sides = 6;
-    const radius = isParryWindow ? 18 : 14;
+    const radius = isParryWindow ? 17 : 13.5;
     for (let i = 0; i < sides; i++) {
       const angle = (i * 2 * Math.PI / sides) - Math.PI / 6;
       const x = sx + radius * Math.cos(angle);
@@ -413,28 +956,97 @@ export class VFXRenderer {
   }
 
   /**
-   * Renderiza explosiones y efectos de impacto.
+   * Renderiza destellos de impacto, cortes cruzados y ondas expansivas.
    * @private
    */
   _renderEffect(ctx, fx) {
     const progress = fx.timer / fx.duration;
-    const alpha = 1 - progress;
+    const alpha = Math.max(0, 1 - progress);
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
 
-    if (fx.type === 'parry_spark') {
-      // Destello estelar de parry perfecto
+    if (fx.type === 'slash_hit') {
+      // Hit-Spark diagonal estilo Hades / Anime
+      ctx.translate(fx.x, fx.y);
+      ctx.rotate(fx.angle);
+      const len = fx.radius * (0.6 + progress * 0.8);
+      ctx.strokeStyle = fx.isFinisher ? `rgba(253, 224, 71, ${alpha})` : `rgba(255, 255, 255, ${alpha})`;
+      ctx.lineWidth = (fx.isFinisher ? 4 : 2.8) * alpha;
+      ctx.beginPath();
+      ctx.moveTo(-len, 0);
+      ctx.lineTo(len, 0);
+      ctx.moveTo(0, -len * 0.45);
+      ctx.lineTo(0, len * 0.45);
+      ctx.stroke();
+    } else if (fx.type === 'parry_spark') {
       ctx.strokeStyle = `rgba(250, 204, 21, ${alpha})`;
-      ctx.lineWidth = 2.5;
-      const r = fx.radius * progress;
+      ctx.lineWidth = 3 * alpha;
+      const r = fx.radius * (0.25 + progress * 0.85);
       ctx.beginPath();
       ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Estrella central de 4 puntas
+      const sLen = fx.radius * 0.8 * alpha;
+      ctx.beginPath();
+      ctx.moveTo(fx.x - sLen, fx.y);
+      ctx.lineTo(fx.x + sLen, fx.y);
+      ctx.moveTo(fx.x, fx.y - sLen);
+      ctx.lineTo(fx.x, fx.y + sLen);
+      ctx.stroke();
+    } else if (fx.type === 'wood_explosion') {
+      ctx.strokeStyle = `rgba(251, 146, 60, ${alpha})`;
+      ctx.lineWidth = 5 * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, fx.radius * progress, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = `rgba(74, 222, 128, ${alpha * 0.45})`;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, fx.radius * Math.sin(progress * Math.PI) * 0.75, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (fx.type === 'shield_clash') {
+      ctx.strokeStyle = `rgba(147, 197, 253, ${alpha})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, fx.radius * progress, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (fx.type === 'earth_root') {
+      ctx.strokeStyle = `rgba(74, 222, 128, ${alpha * 0.8})`;
+      ctx.lineWidth = 3 * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, fx.radius * progress, 0, Math.PI * 2);
       ctx.stroke();
     } else if (fx.type === 'fire_burst') {
       ctx.fillStyle = `rgba(249, 115, 22, ${alpha * 0.7})`;
       ctx.beginPath();
       ctx.arc(fx.x, fx.y, fx.radius * Math.sin(progress * Math.PI), 0, Math.PI * 2);
+      ctx.fill();
+    } else if (fx.type === 'aegis_nova') {
+      const r = fx.radius * (0.28 + progress * 0.78);
+      ctx.strokeStyle = `rgba(250, 204, 21, ${alpha * 0.92})`;
+      ctx.lineWidth = 5 * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.75})`;
+      ctx.lineWidth = 2.5 * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r * 0.72, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (fx.type === 'plasma_pulse') {
+      const r = fx.radius * (0.25 + progress * 0.80);
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.95})`;
+      ctx.lineWidth = 4.2 * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = `rgba(186, 230, 253, ${alpha * 0.28})`;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r * 0.65, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -442,60 +1054,7 @@ export class VFXRenderer {
   }
 
   /**
-   * Renderiza el arco de barrido cortante de la espada (Sweeping Edge estilo Minecraft).
-   * Genera una estela en medialuna con filo luminoso y partículas de corte.
-   * @private
-   */
-  _renderSwordSweep(ctx, atk) {
-    const ox = atk.originX || (atk.hitbox.x + atk.hitbox.width / 2);
-    const oy = atk.originY || (atk.hitbox.y + atk.hitbox.height / 2);
-    const facing = atk.facing || 'right';
-    const progress = 1 - Math.max(0, atk.duration / 0.22); // 0 a 1
-    const alpha = Math.sin(progress * Math.PI); // pico en medio del golpe
-
-    // Ángulo central según orientación
-    let baseAngle = 0;
-    if (facing === 'right') baseAngle = 0;
-    else if (facing === 'down') baseAngle = Math.PI / 2;
-    else if (facing === 'left') baseAngle = Math.PI;
-    else if (facing === 'up') baseAngle = -Math.PI / 2;
-
-    const sweepSpan = Math.PI * 0.76; // ~137 grados de abanico de barrido
-    const startAngle = baseAngle - (sweepSpan / 2) + (progress * 0.2);
-    const endAngle = startAngle + sweepSpan;
-    const radius = 28 + (progress * 14); // Expande de 28px a 42px
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-
-    // 1. Estela exterior translúcida de corte (Viento cortante)
-    ctx.strokeStyle = `rgba(224, 242, 254, ${alpha * 0.45})`;
-    ctx.lineWidth = 10;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(ox, oy, radius - 2, startAngle, endAngle);
-    ctx.stroke();
-
-    // 2. Filo brillante de la hoja de acero (Plateado / Blanco puro)
-    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.95})`;
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.arc(ox, oy, radius, startAngle + (sweepSpan * 0.12), endAngle);
-    ctx.stroke();
-
-    // 3. Destello de punta de la espada al cortar
-    const tipX = ox + Math.cos(endAngle) * radius;
-    const tipY = oy + Math.sin(endAngle) * radius;
-    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-    ctx.beginPath();
-    ctx.arc(tipX, tipY, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  /**
-   * Renderiza el aura de curación esmeralda y el Escudo de Vitalidad del jugador.
+   * Renderiza el aura de curación esmeralda y el Escudo de Vitalidad activo.
    * @private
    */
   _renderHealAura(ctx, player) {
@@ -508,10 +1067,9 @@ export class VFXRenderer {
     ctx.globalCompositeOperation = 'lighter';
 
     if (isHealing) {
-      const progress = player.healTimer / 0.85; // 1 a 0
+      const progress = player.healTimer / 0.85;
       const alpha = Math.sin(progress * Math.PI);
 
-      // Círculo restaurativo esmeralda en el suelo
       ctx.strokeStyle = `rgba(74, 222, 128, ${alpha * 0.85})`;
       ctx.lineWidth = 3;
       ctx.fillStyle = `rgba(34, 197, 94, ${alpha * 0.25})`;
@@ -520,7 +1078,6 @@ export class VFXRenderer {
       ctx.fill();
       ctx.stroke();
 
-      // Motes de luz sagrada ascendentes
       const moteCount = 5;
       for (let i = 0; i < moteCount; i++) {
         const ang = (i * (Math.PI * 2 / moteCount)) + (this.time * 6);
@@ -536,16 +1093,15 @@ export class VFXRenderer {
     }
 
     if (hasShield) {
-      // Escudo de Vitalidad activo (Aura protectora dorada/verde)
       const pulse = Math.sin(this.time * 6) * 2;
-      ctx.strokeStyle = 'rgba(74, 222, 128, 0.65)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.72)';
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.arc(cx, cy, 20 + pulse, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.arc(cx, cy, 24 - pulse, 0, Math.PI * 2);
       ctx.stroke();

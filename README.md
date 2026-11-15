@@ -119,7 +119,16 @@ El motor cuenta con un sistema cinemático autónomo en el DOM Overlay ([Cinemat
 
 ## 📜 4. Registro Histórico de Cambios (Changelog)
 
-### Version 2.0.0 (Actual) — *Combat & Narrative Architecture Overhaul*
+### Version 3.0.0 (Actual) — *AAA Rhythmic Combat, Modular Enemy AI & Procedural Audio*
+* **Combo Rítmico de Espada de 3 Golpes + Onda de Filo:** Secuencia coreografiada (*Corte Diestro $\to$ Revés Cruzado $\to$ Tajo Sacro Circular 225°*) con ventana de **Tempo Perfecto** (+15% daño y destello en empuñadura) y **Onda de Filo Sagrado** a distancia.
+* **Dash-Strike & Spell-Weaving (Cancelaciones AAA):** Atacar durante el Dash desata una **Estocada Relámpago** perforante; los tajos pueden cancelarse fluidamente hacia habilidades elementales, Guardia/Parry o Dash con cola de pre-entrada (*Input Queueing*) para cero comandos perdidos.
+* **Apuntado Inteligente 360° / 8 Vías:** Apuntado exacto hacia el cursor del ratón en PC y direccional analógico en teclado/gamepad para tajos, proyectiles, látigos, embestidas y escudo hexagonal.
+* **Medidor Dinámico de Combo y Rango de Estilo (`D` $\to$ `S`):** Bonificación progresiva de daño (hasta +35% en rango `S`) que premia la variedad elemental y los Parries Perfectos.
+* **Simetría de Daño e IA Enemiga de 4 Arquetipos:** Implementado `Player.takeDamage()` (con Iframes, Escudo de Vitalidad y Renacimiento de la Reliquia) junto a las máquinas de estado y telegrafía táctica del **Sabueso de Zarzas**, **Esporífero Artillero**, **Centinela Pavés** (escudo de roble incinerable) y **Duelista Implacable**.
+* **Motor de Audio Sintetizado (`AudioManager.js`):** Síntesis multicapa en tiempo real con Web Audio API (escala tonal de combos, campana resonante de Parry estilo *Sekiro*, impactos elementales y alertas de telegrafía) con compresor dinámico maestro.
+* **Santuario del Guantelete (UI de Talentos y Esencia Ancestral):** Árbol de habilidades interactivo accesible con `[U]` para invertir la Esencia Ancestral obtenida en combate.
+
+### Version 2.0.0 — *Combat & Narrative Architecture Overhaul*
 * **Fix Crítico de Postura:** Reparada la referencia a `context.player` en `CombatManager`, habilitando la regeneración pasiva del medidor de postura fuera de bloqueo.
 * **Fix de Game Feel:** Conectado `camera` en `gameContext` para que los impactos de espada y embestidas activen el Screen Shake.
 * **Físicas y Colisiones en Combate:** Se integró `physics.moveWithCollisions` en los empujes físicos de `KineticAbility`, `EarthAbility` y `_applyKnockback`, impidiendo que los enemigos atraviesen muros o la cabaña.
@@ -147,6 +156,14 @@ El motor cuenta con un sistema cinemático autónomo en el DOM Overlay ([Cinemat
 * Adopción de formato panorámico 16:9 con resolución nativa 960x540.
 * Sistema `FoliageSystem.js` con balanceo por viento y flexión elástica al contacto con el héroe.
 * Cámara cinemática con LERP exponencial continuo y zoom 1.45x.
+
+### Version 2.0.0 — *The Sacred Relic & Cel-Shaded Era*
+* **Cámara 2D con Zona Muerta Cuadrada (Square Deadzone)**: Permite movimiento libre dentro del marco central y traslada el viewport al cruzar bordes, sin forzar centrado rígido del jugador.
+* **Estética Pixel Art / Cel-Shaded Top-Down (`CelSpriteAtlas`)**: Adaptación de estilo y animación manteniendo los personajes con técnica anime cel-shading de alta fidelidad, paletas con hue shifting y cero asignaciones dinámicas.
+* **Secuencia de Apertura y Dispersión de Poderes**: Cinemática in-engine en el Umbral de la Cueva Hendida (`cave_exit_intro.json`). Los cuatro orbes elementales se dispersan por el firmamento; el fragmento ígneo impacta en el claro sur atrayendo bestias acechadoras.
+* **Progresión Orgánica del Umbral**: La Espada del Alba es el primer elemento visible al salir de la cueva, guiando al jugador hacia la ruptura de la roca agrietada y la recuperación del Núcleo de Fuego.
+* **Corrección Táctica de Choque con Escudos**: El impacto con enemigos equipados con escudo de madera no desactiva el poder ígneo; por el contrario, recarga energía elemental y permite incinerar permanentemente sus defensas.
+* **Aclaración de Transcripción Fonética**: Se clarifica el apunte transcrito por reconocimiento de voz «*una segunda vez en Guadalajara*», el cual corresponde al diseño del Centinela Pavés («*una segunda fase con guardia*»): al defenderse con escudo frontal, el jugador debe romper su postura o quemar el escudo con Fuego para superarlo permanentemente.
 
 ### Version 1.0.0 a 1.3.0 — *Foundation Engine*
 * Motor modular en JavaScript nativo (ES Modules) impulsado por Vite.

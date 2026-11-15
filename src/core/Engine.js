@@ -26,8 +26,11 @@ export class Engine {
     /** @type {number} Límite máximo de deltaTime para evitar saltos locos al cambiar de pestaña */
     this.maxDelta = 0.1;
 
-    /** @type {number} Temporizador interno para pausar la lógica durante impactos (Game Feel) */
+    /** @type {number} Temporizador interno para pausar la lógica durante impactos críticos (Game Feel) */
     this.hitStopTimer = 0;
+
+    /** @type {number} Cooldown mínimo entre HitStops para impedir tirones encadenados al golpear grupos */
+    this.hitStopCooldown = 0;
 
     // BUG-02 FIX: Pre-cachear el bind para no crear un closure nuevo cada frame
     this._boundLoop = this.loop.bind(this);
@@ -77,11 +80,17 @@ export class Engine {
   }
 
   /**
-   * Congela el tiempo lógico durante N segundos para dar peso a los impactos (Parry/Golpes críticos).
+   * Congela el tiempo lógico brevemente para dar peso únicamente a impactos de alto valor
+   * (Parry Perfecto, Finisher, Riposte Crítico, Explosión de Sinergia o Daño recibido).
+   * Aplica un cooldown anti-ráfaga para que golpear hordas nunca produzca tirones de frames.
    * @param {number} duration - Segundos de pausa lógica
    */
   hitStop(duration) {
-    this.hitStopTimer = Math.max(this.hitStopTimer, duration);
+    if (this.hitStopCooldown > 0 && duration <= this.hitStopTimer + 0.02) {
+      return;
+    }
+    this.hitStopTimer = Math.max(this.hitStopTimer, Math.min(0.075, duration));
+    this.hitStopCooldown = 0.22;
   }
 
   /**
@@ -92,23 +101,26 @@ export class Engine {
     if (!this.isRunning) return;
 
     let dt = (currentTime - this.lastTime) / 1000;
+    if (dt < 0) dt = 0;
     if (dt > this.maxDelta) {
       dt = this.maxDelta;
     }
     this.deltaTime = dt;
     this.lastTime = currentTime;
 
+    if (this.hitStopCooldown > 0 && !this.isPaused) {
+      this.hitStopCooldown = Math.max(0, this.hitStopCooldown - dt);
+    }
+
     if (this.isPaused) {
       // En pausa no se actualiza la física ni el estado de las entidades,
       // pero se renderiza el último fotograma con dt = 0.
       this.renderFn(0);
     } else if (this.hitStopTimer > 0) {
-      // HitStop activo: Resta el tiempo pero no actualiza la lógica del juego
+      // HitStop activo: resta tiempo usando el reloj monotónico de rAF sin desincronizar lastTime
       this.hitStopTimer -= dt;
-      // Corrección: Al finalizar el HitStop, resetear lastTime para evitar micro-saltos de dt
       if (this.hitStopTimer <= 0) {
         this.hitStopTimer = 0;
-        this.lastTime = performance.now();
       }
       this.renderFn(0);
     } else {

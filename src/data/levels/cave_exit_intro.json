@@ -1,0 +1,218 @@
+{
+  "id": "cave_exit_intro",
+  "name": "Umbral de la Cueva Hendida",
+  "layoutPreset": "cave_exit_intro",
+  "biome": "cave_exit_intro",
+  "worldTitle": "Mundo 1 · Claro de las Reliquias",
+  "weather": "pollen",
+  "startDormant": true,
+  "initialObjective": "Empuña la Espada del Alba frente a la cueva [E / Clic Izq]",
+  "arenaCenter": { "x": 1344, "y": 720 },
+  "map": {
+    "cols": 56,
+    "rows": 38,
+    "tileSize": 32
+  },
+  "playerSpawn": {
+    "x": 248,
+    "y": 208
+  },
+  "solidColliders": [
+    { "x": 736, "y": 0, "width": 96, "height": 544 },
+    { "x": 736, "y": 640, "width": 96, "height": 576 }
+  ],
+  "props": [
+    { "propType": "cave_mouth", "x": 168, "y": 96, "id": "intro_cave_mouth" },
+    {
+      "propType": "starter_sword",
+      "x": 240,
+      "y": 268,
+      "id": "cave_threshold_sword",
+      "label": "Espada del Alba"
+    },
+    { "propType": "crystal_rock", "x": 132, "y": 176 },
+    { "propType": "crystal_rock", "x": 364, "y": 176 },
+    {
+      "propType": "broken_statue",
+      "x": 376,
+      "y": 212,
+      "biomeTint": "forest",
+      "loreTitle": "Centinela Caído del Claro",
+      "loreText": "El antiguo guardián custodia el umbral: «Quien empuñe la Reliquia deberá restaurar los cuatro Sellos.»",
+      "essenceReward": 18
+    },
+    { "propType": "cliff_rock", "x": 382, "y": 336 },
+    {
+      "propType": "cracked_rock",
+      "x": 448,
+      "y": 336,
+      "id": "tutorial_cracked_barricade",
+      "label": "Roca Mineral Agrietada"
+    },
+    { "propType": "cliff_rock", "x": 514, "y": 336 },
+
+    { "propType": "crystal_rock", "x": 352, "y": 852 },
+    {
+      "propType": "relic_pedestal",
+      "x": 436,
+      "y": 844,
+      "id": "ember_core_pedestal",
+      "label": "Pedestal del Núcleo de Brasa",
+      "grantsElement": "Fuego"
+    },
+    { "propType": "crystal_rock", "x": 524, "y": 852 },
+
+    {
+      "propType": "burnable_vines",
+      "x": 768,
+      "y": 544,
+      "id": "bridge_thorn_gate",
+      "label": "Zarzas Espinosas del Puente"
+    },
+
+    {
+      "propType": "rusted_greatsword",
+      "x": 920,
+      "y": 500,
+      "loreTitle": "Hoja de los Caballeros del Alba",
+      "loreText": "Grabado en la guarda: «Ninguna horda quebró este acero hasta la noche en que cayeron las esporas.»",
+      "essenceReward": 15
+    },
+    {
+      "propType": "runic_obelisk",
+      "x": 1004,
+      "y": 420,
+      "runeColor": "#38bdf8",
+      "loreTitle": "Obelisco del Despertar",
+      "loreText": "Las runas vibran con tu Guantelete, recordando la senda hacia el Pantano de Esporas.",
+      "essenceReward": 25
+    },
+    {
+      "propType": "sanctuary_altar",
+      "x": 1344,
+      "y": 620,
+      "id": "sacred_resonance_monolith",
+      "label": "Altar de Resonancia Sagrada",
+      "grantsElement": "All"
+    },
+    {
+      "propType": "horde_totem",
+      "x": 1440,
+      "y": 720,
+      "id": "sanctuary_horde_totem",
+      "label": "Estela de Desafío de Hordas"
+    },
+    {
+      "propType": "world_portal",
+      "x": 1568,
+      "y": 576,
+      "portalColor": "#2dd4bf",
+      "targetWorld": "marsh_of_spores",
+      "worldLabel": "Pantano de Esporas"
+    }
+  ],
+  "entities": [
+    {
+      "type": "enemy",
+      "archetype": "hound",
+      "element": "plantas",
+      "name": "Sabueso de Zarzas",
+      "x": 384,
+      "y": 548,
+      "noRespawn": true
+    },
+    {
+      "type": "enemy",
+      "archetype": "hound",
+      "element": "plantas",
+      "name": "Sabueso Acechador",
+      "x": 480,
+      "y": 740,
+      "noRespawn": true
+    },
+
+    {
+      "type": "npc",
+      "variant": "valerio",
+      "name": "Valerio el Viajero",
+      "rescueTag": "ambush_valerio",
+      "x": 1136,
+      "y": 256
+    },
+    {
+      "type": "enemy",
+      "archetype": "artillery",
+      "element": "plantas",
+      "name": "Esporífero Emboscador",
+      "x": 1056,
+      "y": 332,
+      "noRespawn": true,
+      "customTags": ["ambush_valerio"]
+    },
+    {
+      "type": "enemy",
+      "archetype": "hound",
+      "element": "plantas",
+      "name": "Sabueso Alfa",
+      "x": 1216,
+      "y": 332,
+      "noRespawn": true,
+      "customTags": ["ambush_valerio"]
+    },
+
+    {
+      "type": "enemy",
+      "archetype": "tank",
+      "element": "plantas",
+      "name": "Centinela Pavés del Umbral",
+      "x": 1140,
+      "y": 600,
+      "hasWoodenShield": true,
+      "noRespawn": true
+    },
+
+    {
+      "type": "house",
+      "x": 1410,
+      "y": 370
+    },
+    {
+      "type": "npc",
+      "variant": "tarak",
+      "name": "Sabio Tarak",
+      "x": 1248,
+      "y": 560
+    }
+  ],
+  "clearingTrees": [
+    { "x": 588, "y": 248 },
+    { "x": 592, "y": 428 },
+    { "x": 180, "y": 460 },
+    { "x": 190, "y": 760 },
+    { "x": 620, "y": 820 },
+    { "x": 900, "y": 248 },
+    { "x": 1600, "y": 320 },
+    { "x": 920, "y": 840 },
+    { "x": 1060, "y": 980 },
+    { "x": 1580, "y": 920 }
+  ],
+  "foliage": [
+    { "x": 544, "y": 488 },
+    { "x": 648, "y": 512 },
+    { "x": 648, "y": 672 },
+    { "x": 312, "y": 712 },
+    { "x": 580, "y": 936 },
+    { "x": 920, "y": 688 },
+    { "x": 1296, "y": 344 },
+    { "x": 1168, "y": 496 },
+    { "x": 1592, "y": 720 },
+    { "x": 1220, "y": 944 },
+    { "x": 1492, "y": 944 }
+  ],
+  "perimeterConfig": {
+    "step": 76,
+    "hasOpenRoad": false,
+    "streamGapX": [716, 844],
+    "caveSafeZone": { "x": 0, "y": 0, "width": 540, "height": 390 }
+  }
+}

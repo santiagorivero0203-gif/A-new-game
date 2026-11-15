@@ -1,0 +1,81 @@
+{
+  "id": "astral_citadel",
+  "name": "Mundo 4 · Ciudadela Astral",
+  "worldTitle": "Mundo 4 · Ciudadela Astral del Santuario",
+  "biome": "astral_citadel",
+  "layoutPreset": "astral_citadel",
+  "weather": "stardust",
+  "cols": 54,
+  "rows": 36,
+  "tileSize": 32,
+  "playerSpawn": { "x": 236, "y": 588 },
+  "arenaCenter": { "x": 1152, "y": 608 },
+  "ambientColor": "rgba(19, 14, 48, 0.34)",
+  "lights": [
+    { "x": 592, "y": 580, "radius": 200, "color": "#38bdf8", "intensity": 0.78, "flickerSpeed": 1.8 },
+    { "x": 1152, "y": 608, "radius": 260, "color": "#e879f9", "intensity": 0.85, "flickerSpeed": 2.1 },
+    { "x": 1520, "y": 580, "radius": 170, "color": "#facc15", "intensity": 0.76, "flickerSpeed": 1.9 }
+  ],
+  "colliders": [
+    { "x": 0, "y": 0, "width": 1728, "height": 236 },
+    { "x": 0, "y": 0, "width": 100, "height": 1152 },
+    { "x": 1628, "y": 0, "width": 100, "height": 1152 },
+    { "x": 0, "y": 1052, "width": 1728, "height": 100 },
+    { "x": 565, "y": 240, "width": 80, "height": 300 },
+    { "x": 565, "y": 670, "width": 80, "height": 380 }
+  ],
+  "props": [
+    { "propType": "world_portal", "x": 132, "y": 568, "portalColor": "#fb923c", "targetWorld": "ash_caldera", "worldLabel": "Caldera de Ceniza" },
+    { "propType": "crystal_rock", "x": 360, "y": 320 },
+    { "propType": "crystal_rock", "x": 420, "y": 780 },
+    {
+      "propType": "broken_statue",
+      "x": 740,
+      "y": 420,
+      "biomeTint": "forest",
+      "loreTitle": "Efigie del Primer Portador",
+      "loreText": "En el umbral celeste yacen los ecos de quien forjó la Reliquia con estrellas y acero.",
+      "essenceReward": 32
+    },
+    {
+      "propType": "rusted_greatsword",
+      "x": 780,
+      "y": 780,
+      "loreTitle": "Reliquia de los Vientos Altos",
+      "loreText": "Una hoja ceremonial que sobrevivió mil eclipses protegiendo la Gran Plaza.",
+      "essenceReward": 28
+    },
+    {
+      "propType": "runic_obelisk",
+      "x": 920,
+      "y": 340,
+      "runeColor": "#e879f9",
+      "loreTitle": "Obelisco del Cenit",
+      "loreText": "Las tres afinidades convergen aquí: Planta, Fuego y Energía Cinética vibran al unísono.",
+      "essenceReward": 45
+    },
+    {
+      "propType": "runic_obelisk",
+      "x": 1350,
+      "y": 820,
+      "runeColor": "#38bdf8",
+      "loreTitle": "Obelisco del Sello Eterno",
+      "loreText": "Tu maestría en el Santuario ha despertado la corona entera de la Ciudadela.",
+      "essenceReward": 45
+    },
+    { "propType": "sanctuary_altar", "x": 1114, "y": 420, "id": "astral_sanctuary_altar" },
+    { "propType": "horde_totem", "x": 1245, "y": 560, "id": "astral_horde_totem" },
+    { "propType": "world_portal", "x": 1495, "y": 568, "portalColor": "#38bdf8", "targetWorld": "cave_exit_intro", "worldLabel": "Claro Inicial" }
+  ],
+  "entities": [
+    { "type": "npc", "variant": "valerio", "name": "Valerio", "x": 325, "y": 542 },
+    { "type": "enemy", "archetype": "slime", "element": "kinetic", "x": 450, "y": 600 },
+    { "type": "enemy", "archetype": "duelist", "element": "kinetic", "x": 740, "y": 595 },
+    { "type": "enemy", "archetype": "artillery", "element": "fuego", "x": 940, "y": 500 },
+    { "type": "enemy", "archetype": "tank", "element": "kinetic", "x": 1030, "y": 660 },
+    { "type": "enemy", "archetype": "hound", "element": "fuego", "x": 1190, "y": 720 },
+    { "type": "enemy", "archetype": "duelist", "element": "fuego", "x": 1310, "y": 480 },
+    { "type": "enemy", "archetype": "artillery", "element": "plantas", "x": 1380, "y": 670 }
+  ]
+}
+

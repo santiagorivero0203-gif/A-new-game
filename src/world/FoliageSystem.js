@@ -66,28 +66,28 @@ export class FoliageProp extends Entity {
   }
 
   /**
-   * Actualiza la simulación de físicas ambientales de balanceo y flexión.
+   * Actualiza la simulación de resorte reactivo únicamente cuando el arbusto fue empujado.
+   * Permanece en O(1) mientras está en reposo para no consumir CPU ni deformar píxeles.
    * @param {Object} context - GameContext ({ deltaTime, input, physics, state })
    */
   update(context) {
+    if (Math.abs(this.angle) < 0.002 && Math.abs(this.angularVelocity) < 0.002) {
+      this.angle = 0;
+      this.angularVelocity = 0;
+      return;
+    }
+
     const deltaTime = context.deltaTime || 0.016;
-    this.time += deltaTime;
 
-    // 1. Balanceo de viento natural suave (oscilación senoidal compuesta)
-    const windTarget = Math.sin(this.time * 2.5 + this.windPhase) * 0.07 +
-                       Math.sin(this.time * 5.1 + this.windPhase) * 0.02;
-
-    // 2. Fuerzas del resorte amortiguado (Hooke + Damping)
-    const displacement = this.angle - windTarget;
-    const springForce = -this.springK * displacement;
+    // Resorte amortiguado hacia el reposo (sin balanceo perpetuo por viento)
+    const springForce = -this.springK * this.angle;
     const dampingForce = -this.damping * this.angularVelocity;
     const angularAcceleration = springForce + dampingForce;
 
     this.angularVelocity += angularAcceleration * deltaTime;
     this.angle += this.angularVelocity * deltaTime;
 
-    // Limitar ángulo máximo para mantener estética limpia
-    const maxAngle = 0.45; // ~25 grados
+    const maxAngle = 0.45;
     if (this.angle > maxAngle) this.angle = maxAngle;
     if (this.angle < -maxAngle) this.angle = -maxAngle;
   }
@@ -104,26 +104,25 @@ export class FoliageProp extends Entity {
   }
 
   /**
-   * Renderiza el arbusto aplicando la inclinación física con pivote en la raíz inferior.
+   * Renderiza el arbusto con desplazamiento entero en X sin rotación fraccionaria
+   * para preservar el pixel-art nítido a 60/120 FPS.
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
     const x = Math.round(this.pos.x);
     const y = Math.round(this.pos.y);
-    const pivotX = Math.round(x + this.width / 2);
-    const pivotY = Math.round(y + this.height - 4); // Pivote en la base del suelo
-
-    ctx.save();
-    // Trasladar al pivote, rotar según las físicas, y dibujar
-    ctx.translate(pivotX, pivotY);
-    ctx.rotate(this.angle);
+    const shiftX = Math.round(this.angle * 10);
 
     if (this.sprite) {
-      ctx.drawImage(this.sprite, -Math.round(this.width / 2), -Math.round(this.height - 4), this.width, this.height);
-    } else {
-      this._drawFallbackBush(ctx);
+      ctx.drawImage(this.sprite, x + shiftX, y, this.width, this.height);
+      return;
     }
 
+    const pivotX = Math.round(x + this.width / 2) + shiftX;
+    const pivotY = Math.round(y + this.height - 4);
+    ctx.save();
+    ctx.translate(pivotX, pivotY);
+    this._drawFallbackBush(ctx);
     ctx.restore();
   }
 
@@ -249,5 +248,12 @@ export class FoliageSystem {
     for (let i = 0; i < this.foliageList.length; i++) {
       this.foliageList[i].setSprite(sprite);
     }
+  }
+
+  /**
+   * Limpia las referencias a la vegetación acumulada antes de cargar un nuevo mundo/bioma.
+   */
+  clear() {
+    this.foliageList.length = 0;
   }
 }

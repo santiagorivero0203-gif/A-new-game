@@ -17,20 +17,28 @@ export class EntityManager {
 
     /** @type {Array<import('./Entity.js').Entity>|null} Caché persistente de sólidos para físicas O(1) */
     this._solidsCache = null;
+
+    /** @type {Map<string, Array<import('./Entity.js').Entity>>} Caché O(1) por etiqueta por fotograma */
+    this._tagCache = new Map();
+
+    /** @type {boolean} Bandera de reordenamiento Y-Sort bajo demanda */
+    this._sortedDirty = true;
   }
 
   /**
-   * Registra una nueva entidad en el gestor e invalida la caché de sólidos.
+   * Registra una nueva entidad en el gestor e invalida las cachés.
    * @param {import('./Entity.js').Entity} entity
    */
   addEntity(entity) {
     this.entities.push(entity);
     this._sortedBuffer.push(entity);
     this._solidsCache = null;
+    this._tagCache.clear();
+    this._sortedDirty = true;
   }
 
   /**
-   * Remueve una entidad del gestor e invalida la caché de sólidos.
+   * Remueve una entidad del gestor e invalida las cachés.
    * @param {import('./Entity.js').Entity} entity
    */
   removeEntity(entity) {
@@ -40,19 +48,23 @@ export class EntityManager {
       const bufIdx = this._sortedBuffer.indexOf(entity);
       if (bufIdx > -1) this._sortedBuffer.splice(bufIdx, 1);
       this._solidsCache = null;
+      this._tagCache.clear();
+      this._sortedDirty = true;
     }
   }
 
   /**
-   * Actualiza todas las entidades usando un objeto de contexto unificado.
-   * Admite tanto un objeto `context` ({ deltaTime, input, physics, state }) como
-   * argumentos separados para total retrocompatibilidad.
+   * Actualiza entidades dinámicas usando un objeto de contexto unificado,
+   * omitiendo obstáculos/estructuras puramente estáticas para sostener 60/120 FPS.
    * @param {Object|number} contextOrDt
    * @param {import('../core/InputManager.js').InputManager} [legacyInput]
    * @param {import('../systems/PhysicsSystem.js').PhysicsSystem} [legacyPhysics]
    * @param {import('../core/StateManager.js').StateManager} [legacyState]
    */
   update(contextOrDt, legacyInput, legacyPhysics, legacyState) {
+    this._sortedDirty = true;
+    this._tagCache.clear();
+
     const context = (typeof contextOrDt === 'object' && contextOrDt !== null)
       ? contextOrDt
       : {
@@ -63,36 +75,50 @@ export class EntityManager {
         };
 
     for (let i = 0; i < this.entities.length; i++) {
-      this.entities[i].update(context);
+      const ent = this.entities[i];
+      const tags = ent.tags;
+      if (tags && (tags.includes('tree') || tags.includes('terrain_barrier') || tags.includes('house'))) {
+        continue;
+      }
+      ent.update(context);
     }
   }
 
   /**
    * Retorna las entidades ordenadas por profundidad (Y-Sorting) reutilizando el buffer interno.
-   * Utiliza la base de la hitbox (los pies del personaje) para determinar el orden de dibujo
-   * sin generar objetos temporales en el Garbage Collector.
+   * Solo reordena cuando `_sortedDirty` está activo para evitar `.sort()` redundantes por fotograma.
    * @returns {Array<import('./Entity.js').Entity>}
    */
   getEntities() {
-    // Sincronizar el buffer si cambia la cantidad de entidades
     if (this._sortedBuffer.length !== this.entities.length) {
       this._sortedBuffer = this.entities.slice();
+      this._sortedDirty = true;
     }
 
-    return this._sortedBuffer.sort((a, b) => {
-      const aBottom = a.pos.y + a.hitbox.offsetY + a.hitbox.height;
-      const bBottom = b.pos.y + b.hitbox.offsetY + b.hitbox.height;
-      return aBottom - bBottom;
-    });
+    if (this._sortedDirty) {
+      this._sortedBuffer.sort((a, b) => {
+        const aBottom = a.pos.y + a.hitbox.offsetY + a.hitbox.height;
+        const bBottom = b.pos.y + b.hitbox.offsetY + b.hitbox.height;
+        return aBottom - bBottom;
+      });
+      this._sortedDirty = false;
+    }
+
+    return this._sortedBuffer;
   }
 
   /**
-   * Obtiene entidades con una etiqueta dada directamente sin aplicar Y-Sort.
+   * Obtiene entidades con una etiqueta dada mediante caché O(1) sin re-filtrar en cada llamada.
    * @param {string} tag
    * @returns {Array<import('./Entity.js').Entity>}
    */
   getByTag(tag) {
-    return this.entities.filter(e => e.hasTag(tag));
+    if (this._tagCache.has(tag)) {
+      return this._tagCache.get(tag);
+    }
+    const list = this.entities.filter(e => e.hasTag(tag));
+    this._tagCache.set(tag, list);
+    return list;
   }
 
   /**
@@ -113,5 +139,21 @@ export class EntityManager {
    */
   get rawEntities() {
     return this.entities;
+  }
+
+  /**
+   * Elimina todas las entidades del mapa actual excepto el jugador principal (útil al viajar entre biomas/mundos).
+   * Mantiene reutilizados los buffers internos sin recrear arrays innecesarios.
+   * @param {import('./Entity.js').Entity|null} [player=null]
+   */
+  clearExceptPlayer(player = null) {
+    this.entities.length = 0;
+    if (player) {
+      this.entities.push(player);
+    }
+    this._sortedBuffer = this.entities.slice();
+    this._solidsCache = null;
+    this._tagCache.clear();
+    this._sortedDirty = true;
   }
 }

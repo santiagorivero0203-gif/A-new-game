@@ -1,0 +1,72 @@
+{
+  "id": "ash_caldera",
+  "name": "Mundo 3 · Caldera de Ceniza",
+  "worldTitle": "Mundo 3 · Caldera de Ceniza y Magma",
+  "biome": "ash_caldera",
+  "layoutPreset": "ash_caldera",
+  "weather": "embers",
+  "cols": 54,
+  "rows": 36,
+  "tileSize": 32,
+  "playerSpawn": { "x": 200, "y": 584 },
+  "arenaCenter": { "x": 1312, "y": 640 },
+  "ambientColor": "rgba(38, 18, 28, 0.36)",
+  "lights": [
+    { "x": 864, "y": 420, "radius": 230, "color": "#f97316", "intensity": 0.82, "flickerSpeed": 3.4 },
+    { "x": 864, "y": 760, "radius": 230, "color": "#ea580c", "intensity": 0.80, "flickerSpeed": 3.1 },
+    { "x": 450, "y": 870, "radius": 180, "color": "#fb923c", "intensity": 0.75, "flickerSpeed": 2.9 },
+    { "x": 1312, "y": 640, "radius": 210, "color": "#facc15", "intensity": 0.74, "flickerSpeed": 2.2 },
+    { "x": 1520, "y": 580, "radius": 160, "color": "#a855f7", "intensity": 0.75, "flickerSpeed": 2.0 }
+  ],
+  "colliders": [
+    { "x": 0, "y": 0, "width": 1728, "height": 148 },
+    { "x": 790, "y": 150, "width": 145, "height": 395 },
+    { "x": 790, "y": 665, "width": 145, "height": 480 }
+  ],
+  "props": [
+    { "propType": "world_portal", "x": 115, "y": 568, "portalColor": "#2dd4bf", "targetWorld": "marsh_of_spores", "worldLabel": "Pantano de Esporas" },
+    { "propType": "cliff_rock", "x": 360, "y": 310 },
+    { "propType": "crystal_rock", "x": 620, "y": 340 },
+    {
+      "propType": "broken_statue",
+      "x": 520,
+      "y": 490,
+      "biomeTint": "ash",
+      "loreTitle": "Coloso de la Antigua Forja",
+      "loreText": "Aquí se templó el primer sello del Guantelete antes de que la caldera despertara con furia.",
+      "essenceReward": 26
+    },
+    {
+      "propType": "rusted_greatsword",
+      "x": 610,
+      "y": 730,
+      "loreTitle": "Acero del Herrero Caído",
+      "loreText": "El hollín volcánico oscureció la hoja, pero su temple sigue intacto.",
+      "essenceReward": 22
+    },
+    {
+      "propType": "runic_obelisk",
+      "x": 1060,
+      "y": 470,
+      "runeColor": "#fb923c",
+      "loreTitle": "Obelisco del Crisol",
+      "loreText": "Las llamas responden con reverencia al portador del Fuego Primordial.",
+      "essenceReward": 35
+    },
+    { "propType": "cracked_rock", "x": 1040, "y": 670, "id": "ash_cracked_wall" },
+    { "propType": "sanctuary_altar", "x": 1210, "y": 540, "id": "ash_sanctuary_altar" },
+    { "propType": "horde_totem", "x": 1390, "y": 560, "id": "ash_horde_totem" },
+    { "propType": "world_portal", "x": 1525, "y": 568, "portalColor": "#c084fc", "targetWorld": "astral_citadel", "worldLabel": "Ciudadela Astral" }
+  ],
+  "entities": [
+    { "type": "npc", "variant": "valerio", "name": "Valerio", "x": 290, "y": 540 },
+    { "type": "enemy", "archetype": "slime", "element": "fuego", "x": 470, "y": 610 },
+    { "type": "enemy", "archetype": "hound", "element": "fuego", "x": 640, "y": 570 },
+    { "type": "enemy", "archetype": "tank", "element": "fuego", "x": 990, "y": 595 },
+    { "type": "enemy", "archetype": "duelist", "element": "fuego", "x": 1150, "y": 680 },
+    { "type": "enemy", "archetype": "artillery", "element": "fuego", "x": 1360, "y": 730 },
+    { "type": "enemy", "archetype": "duelist", "element": "kinetic", "x": 1410, "y": 480 },
+    { "type": "enemy", "archetype": "tank", "element": "kinetic", "x": 1260, "y": 740 }
+  ]
+}
+

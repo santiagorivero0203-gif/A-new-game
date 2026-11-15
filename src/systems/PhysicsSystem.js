@@ -19,6 +19,16 @@ export class PhysicsSystem {
     this._testBox = { x: 0, y: 0, width: 0, height: 0 };
     /** @private Vector de retorno reutilizable */
     this._resultPos = new Vector2();
+    /** @type {{x: number, y: number, width: number, height: number}|null} Límites físicos del nivel */
+    this.worldBounds = null;
+  }
+
+  /**
+   * Define los límites perimetrales absolutos del nivel para impedir fugas fuera del mapa (Out-of-Bounds).
+   * @param {{x: number, y: number, width: number, height: number}|null} bounds
+   */
+  setWorldBounds(bounds) {
+    this.worldBounds = bounds;
   }
 
   /**
@@ -54,6 +64,18 @@ export class PhysicsSystem {
     const testBox = this._testBox;
     testBox.width = originalHitbox.width;
     testBox.height = originalHitbox.height;
+
+    // 0. Clamping estricto a los límites del mundo (impide colarse entre árboles perimetrales)
+    if (this.worldBounds) {
+      const minX = this.worldBounds.x - entity.hitbox.offsetX;
+      const maxX = this.worldBounds.x + this.worldBounds.width - entity.hitbox.offsetX - originalHitbox.width;
+      const minY = this.worldBounds.y - entity.hitbox.offsetY;
+      const maxY = this.worldBounds.y + this.worldBounds.height - entity.hitbox.offsetY - originalHitbox.height;
+      if (finalX < minX) finalX = minX;
+      if (finalX > maxX) finalX = maxX;
+      if (finalY < minY) finalY = minY;
+      if (finalY > maxY) finalY = maxY;
+    }
 
     // 1. Probar colisión en el eje X
     testBox.x = finalX + entity.hitbox.offsetX;

@@ -20,8 +20,9 @@ export const KEYBINDINGS = {
   POWER_1: ['Digit1'],
   POWER_2: ['Digit2'],
   POWER_3: ['Digit3'],
-  POWER_CYCLE: ['KeyR', 'KeyE'],
+  POWER_CYCLE: ['KeyR'],
   RADIAL_MENU: ['Tab'],
+  TALENTS: ['KeyU', 'KeyB'],
   PAUSE: ['Escape', 'KeyP'],
   UP: ['KeyW', 'ArrowUp'],
   DOWN: ['KeyS', 'ArrowDown'],
@@ -99,9 +100,33 @@ export class InputManager {
     /** @type {string|null} Poder pre-visualizado durante el swipe actual */
     this.hoveredSwipePower = null;
 
+    /** @type {'mouse'|'keyboard'|'touch'} Origen del último comando ofensivo/defensivo para apuntado inteligente */
+    this.lastActionSource = 'keyboard';
+
+    /** @type {Vector2} Último vector direccional no nulo ingresado por teclado o joystick */
+    this.lastMoveDir = new Vector2(0, 1);
+
+    /** @type {boolean} Si el cursor del ratón está apuntando activamente en este momento */
+    this.isMouseAiming = false;
+
+    /** @type {number} Timestamp del último movimiento físico del ratón */
+    this.lastMouseMoveTime = 0;
+
+    /** @private Posición anterior del ratón para filtrar micro-vibraciones */
+    this._prevMouseX = 0;
+    this._prevMouseY = 0;
+
+    /** @private Caché del rectángulo del canvas principal para evitar reflows en cada mousemove */
+    this._cachedRect = null;
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', () => { this._cachedRect = null; }, { passive: true });
+      window.addEventListener('orientationchange', () => { this._cachedRect = null; }, { passive: true });
+    }
+
     // Callbacks
     this._onSkillEquippedCallback = null;
     this._onPauseCallback = null;
+    this._onTalentsCallback = null;
 
     this._bindEvents();
 
@@ -147,6 +172,14 @@ export class InputManager {
    */
   onPause(cb) {
     this._onPauseCallback = cb;
+  }
+
+  /**
+   * Registra un callback a ejecutar al abrir/cerrar el Santuario de Talentos (Tecla U / B).
+   * @param {Function} cb
+   */
+  onTalents(cb) {
+    this._onTalentsCallback = cb;
   }
 
   /**
@@ -260,16 +293,39 @@ export class InputManager {
     // --- 1. Teclado Físico (Estándar de la Industria + Hotkeys Rápidos) ---
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
+      // Cualquier interacción con el teclado desactiva el apuntado pasivo del ratón
+      this.lastActionSource = 'keyboard';
+      this.isMouseAiming = false;
 
-      // Acciones con Buffer de Entrada Responsivo (180ms para encadenar combos y absorber cooldowns)
-      if (KEYBINDINGS.ATTACK.includes(e.code)) this.triggerAction('attack', 180);
-      if (KEYBINDINGS.ABILITY.includes(e.code)) this.triggerAction('ability', 180);
-      if (KEYBINDINGS.STRONG_ATTACK.includes(e.code)) this.triggerAction('strong', 180);
-      if (KEYBINDINGS.HEAL.includes(e.code)) this.triggerAction('heal', 180);
-      if (KEYBINDINGS.DASH.includes(e.code)) this.triggerAction('dash', 180);
+      // Actualizar inmediatamente la última dirección deseada si se pulsa WASD o Flechas
+      let dirX = 0;
+      let dirY = 0;
+      if (KEYBINDINGS.UP.some(k => this.keys[k])) dirY -= 1;
+      if (KEYBINDINGS.DOWN.some(k => this.keys[k])) dirY += 1;
+      if (KEYBINDINGS.LEFT.some(k => this.keys[k])) dirX -= 1;
+      if (KEYBINDINGS.RIGHT.some(k => this.keys[k])) dirX += 1;
+      if (dirX !== 0 || dirY !== 0) {
+        const len = Math.hypot(dirX, dirY) || 1;
+        this.lastMoveDir.set(dirX / len, dirY / len);
+      }
+
+      // Acciones con Buffer de Entrada Responsivo (200ms para encadenar combos rítmicos con cero inputs perdidos)
+      if (KEYBINDINGS.ATTACK.includes(e.code)) {
+        this.triggerAction('attack', 200);
+      }
+      if (KEYBINDINGS.ABILITY.includes(e.code)) {
+        this.triggerAction('ability', 200);
+      }
+      if (KEYBINDINGS.STRONG_ATTACK.includes(e.code)) {
+        this.triggerAction('strong', 200);
+      }
+      if (KEYBINDINGS.HEAL.includes(e.code)) this.triggerAction('heal', 200);
+      if (KEYBINDINGS.DASH.includes(e.code)) this.triggerAction('dash', 200);
 
       // Acciones continuas sin buffer
-      if (KEYBINDINGS.DEFEND.includes(e.code)) this.isDefendPressed = true;
+      if (KEYBINDINGS.DEFEND.includes(e.code)) {
+        this.isDefendPressed = true;
+      }
 
       if (KEYBINDINGS.POWER_1.includes(e.code)) this.setPower('Fuego');
       if (KEYBINDINGS.POWER_2.includes(e.code)) this.setPower('Embestida');
@@ -284,7 +340,11 @@ export class InputManager {
         this.isRadialMenuOpen = true;
       }
 
-      if (KEYBINDINGS.PAUSE.includes(e.code)) {
+      if (KEYBINDINGS.TALENTS.includes(e.code) && !e.repeat) {
+        if (this._onTalentsCallback) this._onTalentsCallback();
+      }
+
+      if (KEYBINDINGS.PAUSE.includes(e.code) && !e.repeat) {
         if (this._onPauseCallback) this._onPauseCallback();
       }
     });
@@ -315,8 +375,17 @@ export class InputManager {
       }
     }, { passive: true });
 
-    // --- 3. Ratón para Selección Radial en PC ---
+    // --- 3. Ratón para Selección Radial y Apuntado 360° Activo en PC ---
     window.addEventListener('mousemove', (e) => {
+      const dx = Math.abs(e.clientX - this._prevMouseX);
+      const dy = Math.abs(e.clientY - this._prevMouseY);
+      if (dx > 3 || dy > 3) {
+        this.isMouseAiming = true;
+        this.lastMouseMoveTime = performance.now();
+        this._prevMouseX = e.clientX;
+        this._prevMouseY = e.clientY;
+      }
+
       this._updateMousePosition(e.clientX, e.clientY);
       if (this.isRadialMenuOpen) {
         this._calculateRadialSelection();
@@ -326,6 +395,8 @@ export class InputManager {
     // Activar soporte táctil si el dispositivo emite un toque real
     window.addEventListener('touchstart', () => {
       this.isTouchDevice = true;
+      this.lastActionSource = 'touch';
+      this.isMouseAiming = false;
     }, { passive: true });
 
     // --- 4. Ratón para Combate (Estándar Hades / Diablo / ARPG) ---
@@ -334,19 +405,30 @@ export class InputManager {
     });
 
     window.addEventListener('mousedown', (e) => {
-      this._updateMousePosition(e.clientX, e.clientY);
-
-      // Clic Izquierdo (Botón 0): Ataque básico de Espada canalizado con buffer de 180ms
-      if (e.button === 0) {
-        this.triggerAction('attack', 180);
+      // Ignorar clics sobre botones, tarjetas, medallón del HUD o modales de la interfaz DOM
+      if (e.target && typeof e.target.closest === 'function') {
+        if (e.target.closest('button, .modal-box, .menu-card, .radial-sector, .cinematic-overlay, .rpg-crest-module')) {
+          return;
+        }
       }
-      // Botón Central (Botón 1): Guardia / Escudo
+
+      this._updateMousePosition(e.clientX, e.clientY);
+      // No sobreescribir la orientación direccional WASD/Facing al hacer clic para evitar que el cursor estacionado fuerce ataques a la derecha
+      this.isMouseAiming = false;
+      this.lastMouseMoveTime = performance.now();
+
+      // Clic Izquierdo (Botón 0): Ataque rítmico de Espada con buffer de 200ms
+      if (e.button === 0) {
+        this.triggerAction('attack', 200);
+      }
+      // Botón Central (Botón 1): Guardia / Escudo direccional
       if (e.button === 1) {
+        e.preventDefault();
         this.isDefendPressed = true;
       }
-      // Clic Derecho (Botón 2): Habilidad Elemental Equipada con buffer de 180ms
+      // Clic Derecho (Botón 2): Habilidad Elemental Equipada con buffer de 200ms
       if (e.button === 2) {
-        this.triggerAction('ability', 180);
+        this.triggerAction('ability', 200);
       }
     });
 
@@ -364,16 +446,11 @@ export class InputManager {
    * @private
    */
   _bindDOMElements() {
-    // 1. Botón de Pausa Flotante
-    const btnQuickPause = document.getElementById('btn-quick-pause');
-    if (btnQuickPause) {
-      btnQuickPause.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (this._onPauseCallback) this._onPauseCallback();
-      });
-    }
+    // NOTA ARQUITECTÓNICA: Los botones superiores del HUD (#btn-quick-pause, #btn-quick-talents,
+    // #btn-quick-arsenal y #hud-relic-badge) son gestionados de forma unificada en main.js mediante
+    // `addTouchClick` para impedir doble disparo simultáneo (abrir+cerrar en 0ms o salto doble de poder).
 
-    // 2. Sectores de la Rueda Radial de Poderes en DOM
+    // 1. Sectores de la Rueda Radial de Poderes en DOM
     const sectors = document.querySelectorAll('.radial-sector');
     sectors.forEach((sec) => {
       sec.addEventListener('mouseenter', () => {
@@ -403,9 +480,10 @@ export class InputManager {
         e.preventDefault();
         e.stopPropagation();
         this.isTouchDevice = true;
+        this.lastActionSource = 'touch';
         pressStartTime = performance.now();
         if (triggerActionName) {
-          this.triggerAction(triggerActionName, 180);
+          this.triggerAction(triggerActionName, 200);
         } else {
           onDown();
         }
@@ -493,6 +571,9 @@ export class InputManager {
         const normX = dx / dist;
         const normY = dy / dist;
         this.joystickVector.set(normX * (clamped / maxDist), normY * (clamped / maxDist));
+        if (this.joystickVector.lengthSquared() > 0.02) {
+          this.lastMoveDir.set(normX, normY);
+        }
 
         const thumb = document.getElementById('touch-joystick-thumb');
         if (thumb) {
@@ -504,6 +585,8 @@ export class InputManager {
         e.preventDefault();
         e.stopPropagation();
         this.isTouchDevice = true;
+        this.lastActionSource = 'touch';
+        this.isMouseAiming = false;
         const touch = e.touches ? e.touches[0] : e;
         activeTouchId = e.touches ? touch.identifier : 'mouse';
         handleJoy(touch.clientX, touch.clientY);
@@ -511,8 +594,6 @@ export class InputManager {
 
       const moveJoy = (e) => {
         if (activeTouchId === null) return;
-        e.preventDefault();
-        e.stopPropagation();
         let touch = null;
         if (e.touches) {
           for (let i = 0; i < e.touches.length; i++) {
@@ -521,15 +602,27 @@ export class InputManager {
               break;
             }
           }
-        } else {
+        } else if (activeTouchId === 'mouse') {
           touch = e;
         }
-        if (touch) handleJoy(touch.clientX, touch.clientY);
+        if (touch) {
+          e.preventDefault();
+          handleJoy(touch.clientX, touch.clientY);
+        }
       };
 
       const endJoy = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        if (activeTouchId === null) return;
+        if (e.changedTouches) {
+          let matched = false;
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === activeTouchId) {
+              matched = true;
+              break;
+            }
+          }
+          if (!matched) return;
+        }
         activeTouchId = null;
         this.joystickVector.set(0, 0);
         const thumb = document.getElementById('touch-joystick-thumb');
@@ -563,6 +656,7 @@ export class InputManager {
         e.preventDefault();
         e.stopPropagation();
         this.isTouchDevice = true;
+        this.lastActionSource = 'touch';
         isSwiping = true;
         const touch = e.touches ? e.touches[0] : e;
         startX = touch.clientX;
@@ -639,11 +733,18 @@ export class InputManager {
    * @returns {DOMRect|{left: number, top: number, width: number, height: number}}
    */
   getCanvasRect() {
+    if (this._cachedRect && this._cachedRect.width > 0) {
+      return this._cachedRect;
+    }
     if (!this.canvas && typeof document !== 'undefined') {
       this.canvas = document.getElementById('main-canvas');
     }
-    if (this.canvas) {
-      return this.canvas.getBoundingClientRect();
+    if (this.canvas && typeof this.canvas.getBoundingClientRect === 'function') {
+      const r = this.canvas.getBoundingClientRect();
+      if (r && r.width > 0) {
+        this._cachedRect = r;
+      }
+      return r;
     }
     return {
       left: 0,

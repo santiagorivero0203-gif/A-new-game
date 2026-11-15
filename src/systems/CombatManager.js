@@ -1,10 +1,17 @@
-import { Vector2 } from '../utils/Vector2.js';
-
 /**
  * @module CombatManager
- * @description Gestor de combate "Push-Forward" y sistema de Defensa "Risk/Reward".
- * Administra el Momentum del jugador, resolución de hitboxes, sinergias elementales,
- * Postura (Guard Meter), Parries direccionales perfectos, HitStops y Ripostes críticos.
+ * @description Orquestador central de combate "Push-Forward", sistema defensivo "Risk/Reward"
+ * y medidor rítmico de Estilo AAA (Rangos D -> C -> B -> A -> S).
+ *
+ * Arquitectura v3.1:
+ * - Fluidez 60/120 FPS sin tirones: HitStop reservado exclusivamente para eventos de alto impacto
+ *   (Parry Perfecto, Finisher 3er golpe, Riposte Crítico, Sinergia Explosiva y Daño al jugador).
+ * - Economía anti-farming: el Parry Perfecto otorga +1 Esencia como máximo 1 vez por enemigo.
+ * - Integración completa con los 18 talentos del Árbol de Habilidades (`aegis_counter`, `mirror_ricochet`,
+ *   `blade_tempo`, `elemental_synergy`, `thorn_leech`, `phantom_step`, `energy_regen`, etc.) y `weapons.js`.
+ *
+ * @author Be a Legend Team
+ * @version 3.1.0
  */
 export class CombatManager {
   /**
@@ -13,71 +20,219 @@ export class CombatManager {
   constructor(equipmentManager = null) {
     this.equipmentManager = equipmentManager;
 
-    /** @type {number} Momentum (0 a 100). */
+    /** @type {number} Momentum ofensivo acumulado (0 a 100) */
     this.momentum = 0;
-    
-    /** @type {number} Tiempo sin atacar en segundos. */
+
+    /** @type {number} Contador de golpes y parries consecutivos de la racha actual */
+    this.comboCount = 0;
+
+    /** @type {number} Tiempo restante antes de que expire la racha de combo */
+    this.comboTimer = 0;
+
+    /** @type {number} Duración máxima de la ventana de mantenimiento de combo en segundos */
+    this.COMBO_DURATION = 4.2;
+
+    /** @type {number} Puntuación de estilo rítmico (0 a 100 -> Rangos D, C, B, A, S) */
+    this.styleScore = 0;
+
+    /** @type {string} Firma de la última técnica usada para premiar variedad de arsenal */
+    this.lastActionSignature = '';
+
+    /** @type {number} Tiempo sin conectar golpes en segundos */
     this.inactivityTimer = 0;
-
-    /** @type {number} Umbral de inactividad antes de perder momentum (3s). */
     this.INACTIVITY_THRESHOLD = 3.0;
+    this.MOMENTUM_DECAY_RATE = 22;
 
-    /** @type {number} Tasa de pérdida de momentum por segundo tras inactividad. */
-    this.MOMENTUM_DECAY_RATE = 25;
-
-    /** @type {Array<Object>} Lista de ataques activos (hitboxes o proyectiles). */
+    /** @type {Array<Object>} Ataques, barridos y proyectiles activos en el mundo */
     this.activeAttacks = [];
 
-    // --- Sistema Defensivo ---
-    // (Movido al jugador en Fase 2)
+    /** @type {number} Máximo de atacantes cuerpo a cuerpo simultáneos coordinados por IA */
+    this.maxMeleeTokens = 2;
+    /** @type {Set<Object>} Enemigos sosteniendo actualmente un token de ataque */
+    this._activeTokenHolders = new Set();
   }
 
   /**
-   * Actualización principal.
-   * @param {Object} context 
+   * Obtiene la letra del Rango de Estilo actual según `styleScore`.
+   * @returns {'D'|'C'|'B'|'A'|'S'}
+   */
+  getStyleRank() {
+    if (this.styleScore >= 85) return 'S';
+    if (this.styleScore >= 65) return 'A';
+    if (this.styleScore >= 40) return 'B';
+    if (this.styleScore >= 20) return 'C';
+    return 'D';
+  }
+
+  /**
+   * Retorna el multiplicador dinámico de daño otorgado por el Rango de Estilo actual.
+   * @returns {number}
+   */
+  getStyleDamageMultiplier() {
+    const rank = this.getStyleRank();
+    switch (rank) {
+      case 'S': return 1.35;
+      case 'A': return 1.20;
+      case 'B': return 1.10;
+      case 'C': return 1.05;
+      default:  return 1.00;
+    }
+  }
+
+  /**
+   * Registra una acción ofensiva o defensiva exitosa en el medidor rítmico de combo.
+   * Premia alternar entre espada, distintos elementos y parries, más bonos de `blade_tempo`.
+   * @param {string} signature - Identificador de técnica
+   * @param {number} basePoints - Puntos base de estilo
+   * @param {Object} context
+   * @param {boolean} [isPerfectTempo=false]
+   */
+  registerComboAction(signature, basePoints, context, isPerfectTempo = false) {
+    this.comboCount += 1;
+    this.comboTimer = this.COMBO_DURATION;
+    this.inactivityTimer = 0;
+
+    const isVaried = signature !== this.lastActionSignature;
+    this.lastActionSignature = signature;
+
+    const hasBladeTempo = !!(context && context.skillTreeManager && context.skillTreeManager.hasSkill('blade_tempo'));
+    const tempoStyleMult = (isPerfectTempo && hasBladeTempo) ? 1.30 : 1.0;
+
+    const gain = (isVaried ? basePoints * 1.35 : basePoints * 0.75) * tempoStyleMult;
+    this.styleScore = Math.min(100, this.styleScore + gain);
+    this.addMomentum(gain * 0.9);
+
+    this._syncComboState(context);
+  }
+
+  /**
+   * Reinicia la racha de combo al recibir daño directo o agotarse el tiempo.
+   * @param {Object} context
+   */
+  resetCombo(context) {
+    this.comboCount = 0;
+    this.comboTimer = 0;
+    this.styleScore = Math.floor(this.styleScore * 0.3);
+    this.lastActionSignature = '';
+    this._syncComboState(context);
+  }
+
+  /**
+   * Sincroniza los indicadores de combo y estilo con StateManager para el HUD.
+   * @private
+   */
+  _syncComboState(context) {
+    if (!context || !context.state || typeof context.state.set !== 'function') return;
+    context.state.set('combo_count', this.comboCount);
+    context.state.set('combo_rank', this.getStyleRank());
+    context.state.set('combo_timer_pct', this.COMBO_DURATION > 0 ? (this.comboTimer / this.COMBO_DURATION) * 100 : 0);
+    context.state.set('style_score', this.styleScore);
+  }
+
+  /**
+   * Remueve un ataque en O(1) mediante swap-and-pop para no desplazar memoria en cada proyectil.
+   * @private
+   * @param {number} index
+   */
+  _removeAttackAt(index) {
+    const lastIdx = this.activeAttacks.length - 1;
+    if (index < 0 || index > lastIdx) return;
+    if (index !== lastIdx) {
+      this.activeAttacks[index] = this.activeAttacks[lastIdx];
+    }
+    this.activeAttacks.pop();
+  }
+
+  /**
+   * Ciclo principal de actualización de ataques activos, postura y decaimiento de combo.
+   * @param {Object} context
    */
   update(context) {
     const dt = context.deltaTime || 0;
-    const player = context.player || (context.state && typeof context.state.get === 'function' ? context.state.get('player') : context.state?.player);
+    const player = context.player || (context.state && typeof context.state.get === 'function' ? context.state.get('player') : null);
     const entities = context.entityManager ? context.entityManager.entities : [];
 
-    // Recuperar postura pasivamente si no se está defendiendo o en Guard Break
+    // 1. Regeneración pasiva de postura fuera de guardia
     if (player && player.fsmState !== 'STATE_DEFEND' && player.fsmState !== 'STATE_GUARD_BREAK') {
-      player.guard_meter = Math.min(player.max_guard || 100, player.guard_meter + (15 * dt)); // Recupera 15/s
+      player.guard_meter = Math.min(player.max_guard || 100, player.guard_meter + (18 * dt));
     }
 
-    // Sincronizar medidor de postura con StateManager para el HUD
     if (context.state && typeof context.state.set === 'function' && player) {
       context.state.set('player_posture', player.guard_meter);
     }
 
-    // Decaimiento de Momentum
+    // 1.5 Sincronizar objetivo de combate activo para la Barra Dinámica Stretch del HUD
+    if (this.trackedTargetTimer > 0) {
+      this.trackedTargetTimer -= dt;
+      if (this.trackedTarget && this.trackedTarget.isDead && this.trackedTargetTimer > 0.65) {
+        this.trackedTargetTimer = 0.65;
+      }
+      if (this.trackedTargetTimer <= 0 || !this.trackedTarget) {
+        this.trackedTarget = null;
+        if (context.state && typeof context.state.set === 'function') {
+          context.state.set('active_threat', null);
+        }
+      } else if (context.state && typeof context.state.set === 'function') {
+        context.state.set('active_threat', {
+          name: this.trackedTarget.name || 'Guardián Corrupto',
+          health: Math.max(0, this.trackedTarget.health || 0),
+          maxHealth: this.trackedTarget.max_health || 100,
+          hasShield: !!(this.trackedTarget.hasWoodenShield || this.trackedTarget.hasTag('wooden_shield')),
+          element: this.trackedTarget.elementalAffinity || 'plantas'
+        });
+      }
+    }
+
+    // 2. Gestión temporal del Combo Rítmico y Momentum
+    if (this.comboCount > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) {
+        this.comboCount = 0;
+        this.comboTimer = 0;
+        this.lastActionSignature = '';
+      }
+      this._syncComboState(context);
+    } else if (this.styleScore > 0) {
+      this.styleScore = Math.max(0, this.styleScore - 16 * dt);
+      this._syncComboState(context);
+    }
+
     this.inactivityTimer += dt;
     if (this.inactivityTimer >= this.INACTIVITY_THRESHOLD) {
       this.momentum = Math.max(0, this.momentum - (this.MOMENTUM_DECAY_RATE * dt));
     }
 
-    // Resolver ataques
+    // 3. Actualizar ataques activos y evaluar colisiones AABB
     for (let i = this.activeAttacks.length - 1; i >= 0; i--) {
       const attack = this.activeAttacks[i];
       attack.duration -= dt;
 
       if (attack.duration <= 0) {
-        this.activeAttacks.splice(i, 1);
+        this._removeAttackAt(i);
+        if (typeof attack.onExpire === 'function') {
+          attack.onExpire(context);
+        }
         continue;
       }
 
-      if (attack.update) {
+      // Evaluar la caja de colisión inicial en el primer frame antes de avanzar el proyectil (evita tunneling)
+      if (attack.update && attack._hasCheckedFirstFrame) {
         attack.update(dt);
       }
 
       if (attack.hitbox && entities) {
-        for (const entity of entities) {
+        const entLen = entities.length;
+        for (let eIdx = 0; eIdx < entLen; eIdx++) {
+          const entity = entities[eIdx];
+          if (!entity || entity.isDead) continue;
           if (entity === attack.owner) continue;
-          if (entity.hasTag('player') && attack.owner.hasTag('player')) continue;
-          if (!entity.hasTag('npc') && !entity.hasTag('enemy') && !entity.hasTag('player')) continue;
-          // Prevenir que enemigos se golpeen entre sí por defecto
+          if (entity.hasTag('player') && attack.owner && attack.owner.hasTag('player')) continue;
+          if (entity.hasTag('player') && attack.isFriendlySynergy) continue;
+          const isDestructibleProp = entity.hasTag('destructible_prop');
+          if (!entity.hasTag('npc') && !entity.hasTag('enemy') && !entity.hasTag('player') && !isDestructibleProp) continue;
           if (entity.hasTag('enemy') && attack.owner && attack.owner.hasTag('enemy')) continue;
+          if (isDestructibleProp && attack.owner && attack.owner.hasTag('enemy')) continue;
+          if (entity.hasTag('npc')) continue;
 
           const entHit = entity.getHitbox();
           const attHit = attack.hitbox;
@@ -86,50 +241,66 @@ export class CombatManager {
               attHit.x + attHit.width > entHit.x &&
               attHit.y < entHit.y + entHit.height &&
               attHit.y + attHit.height > entHit.y) {
-            
+
+            if (isDestructibleProp) {
+              if (attack.hitEntities && attack.hitEntities.has(entity)) continue;
+              if (attack.hitEntities) attack.hitEntities.add(entity);
+              if (typeof entity.takeEnvironmentalHit === 'function') {
+                entity.takeEnvironmentalHit(attack.damage || 16, attack, context);
+              }
+              if (attack.destroyOnHit) {
+                this._removeAttackAt(i);
+                break;
+              }
+              continue;
+            }
+
             this.handleHit(attack, entity, context);
-            
-            if (attack.destroyOnHit) {
-              this.activeAttacks.splice(i, 1);
+
+            // Si el proyectil fue reflejado por Parry en este mismo frame, NO destruirlo
+            if (attack.destroyOnHit && !attack._justReflected) {
+              this._removeAttackAt(i);
               break;
             }
+            attack._justReflected = false;
           }
         }
       }
+      attack._hasCheckedFirstFrame = true;
     }
   }
 
   /**
-   * Chequea direccionalidad con cobertura hemisférica de 180°.
-   * Si el jugador mira 'up', bloquea todo lo que venga desde la mitad superior (arriba-izq, arriba, arriba-der).
-   * Si mira 'right', bloquea todo lo que venga de la mitad derecha, etc.
-   * @returns {boolean} true si el ataque cae dentro del hemisferio defendido
+   * Evalúa cobertura defensiva hemisférica de 180° respecto al origen del impacto.
+   * @param {Object} entity
+   * @param {number} attackX
+   * @param {number} attackY
+   * @returns {boolean}
    */
   _isFacingAttacker(entity, attackX, attackY) {
+    const entCenterX = entity.pos.x + entity.width / 2;
+    const entCenterY = entity.pos.y + entity.height / 2;
+    const dx = attackX - entCenterX;
+    const dy = attackY - entCenterY;
+
+    if (entity.aimDir && (entity.aimDir.x !== 0 || entity.aimDir.y !== 0)) {
+      const len = Math.hypot(dx, dy) || 1;
+      const dot = (dx / len) * entity.aimDir.x + (dy / len) * entity.aimDir.y;
+      return dot >= -0.15;
+    }
+
     if (!entity.facing) return false;
-    
-    const entCenter = { x: entity.pos.x + entity.width / 2, y: entity.pos.y + entity.height / 2 };
-    
-    // Vector desde la entidad hacia la fuente del ataque
-    const dx = attackX - entCenter.x;
-    const dy = attackY - entCenter.y;
-    
-    // Cobertura hemisférica: basta que el eje dominante del facing coincida
     switch (entity.facing) {
-      case 'up':    return dy < 0;  // Bloquea todo lo que venga desde arriba (incluyendo diagonales)
-      case 'down':  return dy > 0;  // Bloquea todo lo que venga desde abajo
-      case 'left':  return dx < 0;  // Bloquea todo lo que venga desde la izquierda
-      case 'right': return dx > 0;  // Bloquea todo lo que venga desde la derecha
-      default: return false;
+      case 'up':    return dy <= 4;
+      case 'down':  return dy >= -4;
+      case 'left':  return dx <= 4;
+      case 'right': return dx >= -4;
+      default:      return false;
     }
   }
 
   /**
-   * Aplica un vector de retroceso físico a una entidad.
-   * @param {Object} entity - Entidad a empujar
-   * @param {number} fromX - Origen X del impacto
-   * @param {number} fromY - Origen Y del impacto
-   * @param {number} force - Magnitud del empuje en píxeles
+   * Aplica retroceso físico respetando sólidos del mundo mediante PhysicsSystem.
    */
   _applyKnockback(entity, fromX, fromY, force, physics = null) {
     const entCenter = { x: entity.pos.x + entity.width / 2, y: entity.pos.y + entity.height / 2 };
@@ -151,122 +322,245 @@ export class CombatManager {
   }
 
   /**
-   * Procesa el impacto de un ataque sobre una entidad.
-   * @param {Object} attack 
-   * @param {import('../entities/Entity.js').Entity} entity 
+   * Procesa de forma simétrica el impacto de un ataque sobre cualquier entidad combatiente.
+   * @param {Object} attack
+   * @param {import('../entities/Entity.js').Entity} entity
    * @param {Object} context
    */
   handleHit(attack, entity, context) {
     if (attack.hitEntities && attack.hitEntities.has(entity)) return;
     if (attack.hitEntities) attack.hitEntities.add(entity);
 
+    const skillTree = context ? context.skillTreeManager : null;
     const isPlayer = entity.hasTag('player');
-    const attackCenter = { x: attack.hitbox.x + attack.hitbox.width/2, y: attack.hitbox.y + attack.hitbox.height/2 };
-    const physics = context.physics || null;
+    const attackCenter = {
+      x: attack.hitbox.x + attack.hitbox.width / 2,
+      y: attack.hitbox.y + attack.hitbox.height / 2
+    };
 
-    // ==========================================
-    // Lógica Defensiva, Parry y Postura (Jugador)
-    // ==========================================
+    let sourceX, sourceY;
+    if (attack.isProjectile && (attack.dx !== undefined || attack.dy !== undefined)) {
+      sourceX = (entity.pos.x + entity.width / 2) - (attack.dx || 0) * 32;
+      sourceY = (entity.pos.y + entity.height / 2) - (attack.dy || 0) * 32;
+    } else if (attack.owner && !attack.isProjectile) {
+      sourceX = attack.owner.pos.x + attack.owner.width / 2;
+      sourceY = attack.owner.pos.y + attack.owner.height / 2;
+    } else {
+      sourceX = attackCenter.x;
+      sourceY = attackCenter.y;
+    }
+    const physics = context ? (context.physics || null) : null;
+
+    // =========================================================================
+    // 1. IMPACTO CONTRA EL JUGADOR (Defensa, Parry Perfecto o Daño Directo)
+    // =========================================================================
     if (isPlayer) {
       if (entity.fsmState === 'STATE_DEFEND') {
-        const facingAttacker = this._isFacingAttacker(entity, attackCenter.x, attackCenter.y);
-        
+        const facingAttacker = this._isFacingAttacker(entity, sourceX, sourceY);
+
         if (facingAttacker) {
-          // Chequear ventana de Parry (0.15s base, 0.25s con habilidad)
-          const parryWindow = (context.skillTreeManager && context.skillTreeManager.hasSkill('parry_window')) ? 0.25 : 0.15;
+          const parryRank = skillTree ? skillTree.getSkillRank('parry_window') : 0;
+          const aegisCounterRank = skillTree ? skillTree.getSkillRank('aegis_counter') : 0;
+          const hasBastionImmortal = !!(skillTree && skillTree.hasSkill('bastion_immortal'));
+          const hasParryUpgrade = parryRank >= 1;
+          const parryWindow = 0.16 + parryRank * 0.04;
           const isParry = entity.stateTimer <= parryWindow;
-          
+
           if (isParry) {
-            // PARRY PERFECTO (Recompensa)
-            if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-              console.log('%c[Parry Perfecto!] Postura salvada. Enemigo Staggered.', 'color: #00ff00; font-weight: bold');
+            // --- PARRY PERFECTO AAA ---
+            if (context && context.engine) context.engine.hitStop(0.065);
+            if (context && context.audioManager) context.audioManager.playParry();
+            if (context && context.camera) context.camera.shake(0.36, 0.18);
+
+            if (context && context.vfxRenderer) {
+              context.vfxRenderer.spawnImpact('parry_spark', attackCenter.x, attackCenter.y, { radius: 34, duration: 0.36 });
             }
-            // 1. HitStop de 0.08s
-            if (context.engine) context.engine.hitStop(0.08);
-            
-            // 2. Destello visual estelar de Parry
-            if (context.vfxRenderer) {
-              context.vfxRenderer.spawnImpact('parry_spark', attackCenter.x, attackCenter.y, { radius: 28, duration: 0.35 });
+            if (context && context.uiManager && context.camera) {
+              context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 8, '¡PARRY!', '#facc15');
             }
 
-            // 3. Stagger al enemigo y Knockback físico
-            if (attack.owner && attack.owner.hasTag('enemy')) {
-              attack.owner.applyEffect('staggered', 3.0);
-              this._applyKnockback(attack.owner, entity.pos.x, entity.pos.y, 24, physics);
+            // Recompensar postura, energía y estilo (`bastion_immortal` otorga inmunidad breve + postura extra)
+            const postureBonus = hasBastionImmortal ? 53 : 25;
+            entity.guard_meter = Math.min(entity.max_guard || 100, entity.guard_meter + postureBonus);
+            const energyGain = 14 + parryRank * 5;
+            entity.energy = Math.min(entity.max_energy || 100, entity.energy + energyGain);
+            entity.parryCooldown = 0;
+            if (hasBastionImmortal) {
+              entity.applyEffect('iframe', 0.35);
             }
 
-            // 4. Mecánica del Artillero Ágil: Parry Deportivo a Proyectiles (Reflejar con daño doble)
-            if (attack.isProjectile || attack.type === 'projectile' || (attack.update && attack.destroyOnHit)) {
-              attack.owner = entity; // Ahora pertenece al jugador y golpeará enemigos
+            // Economía anti-farming: otorgar +1 Esencia únicamente la primera vez que se desvía a cada enemigo
+            if (skillTree && attack.owner && !attack.owner._parryEssenceGranted) {
+              attack.owner._parryEssenceGranted = true;
+              skillTree.addEssence(1);
+            }
+
+            this.registerComboAction('parry_perfect', hasParryUpgrade ? 28 : 22, context);
+
+            // Talento `aegis_counter` (Estallido de Égida) escalado por rango
+            if (aegisCounterRank >= 1) {
+              const px = entity.pos.x + entity.width / 2;
+              const py = entity.pos.y + entity.height / 2;
+              const burstRadius = 60 + aegisCounterRank * 14;
+              if (context && context.vfxRenderer) {
+                context.vfxRenderer.spawnImpact('aegis_nova', px, py, { radius: burstRadius, duration: 0.38 });
+              }
+              this.addAttack({
+                owner: entity,
+                isFriendlySynergy: true,
+                type: 'synergy',
+                element: 'physical',
+                damage: 24 + aegisCounterRank * 12,
+                duration: 0.16,
+                isSweep: true,
+                originX: px,
+                originY: py,
+                knockbackForce: 38,
+                applyEffect: { tag: 'armor_break', duration: 3.0 },
+                hitEntities: new Set(),
+                hitbox: {
+                  x: px - burstRadius,
+                  y: py - burstRadius,
+                  width: 136,
+                  height: 136
+                }
+              });
+            }
+
+            // Aturdir al agresor cuerpo a cuerpo
+            if (attack.owner && attack.owner.hasTag('enemy') && !attack.isProjectile) {
+              attack.owner.applyEffect('staggered', 3.2);
+              this._applyKnockback(attack.owner, entity.pos.x + 16, entity.pos.y + 16, 28, physics);
+              if (context && context.uiManager && context.camera) {
+                context.uiManager.spawnDamageNumber(attack.owner.pos.x + 15, attack.owner.pos.y - 6, '¡ATURDIDO!', '#fde047');
+              }
+            }
+
+            // Parry Deportivo a Proyectiles (+ división en 3 Cometas Dorados si posee `mirror_ricochet`)
+            if (attack.isProjectile || attack.type === 'projectile') {
+              const originalShooter = attack.owner;
+              attack.owner = entity;
+              attack.isReflected = true;
+              attack._justReflected = true;
               if (attack.hitEntities) attack.hitEntities.clear();
-              if (typeof attack.reverseTrajectory === 'function') {
-                attack.reverseTrajectory();
+
+              if (originalShooter && !originalShooter.isDead) {
+                const tx = (originalShooter.pos.x + originalShooter.width / 2) - attackCenter.x;
+                const ty = (originalShooter.pos.y + originalShooter.height / 2) - attackCenter.y;
+                const dist = Math.hypot(tx, ty) || 1;
+                attack.dx = tx / dist;
+                attack.dy = ty / dist;
               } else if (attack.dx !== undefined && attack.dy !== undefined) {
                 attack.dx = -attack.dx;
                 attack.dy = -attack.dy;
-                attack.speed = (attack.speed || 300) * 1.5;
               }
-              attack.damage = (attack.damage || 20) * 2.0;
-              attack.duration = 1.4;
-              if (context.camera) context.camera.shake(0.3, 0.15);
+
+              const reflectedSpeed = (attack.speed || 230) * 1.85;
+              const reflectedDamage = Math.round((attack.damage || 24) * 2.6);
+              attack.speed = reflectedSpeed;
+              attack.damage = reflectedDamage;
+              attack.applyEffect = { tag: 'staggered', duration: 3.0 };
+              attack.duration = 1.6;
+
+              // Talento `mirror_ricochet`: bifurca 2 cometas laterales extra a ±18°
+              if (hasMirrorRicochet) {
+                const baseAng = Math.atan2(attack.dy || 0, attack.dx || 1);
+                const splitOffsets = [-0.31, 0.31];
+                for (let s = 0; s < splitOffsets.length; s++) {
+                  const sAng = baseAng + splitOffsets[s];
+                  const sdx = Math.cos(sAng);
+                  const sdy = Math.sin(sAng);
+                  const sx = attackCenter.x;
+                  const sy = attackCenter.y;
+                  this.addAttack({
+                    owner: entity,
+                    type: 'projectile',
+                    isProjectile: true,
+                    isReflected: true,
+                    element: attack.element || 'kinetic',
+                    damage: Math.round(reflectedDamage * 0.72),
+                    duration: 1.35,
+                    x: sx,
+                    y: sy,
+                    dx: sdx,
+                    dy: sdy,
+                    speed: reflectedSpeed * 0.95,
+                    destroyOnHit: true,
+                    applyEffect: { tag: 'staggered', duration: 2.0 },
+                    hitEntities: new Set(),
+                    hitbox: { x: sx - 8, y: sy - 8, width: 16, height: 16 },
+                    update: function(dt) {
+                      this.x += this.dx * this.speed * dt;
+                      this.y += this.dy * this.speed * dt;
+                      this.hitbox.x = this.x - 8;
+                      this.hitbox.y = this.y - 8;
+                    }
+                  });
+                }
+              }
               return;
             }
 
-            return; // Bloquea todo el daño y efectos negativos
-            
+            return;
           } else {
-            // BLOQUEO NORMAL (Riesgo/Coste)
+            // --- BLOQUEO ESTÁNDAR (Drenaje de Postura) ---
             let drainRate = 1.0;
             let elementalMultiplier = 1.0;
             if (this.equipmentManager) {
               const shield = this.equipmentManager.getShield();
               if (shield) {
                 drainRate = shield.posture_drain_rate || 1.0;
-                // Debilidad elemental reactiva: si el ataque coincide, x5 de coste
                 if (shield.elemental_weakness && attack.element === shield.elemental_weakness) {
-                  elementalMultiplier = 5.0;
-                  if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-                    console.log(`%c[Debilidad Elemental!] ${attack.element} contra ${shield.name}`, 'color: #ff6600; font-weight: bold');
-                  }
+                  elementalMultiplier = 2.5;
                 }
               }
             }
-            
-            const postureDamage = (attack.damage || 20) * drainRate * elementalMultiplier;
+
+            const ironRank = skillTree ? skillTree.getSkillRank('iron_posture') : 0;
+            const ironMult = Math.max(0.55, 1.0 - ironRank * 0.13);
+            const postureDamage = (attack.postureDamage || attack.damage || 22) * drainRate * elementalMultiplier * ironMult;
             entity.guard_meter -= postureDamage;
-            
-            if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-              console.log(`[Bloqueo] Coste de postura: ${postureDamage}. Restante: ${entity.guard_meter}`);
+
+            const siphonRank = skillTree ? skillTree.getSkillRank('siphon_guard') : 0;
+            if (siphonRank >= 1) {
+              const siphonEnergy = siphonRank === 1 ? 8 : 14;
+              entity.energy = Math.min(entity.max_energy || 100, entity.energy + siphonEnergy);
             }
 
+            if (context && context.audioManager) context.audioManager.playGuardBlock();
+            if (context && context.vfxRenderer) {
+              context.vfxRenderer.spawnImpact('shield_clash', attackCenter.x, attackCenter.y, { radius: 20, duration: 0.22 });
+            }
+            this._applyKnockback(entity, sourceX, sourceY, 10, physics);
+
             if (entity.guard_meter <= 0) {
-              // GUARD BREAK con Knockback físico al jugador
               entity.guard_meter = 0;
               entity.fsmState = 'STATE_GUARD_BREAK';
-              entity.stateTimer = 2.0;
-              this._applyKnockback(entity, attackCenter.x, attackCenter.y, 18, physics);
-              if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-                console.log('%c[GUARD BREAK] Postura rota. Knockback aplicado.', 'color: #ff0000; font-weight: bold');
+              entity.stateTimer = 1.8;
+              if (context && context.audioManager) context.audioManager.playGuardBreak();
+              if (context && context.camera) context.camera.shake(0.45, 0.22);
+              if (context && context.uiManager && context.camera) {
+                context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 8, '¡GUARDIA ROTA!', '#ef4444');
               }
+              this._applyKnockback(entity, sourceX, sourceY, 20, physics);
             }
-            
-            return; // Bloquea daño físico, pero costó postura
-          }
-        } else {
-          // Ataque por la espalda, no se puede bloquear
-          if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-            console.log('[Defensa Fallida] Ataque por la espalda.');
+            return;
           }
         }
       }
+
+      // --- IMPACTO NO BLOQUEADO SOBRE EL JUGADOR ---
+      if (typeof entity.takeDamage === 'function') {
+        entity.takeDamage(attack.damage || 1, attack, context);
+      }
+      return;
     }
 
-    // ==========================================
-    // Mecánica de Escudo de Madera (Tanque de Postura)
-    // ==========================================
+    // =========================================================================
+    // 2. MECÁNICA DE ESCUDO DE MADERA (Centinela Pavés / Tanque de Postura)
+    // =========================================================================
     if (entity.hasTag('wooden_shield') || entity.hasWoodenShield) {
       if (attack.element === 'fuego') {
-        // Quemar el escudo de madera de forma permanente
         if (typeof entity.burnWoodenShield === 'function') {
           entity.burnWoodenShield(context);
         } else {
@@ -274,65 +568,173 @@ export class CombatManager {
           entity.tags = entity.tags.filter(t => t !== 'wooden_shield');
           entity.activeEffects.delete('wooden_shield');
         }
-        if (context.vfxRenderer) {
-          context.vfxRenderer.spawnImpact('fire_burst', entity.pos.x + 16, entity.pos.y + 16, { radius: 36, duration: 0.45 });
+        if (context && context.engine) context.engine.hitStop(0.05);
+        if (context && context.audioManager) context.audioManager.playExplosion();
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('wood_explosion', entity.pos.x + 16, entity.pos.y + 16, { radius: 44, duration: 0.45 });
         }
-        this.triggerWoodExplosion(entity, context);
-      } else if (attack.element === 'physical' && attack.type === 'weak') {
-        // Ataques débiles frontales rebotan en el escudo pesado
-        if (this._isFacingAttacker(entity, attackCenter.x, attackCenter.y)) {
-          if (context.vfxRenderer) {
-            context.vfxRenderer.spawnImpact('parry_spark', attackCenter.x, attackCenter.y, { radius: 20, duration: 0.2 });
+        if (context && context.uiManager && context.camera) {
+          context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 10, '¡ESCUDO QUEMADO!', '#fb923c');
+        }
+        this.triggerWoodExplosion(entity, context, attack.owner);
+      } else if (attack.element === 'physical' && !attack.isFinisher && !attack.isReflected) {
+        if (this._isFacingAttacker(entity, sourceX, sourceY)) {
+          if (context && context.audioManager) context.audioManager.playHitImpact('shield_bounce', 'wood');
+          if (context && context.vfxRenderer) {
+            context.vfxRenderer.spawnImpact('shield_clash', attackCenter.x, attackCenter.y, { radius: 22, duration: 0.22 });
+          }
+          if (context && context.uiManager && context.camera) {
+            context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 6, 'BLOQUEADO (USA FUEGO)', '#94a3b8');
           }
           if (attack.owner && attack.owner.hasTag('player')) {
-            this._applyKnockback(attack.owner, entity.pos.x, entity.pos.y, 18, physics);
-            if (context.camera) context.camera.shake(0.2, 0.1);
+            // Otorgar +8 energía al chocar y liberar el FSM para permitir conjuro de Fuego inmediato
+            attack.owner.energy = Math.min(attack.owner.max_energy || 100, (attack.owner.energy || 0) + 8);
+            attack.owner.attackTimer = 0;
+            attack.owner.stateTimer = 0;
+            attack.owner.swordCooldown = 0;
+            attack.owner.fsmState = 'STATE_IDLE';
+            this._applyKnockback(attack.owner, entity.pos.x + 16, entity.pos.y + 16, 16, physics);
+            if (context && context.camera) context.camera.shake(0.18, 0.10);
           }
-          return; // Absorbe completamente el impacto frontal
+          return;
         }
       }
     }
 
-    // ==========================================
-    // Lógica de Ataque, Recarga Activa y Efectividad Elemental
-    // ==========================================
-    if (attack.owner && attack.owner.hasTag('player')) {
-      this.inactivityTimer = 0;
-      if (attack.type === 'weak') {
-        this.addMomentum(10);
+    // =========================================================================
+    // 3. RESOLUCIÓN OFENSIVA DEL JUGADOR Y SINERGIAS ELEMENTALES
+    // =========================================================================
+    const isPlayerAttack = (attack.owner && attack.owner.hasTag('player')) || attack.isFriendlySynergy;
+    if (isPlayerAttack) {
+      let finalDamage = attack.damage || 12;
+      let hitSoundType = attack.isFinisher ? 'finisher' : 'normal';
+
+      if (!attack.isMagmaZone) {
+        const sig = attack.isReflected
+          ? 'reflected_orb'
+          : `${attack.element}_${attack.comboStep || attack.type}`;
+        this.registerComboAction(sig, attack.isFinisher ? 14 : 9, context, !!attack.isPerfectTempo);
       }
 
-      // Recarga activa de energía elemental al conectar ataques de espada física
-      if (attack.element === 'physical') {
-        attack.owner.energy = Math.min(attack.owner.max_energy, attack.owner.energy + 6);
-        if (context.engine) {
-          context.engine.hitStop(0.04); // HitStop ligero en golpes normales
-        }
-      }
-      
-      // Chequear Riposte Crítico si el objetivo está aturdido
-      let finalDamage = attack.damage || 10;
-      if (entity.hasTag('staggered')) {
-        finalDamage *= 3.0; // x3.0 Multiplicador crítico
-        if (context.engine) {
-          context.engine.hitStop(0.08); // HitStop en golpes críticos
-        }
-        if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-          console.log(`%c[RIPOSTE CRÍTICO!] Daño: ${finalDamage}`, 'color: #ffff00; font-weight: bold');
-        }
-        if (attack.type === 'strong') {
-          entity.activeEffects.delete('staggered');
+      // Recarga activa de Energía Elemental al golpear con espada física (conectado a `weapon.energyOnHit`)
+      if (attack.element === 'physical' && attack.owner && attack.owner.hasTag('player') && !attack.isFriendlySynergy) {
+        const weapon = this.equipmentManager && this.equipmentManager.getWeapon ? this.equipmentManager.getWeapon() : null;
+        const weaponEnergy = (weapon && typeof weapon.energyOnHit === 'number') ? weapon.energyOnHit : 6;
+        const hasFlow = !!(skillTree && skillTree.hasSkill('energy_regen'));
+        const tempoRank = skillTree ? skillTree.getSkillRank('blade_tempo') : 0;
+        const finisherBonus = attack.isFinisher ? 5 : 0;
+        const styleExtra = this.styleScore >= 65 ? 2 : 0;
+        const totalEnergyGain = weaponEnergy + finisherBonus + tempoRank + (hasFlow ? 3 : 0) + styleExtra;
+        attack.owner.energy = Math.min(attack.owner.max_energy, attack.owner.energy + totalEnergyGain);
+
+        // FLUIDEZ 60/120 FPS: HitStop reservado SOLO para el 3er golpe (Finisher), jamás en golpes débiles 1 y 2
+        if (context && context.engine && attack.isFinisher && !attack.isBladeWave) {
+          context.engine.hitStop(0.055);
         }
       }
 
-      // Triángulo de Efectividad Elemental (Fuerte vs Débil)
-      // 🔥 Fuego vence a 🌿 Plantas (x2.0)
-      // 🌿 Plantas vence a ⚡ Cinético (x2.0)
-      // ⚡ Cinético vence a 🔥 Fuego (x2.0)
+      // Drenaje de energía por `thorn_leech` (Espinas Sifón)
+      if (attack.energyLeechedPerHit && attack.owner && attack.owner.hasTag('player')) {
+        attack.owner.energy = Math.min(attack.owner.max_energy, attack.owner.energy + attack.energyLeechedPerHit);
+      }
+
+      // Reembolso energético de `phantom_step` (Asalto Fantasma) al atravesar enemigos con Dash
+      if (attack.energyRefundOnFirstHit && !attack._refunded && attack.owner && attack.owner.hasTag('player')) {
+        attack._refunded = true;
+        attack.owner.energy = Math.min(attack.owner.max_energy, attack.owner.energy + attack.energyRefundOnFirstHit);
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('plasma_pulse', entity.pos.x + 16, entity.pos.y + 16, { radius: 28, duration: 0.25 });
+        }
+      }
+
+      // Multiplicador por Armadura Rota (+40% daño extra de toda fuente)
+      if (entity.hasTag('armor_break')) {
+        finalDamage *= 1.4;
+      }
+
+      // Saturación Rúnica (`arcane_overload`): +22%/+38% daño elemental con >= 75% Energía
+      if (
+        skillTree &&
+        attack.element !== 'physical' &&
+        attack.element !== 'explosion' &&
+        !attack.isFriendlySynergy &&
+        attack.owner &&
+        attack.owner.max_energy > 0 &&
+        (attack.owner.energy / attack.owner.max_energy) >= 0.75
+      ) {
+        const overloadRank = skillTree.getSkillRank('arcane_overload');
+        if (overloadRank >= 1) {
+          finalDamage *= (overloadRank === 1 ? 1.22 : 1.38);
+        }
+      }
+
+      // Filo del Verdugo (`executioner_edge`): +45% daño contra enemigos bajo el 35% de vida
+      if (
+        skillTree &&
+        skillTree.hasSkill('executioner_edge') &&
+        entity.max_health > 0 &&
+        entity.health > 0 &&
+        (entity.health / entity.max_health) <= 0.35
+      ) {
+        finalDamage *= 1.45;
+      }
+
+      // Floración Primordial (`ancient_bloom`): golpes de Planta sobre 2+ enemigos restauran +18 Postura
+      if (
+        skillTree &&
+        attack.element === 'plantas' &&
+        skillTree.hasSkill('ancient_bloom') &&
+        attack.owner &&
+        attack.hitEntities &&
+        attack.hitEntities.size === 2
+      ) {
+        attack.owner.guard_meter = Math.min(attack.owner.max_guard || 100, (attack.owner.guard_meter || 0) + 18);
+      }
+
+      // Multiplicador Crítico de Riposte sobre enemigos Aturdidos (x3.0 -> x3.8 R1 / x4.4 R2 con `mirror_ricochet`)
+      let isCriticalRiposte = false;
+      if (entity.hasTag('staggered') && !attack.isMagmaZone) {
+        const mirrorRank = skillTree ? skillTree.getSkillRank('mirror_ricochet') : 0;
+        const riposteMult = mirrorRank >= 2 ? 4.4 : (mirrorRank === 1 ? 3.8 : 3.0);
+        finalDamage *= riposteMult;
+        isCriticalRiposte = true;
+        hitSoundType = 'critical';
+        if (context && context.engine) context.engine.hitStop(0.065);
+        if (context && context.camera) context.camera.shake(0.44, 0.20);
+        entity.activeEffects.delete('staggered');
+
+        // Represalia Sísmica (`punishing_rebound`): onda de desequilibrio tras Riposte
+        const reboundRank = skillTree ? skillTree.getSkillRank('punishing_rebound') : 0;
+        if (reboundRank >= 1) {
+          const rx = entity.pos.x + entity.width / 2;
+          const ry = entity.pos.y + entity.height / 2;
+          const rPad = 76 + reboundRank * 34;
+          if (context && context.vfxRenderer) {
+            context.vfxRenderer.spawnImpact('aegis_nova', rx, ry, { radius: rPad, duration: 0.3 });
+          }
+          this.addAttack({
+            owner: attack.owner,
+            isFriendlySynergy: true,
+            type: 'synergy',
+            element: 'physical',
+            damage: 16,
+            duration: 0.14,
+            applyEffect: { tag: 'staggered', duration: 1.4 },
+            hitEntities: new Set(),
+            hitbox: { x: rx - rPad, y: ry - rPad, width: rPad * 2, height: rPad * 2 }
+          });
+        }
+      }
+
+      // Triángulo de Efectividad Elemental (x2.0 Súper Efectivo / x0.6 Resistido)
       const atkElem = attack.element;
-      const defElem = entity.elementalAffinity || (entity.hasTag('elem_plantas') ? 'plantas' : entity.hasTag('elem_fuego') ? 'fuego' : entity.hasTag('elem_kinetic') ? 'kinetic' : null);
+      const defElem = entity.elementalAffinity || (
+        entity.hasTag('elem_plantas') ? 'plantas'
+          : entity.hasTag('elem_fuego') ? 'fuego'
+            : entity.hasTag('elem_kinetic') ? 'kinetic' : null
+      );
 
-      if (defElem && atkElem !== 'physical') {
+      if (defElem && atkElem !== 'physical' && atkElem !== 'explosion') {
         const isSuperEffective = (
           (atkElem === 'fuego' && (defElem === 'plantas' || defElem === 'raices' || defElem === 'tierra')) ||
           ((atkElem === 'plantas' || atkElem === 'tierra') && defElem === 'kinetic') ||
@@ -347,75 +749,178 @@ export class CombatManager {
 
         if (isSuperEffective) {
           finalDamage *= 2.0;
-          if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-            console.log(`%c[¡SUPER EFECTIVO! x2.0] ${atkElem} contra ${defElem} -> Daño: ${finalDamage}`, 'color: #facc15; font-weight: bold');
-          }
-          if (context.vfxRenderer) {
-            context.vfxRenderer.spawnImpact('parry_spark', entity.pos.x + 16, entity.pos.y + 16, { radius: 24, duration: 0.25 });
+          if (!isCriticalRiposte) hitSoundType = 'super_effective';
+          if (context && context.vfxRenderer && !attack.isMagmaZone) {
+            context.vfxRenderer.spawnImpact('parry_spark', entity.pos.x + 16, entity.pos.y + 16, { radius: 26, duration: 0.26 });
           }
         } else if (isResisted) {
           finalDamage *= 0.6;
-          if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-            console.log(`%c[¡RESISTIDO x0.6] ${atkElem} contra ${defElem} -> Daño: ${finalDamage}`, 'color: #94a3b8; font-style: italic');
+          if (!isCriticalRiposte) hitSoundType = 'resisted';
+        }
+      }
+
+      // Feedback sonoro con capas acústicas por material del objetivo
+      if (context && context.audioManager && !attack.isFriendlySynergy) {
+        const material = this._resolveEntityMaterial(entity);
+        context.audioManager.playHitImpact(hitSoundType, material);
+      }
+
+      if (attack.isCharge) {
+        const cDir = attack.chargeDir || { x: 1, y: 0 };
+        const kbMult = attack.knockbackMult || 1.0;
+        this._applyKnockback(entity, entity.pos.x - (cDir.x * 20), entity.pos.y - (cDir.y * 20), 26 * kbMult, physics);
+        if (context && context.camera) context.camera.shake(0.22, 0.12);
+      }
+
+      if (attack.isSweep) {
+        const originX = attack.originX || sourceX;
+        const originY = attack.originY || sourceY;
+        const force = attack.knockbackForce || 28;
+        this._applyKnockback(entity, originX, originY, force, physics);
+        if (context && context.camera && !attack.isFriendlySynergy) {
+          context.camera.shake(attack.isFinisher ? 0.34 : 0.14, attack.isFinisher ? 0.16 : 0.09);
+        }
+        if (context && context.vfxRenderer && !attack.isFriendlySynergy) {
+          context.vfxRenderer.spawnImpact('slash_hit', entity.pos.x + entity.width / 2, entity.pos.y + entity.height / 2, {
+            radius: attack.isFinisher ? 28 : 20,
+            duration: 0.22,
+            angle: attack.aimAngle || 0,
+            isFinisher: !!attack.isFinisher
+          });
+        }
+      }
+
+      if (typeof entity.takeDamage === 'function') {
+        entity.takeDamage(Math.round(finalDamage), attack, context, isCriticalRiposte);
+
+        // Lluvia Imparable (`relentless_flurry`): derrotar con espada física reinicia Dash y recarga Energía
+        if (
+          entity.isDead &&
+          attack.element === 'physical' &&
+          !attack.isFriendlySynergy &&
+          attack.owner &&
+          attack.owner.hasTag('player') &&
+          skillTree
+        ) {
+          const flurryRank = skillTree.getSkillRank('relentless_flurry');
+          if (flurryRank >= 1) {
+            attack.owner.dashCooldown = 0;
+            const eGain = flurryRank >= 2 ? 24 : 15;
+            attack.owner.energy = Math.min(attack.owner.max_energy || 100, attack.owner.energy + eGain);
           }
         }
       }
 
-      // Knockback e impacto de embestida
-      if (attack.isCharge) {
-        const cDir = attack.chargeDir || { x: 1, y: 0 };
-        this._applyKnockback(entity, entity.pos.x - (cDir.x * 20), entity.pos.y - (cDir.y * 20), 28);
-        if (context.camera) {
-          context.camera.shake(0.22, 0.14);
-        }
-      }
-
-      // Retroceso y corte en abanico (Sweeping Edge estilo Minecraft)
-      if (attack.isSweep) {
-        const originX = attack.originX || (attack.owner ? attack.owner.pos.x + attack.owner.width / 2 : attackCenter.x);
-        const originY = attack.originY || (attack.owner ? attack.owner.pos.y + attack.owner.height / 2 : attackCenter.y);
-        const force = attack.knockbackForce || 28;
-        this._applyKnockback(entity, originX, originY, force);
-        if (context.camera) {
-          context.camera.shake(0.24, 0.14); // Temblor visceral de corte
-        }
-        if (context.vfxRenderer) {
-          context.vfxRenderer.spawnImpact('parry_spark', entity.pos.x + 16, entity.pos.y + 16, { radius: 18, duration: 0.2 });
-        }
-      }
-
-      // Aplicar daño a la entidad si dispone de sistema de salud
-      if (typeof entity.takeDamage === 'function') {
-        entity.takeDamage(finalDamage, attack, context);
+      if (entity.hasTag('enemy')) {
+        this.trackedTarget = entity;
+        this.trackedTargetTimer = entity.isDead ? 0.65 : 4.2;
       }
     }
 
-    // Sinergia Elemental: Raíces inmovilizadoras + Fuego = Explosión
+    // =========================================================================
+    // 4. SINERGIAS ELEMENTALES CRUZADAS (Potenciadas por `elemental_synergy`)
+    // =========================================================================
     if (attack.element === 'fuego' && entity.hasTag('inmovilizado_raices')) {
-      this.triggerWoodExplosion(entity, context);
       entity.activeEffects.delete('inmovilizado_raices');
+      if (context && context.engine) context.engine.hitStop(0.045);
+      if (context && context.audioManager) context.audioManager.playExplosion();
+      if (context && context.camera) context.camera.shake(0.50, 0.24);
+      if (context && context.vfxRenderer) {
+        context.vfxRenderer.spawnImpact('wood_explosion', entity.pos.x + 15, entity.pos.y + 15, { radius: 58, duration: 0.45 });
+      }
+      if (context && context.uiManager && context.camera) {
+        context.uiManager.spawnDamageNumber(entity.pos.x + 15, entity.pos.y - 14, '¡SINERGIA EXPLOSIVA!', '#fb923c');
+      }
+      this.triggerWoodExplosion(entity, context, attack.owner);
     }
-    
+
+    if (attack.element === 'kinetic' && entity.hasTag('quemadura_ignea')) {
+      entity.activeEffects.delete('quemadura_ignea');
+      if (context && context.engine) context.engine.hitStop(0.045);
+      if (context && context.audioManager) context.audioManager.playExplosion();
+      if (context && context.vfxRenderer) {
+        context.vfxRenderer.spawnImpact('fire_burst', entity.pos.x + 15, entity.pos.y + 15, { radius: 48, duration: 0.38 });
+      }
+      if (context && context.uiManager && context.camera) {
+        context.uiManager.spawnDamageNumber(entity.pos.x + 15, entity.pos.y - 14, '¡TORBELLINO ÍGNEO!', '#38bdf8');
+      }
+      this.triggerFirestormSynergy(entity, context, attack.owner);
+    }
+
     if (attack.applyEffect) {
       entity.applyEffect(attack.applyEffect.tag, attack.applyEffect.duration);
     }
+    if (attack.secondaryEffect) {
+      entity.applyEffect(attack.secondaryEffect.tag, attack.secondaryEffect.duration);
+    }
   }
 
-  triggerWoodExplosion(entity, context) {
-    if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-      console.log(`[CombatManager] ¡SINERGIA! Explosión de Madera en ${entity.pos.x}, ${entity.pos.y}`);
+  /**
+   * Detona una Explosión de Madera en área (+30% daño y mayor radio con `elemental_synergy`).
+   */
+  triggerWoodExplosion(entity, context, owner = null) {
+    const skillTree = context ? context.skillTreeManager : null;
+    const synRank = skillTree ? skillTree.getSkillRank('elemental_synergy') : 0;
+    const dmg = synRank >= 2 ? 88 : (synRank === 1 ? 72 : 55);
+    const pad = synRank >= 2 ? 64 : (synRank === 1 ? 52 : 42);
+    const targetOwner = owner || (context ? context.player : null);
+
+    // Protocolo Supernova (`supernova_protocol`): cada detonación recarga Energía Elemental
+    if (skillTree && skillTree.hasSkill('supernova_protocol') && targetOwner && targetOwner.hasTag('player')) {
+      targetOwner.energy = Math.min(targetOwner.max_energy || 100, targetOwner.energy + 12);
     }
+
     this.addAttack({
-      owner: null,
+      owner: targetOwner,
+      isFriendlySynergy: true,
       type: 'synergy',
       element: 'explosion',
-      damage: 50,
-      duration: 0.2,
+      damage: dmg,
+      duration: 0.18,
+      isSweep: true,
+      originX: entity.pos.x + entity.width / 2,
+      originY: entity.pos.y + entity.height / 2,
+      knockbackForce: synRank >= 1 ? 48 : 42,
       hitbox: {
-        x: entity.pos.x - 30,
-        y: entity.pos.y - 30,
-        width: 60 + entity.width,
-        height: 60 + entity.height
+        x: entity.pos.x - pad,
+        y: entity.pos.y - pad,
+        width: pad * 2 + entity.width,
+        height: pad * 2 + entity.height
+      },
+      hitEntities: new Set()
+    });
+  }
+
+  /**
+   * Detona un Torbellino de Brasas cuando Cinético colisiona con un objetivo en llamas (+30%/+55% con `elemental_synergy`).
+   */
+  triggerFirestormSynergy(entity, context, owner = null) {
+    const skillTree = context ? context.skillTreeManager : null;
+    const synRank = skillTree ? skillTree.getSkillRank('elemental_synergy') : 0;
+    const dmg = synRank >= 2 ? 64 : (synRank === 1 ? 50 : 38);
+    const pad = synRank >= 2 ? 56 : (synRank === 1 ? 46 : 36);
+    const targetOwner = owner || (context ? context.player : null);
+
+    if (skillTree && skillTree.hasSkill('supernova_protocol') && targetOwner && targetOwner.hasTag('player')) {
+      targetOwner.energy = Math.min(targetOwner.max_energy || 100, targetOwner.energy + 12);
+    }
+
+    this.addAttack({
+      owner: targetOwner,
+      isFriendlySynergy: true,
+      type: 'synergy',
+      element: 'fuego',
+      damage: dmg,
+      duration: 0.18,
+      isSweep: true,
+      originX: entity.pos.x + entity.width / 2,
+      originY: entity.pos.y + entity.height / 2,
+      knockbackForce: synRank >= 1 ? 40 : 34,
+      hitbox: {
+        x: entity.pos.x - pad,
+        y: entity.pos.y - pad,
+        width: pad * 2 + entity.width,
+        height: pad * 2 + entity.height
       },
       hitEntities: new Set()
     });
@@ -433,6 +938,75 @@ export class CombatManager {
     return false;
   }
 
+  /**
+   * Depura holders de tokens que murieron, fueron aturdidos o salieron de fase ofensiva.
+   * @private
+   */
+  _pruneAttackTokens() {
+    for (const holder of this._activeTokenHolders) {
+      const deadOrDone =
+        !holder ||
+        holder.isDead ||
+        (typeof holder.hasTag === 'function' && holder.hasTag('staggered')) ||
+        (holder.aiState !== 'TELEGRAPH' && holder.aiState !== 'ATTACK');
+      if (deadOrDone) {
+        this._activeTokenHolders.delete(holder);
+      }
+    }
+  }
+
+  /**
+   * Solicita un token táctico de ataque cuerpo a cuerpo (máximo `maxMeleeTokens = 2`).
+   * Evita embudos injustos donde múltiples enemigos telegrafían a la vez.
+   * @param {Object} enemy - Entidad enemiga solicitante.
+   * @returns {boolean} True si obtiene permiso para iniciar `TELEGRAPH`.
+   */
+  requestAttackToken(enemy) {
+    if (!enemy || enemy.isDead) return false;
+    if (this._activeTokenHolders.has(enemy)) return true;
+    this._pruneAttackTokens();
+    if (this._activeTokenHolders.size < this.maxMeleeTokens) {
+      this._activeTokenHolders.add(enemy);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Libera el token de ataque de un enemigo tras completar su ataque, aturdirse o morir.
+   * @param {Object} enemy
+   */
+  releaseAttackToken(enemy) {
+    if (enemy) {
+      this._activeTokenHolders.delete(enemy);
+    }
+  }
+
+  /**
+   * Resetea todos los tokens de ataque y ataques activos al cambiar de Mundo.
+   */
+  clearAllCombatState() {
+    this._activeTokenHolders.clear();
+    this.activeAttacks.length = 0;
+  }
+
+  /**
+   * Determina la firma acústica del objetivo según su etiqueta y arquetipo para Web Audio API.
+   * @private
+   * @param {Object} entity
+   * @returns {'wood'|'armor'|'slime'|'stone'|'flesh'}
+   */
+  _resolveEntityMaterial(entity) {
+    if (!entity) return 'flesh';
+    if (typeof entity.hasTag === 'function') {
+      if (entity.hasTag('wooden_shield') || entity.hasTag('debil_fuego')) return 'wood';
+      if (entity.hasTag('pared_falsa') || entity.hasTag('prop')) return 'stone';
+    }
+    if (entity.archetype === 'tank') return 'armor';
+    if (entity.archetype === 'slime') return 'slime';
+    return 'flesh';
+  }
+
   addAttack(attackObj) {
     if (!attackObj.hitEntities) {
       attackObj.hitEntities = new Set();
@@ -441,31 +1015,23 @@ export class CombatManager {
   }
 
   /**
-   * Remueve todos los ataques activos registrados por un propietario específico (Dash Cancel).
+   * Remueve todos los ataques cuerpo a cuerpo activos de una entidad (al usar Dash Cancel o ser aturdida).
+   * Conserva proyectiles y zonas independientes ya lanzados al mundo.
    * @param {Object} owner
    */
   cancelAttacksFrom(owner) {
+    this.releaseAttackToken(owner);
     for (let i = this.activeAttacks.length - 1; i >= 0; i--) {
-      if (this.activeAttacks[i].owner === owner) {
-        this.activeAttacks.splice(i, 1);
+      const atk = this.activeAttacks[i];
+      if (atk.owner === owner && !atk.isProjectile && !atk.isMagmaZone) {
+        this._removeAttackAt(i);
       }
     }
   }
 
   canCancel(currentState, nextState) {
     if (nextState === 'STATE_DASH') return true;
-    if (currentState === 'STATE_DASH' && (nextState.startsWith('STATE_ATTACK'))) return false;
-    // No se puede cancelar nada si estás aturdido
     if (currentState === 'STATE_GUARD_BREAK') return false;
-
     return true;
   }
 }
-
-/* AUDITORÍA DE DISEÑO:
- * [Evaluación técnica del Sistema Defensivo 'Risk/Reward']:
- * 1. Escalabilidad (EquipmentManager): La inyección de dependencias del EquipmentManager en CombatManager permite escalar a N escudos. La propiedad `posture_drain_rate` actúa limpiamente como multiplicador escalar en `postureDamage`, permitiendo sinergias RPG masivas.
- * 2. Salida de 'Guard Break': La FSM (Player.js) y `canCancel` están atadas. El estado `STATE_GUARD_BREAK` congela inputs lógicos de movimiento y ataque, y su temporalidad (2.0s controlada por `stateTimer` en Player) transiciona fluidamente a `STATE_IDLE` sin cuelgues ni locks.
- * 3. Ventana de Parry (0.15s): Integrada matemáticamente con `player.stateTimer <= 0.15`. A 60 FPS (dt = ~0.016s), esto garantiza un margen de ~9 fotogramas exactos de respuesta humana, alineándose precisamente al estándar oro de títulos de alta velocidad.
- * 4. HitStop Inyectado (Engine.js): Detiene las matemáticas de `updateFn` (dt) pero mantiene `renderFn` vivo, entregando puro 'Game Feel' visual al concretar el bloqueo perfecto, sin desestabilizar bucles del event loop de JS.
- */

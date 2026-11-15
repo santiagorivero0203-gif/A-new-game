@@ -2,11 +2,11 @@ import { Vector2 } from '../utils/Vector2.js';
 
 /**
  * @module Camera
- * @description Sistema de cámara 2D cinemática con zoom dinámico, suavizado LERP exponencial,
- * Screen Shake basado en trauma cuadrático para impactos fuertes, y Room Clamping
+ * @description Sistema de cámara 2D con Zona Muerta Cuadrada (Square Deadzone), foco cinemático,
+ * zoom entero pixel-perfect, Screen Shake basado en trauma cuadrático y Room Clamping
  * que previene visualización de vacíos exteriores sin importar la escala de zoom.
  * @author Be a Legend Team
- * @version 1.4.0
+ * @version 2.0.0
  */
 export class Camera {
   /**
@@ -14,8 +14,31 @@ export class Camera {
    * @param {number} viewportHeight - Alto del viewport en píxeles
    */
   constructor(viewportWidth, viewportHeight) {
-    /** @type {Vector2} Coordenada mundial del centro de atención de la cámara */
+    /** @type {Vector2} Coordenada mundial final del centro de atención de la cámara */
     this.pos = new Vector2(0, 0);
+
+    /** @type {Vector2} Centro lógico de la Zona Muerta Cuadrada respecto al jugador */
+    this.focusPos = new Vector2(0, 0);
+
+    /** @type {number} Semi-ancho de la zona muerta cuadrada (caja central libre sin mover cámara) */
+    this.deadzoneHalfWidth = 42;
+
+    /** @type {number} Semi-alto de la zona muerta cuadrada (caja central libre sin mover cámara) */
+    this.deadzoneHalfHeight = 32;
+
+    /** @type {boolean} Indica si la zona muerta ya fue alineada al objetivo inicial */
+    this._initializedFocus = false;
+
+    /** @type {{x: number, y: number}|null} Objetivo temporal para paneos cinemáticos in-engine */
+    this.cinematicTarget = null;
+
+    /** @type {number} Velocidad de interpolación hacia el foco cinemático */
+    this.cinematicLerpSpeed = 5.5;
+
+    /** @private Ancla sin clamping para transiciones cinemáticas suaves sin sesgos de borde */
+    this._camAnchorPos = new Vector2(0, 0);
+    /** @private Bandera activa mientras se regresa desde un paneo cinemático */
+    this._inCinematic = false;
 
     this.viewportWidth = viewportWidth;
     this.viewportHeight = viewportHeight;
@@ -23,11 +46,17 @@ export class Camera {
     /** @type {number} Escala de píxeles del dispositivo (Device Pixel Ratio) */
     this.dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
 
-    /** @type {number} Multiplicador de zoom efectivo (calculado dinámicamente) */
-    this.zoom = 2.0;
+    /** @type {number} Multiplicador de zoom efectivo entero (calculado dinámicamente) */
+    this.zoom = 2;
+
+    /** @type {number} Ancho lógico nativo del lienzo pixel-art */
+    this.logicalWidth = 480;
+
+    /** @type {number} Alto lógico nativo del lienzo pixel-art */
+    this.logicalHeight = 270;
 
     /** @type {number} Constante de velocidad para el decaimiento exponencial (LERP suave) */
-    this.lerpSpeed = 7.0;
+    this.lerpSpeed = 10.5;
 
     /** @type {{x: number, y: number, width: number, height: number}|null} Límites del mapa */
     this.roomBounds = null;
@@ -43,9 +72,15 @@ export class Camera {
     /** @type {Vector2} Desplazamiento reactivo del temblor */
     this.shakeOffset = new Vector2(0, 0);
 
-    /** @private Reutilización de vectores en conversiones de coordenadas */
+    /** @type {Vector2} Desplazamiento auxiliar en caché */
+    this.lookaheadOffset = new Vector2(0, 0);
+    /** @type {number} Reloj determinista para oscilación pseudo-Perlin del shake */
+    this._noiseClock = 0;
+
+    /** @private Reutilización de vectores y rectángulos en conversiones de coordenadas (Cero GC) */
     this._screenCache = new Vector2();
     this._worldCache = new Vector2();
+    this._boundsCache = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   }
 
   /**
@@ -72,18 +107,15 @@ export class Camera {
   }
 
   /**
-   * Calcula el zoom efectivo pixel-perfect a partir de la altura del viewport.
-   * El zoom multiplicado por DPR es un entero positivo garantizado para que los
-   * sprites de 32x32 px se muestren con nitidez perfecta sin deformación ni artefactos.
+   * Calcula el zoom entero y las dimensiones lógicas nativas pixel-art (`logicalWidth` x `logicalHeight`)
+   * adaptándose tanto a 16:9 como a 9:16 frente a la base de 270 px para obtener cuadrícula 1:1 sin borrosidad.
    */
   updatePixelPerfectZoom() {
-    const baseTargetHeight = 270; // Altura de referencia (540 / 2)
-    const effectiveDpr = this.dpr || 1;
-    const physicalHeight = (this.viewportHeight || 540) * effectiveDpr;
-    // Escala física entera requerida en pantalla
-    const integerScale = Math.max(1, Math.round(physicalHeight / baseTargetHeight));
-    // Zoom relativo en coordenadas del viewport (múltiplo exacto de 1/DPR)
-    this.zoom = integerScale / effectiveDpr;
+    const baseMinAxis = 320;
+    const minViewportAxis = Math.min(this.viewportWidth || 960, this.viewportHeight || 540);
+    this.zoom = Math.max(2, Math.round(minViewportAxis / baseMinAxis));
+    this.logicalWidth = Math.ceil((this.viewportWidth || 960) / this.zoom);
+    this.logicalHeight = Math.ceil((this.viewportHeight || 540) / this.zoom);
   }
 
   /**
@@ -98,58 +130,129 @@ export class Camera {
   }
 
   /**
-   * Desplaza la cámara suavemente siguiendo al objetivo centrado en el viewport.
-   * Emplea interpolación de decaimiento exponencial continuo para eliminar movimientos robóticos.
+   * Alias semántico para acumular trauma de cámara desde secuencias de VFX.
+   * @param {number} [intensity=0.45]
+   * @param {number} [duration=0.28]
+   */
+  addTrauma(intensity = 0.45, duration = 0.28) {
+    this.shake(intensity, duration);
+  }
+
+  /**
+   * Alinea de forma instantánea el foco de la Zona Muerta y la posición de la cámara sobre `pos`.
+   * @param {{x: number, y: number}} pos
+   */
+  snapTo(pos) {
+    if (!pos) return;
+    this.focusPos.set(pos.x, pos.y);
+    this._camAnchorPos.set(pos.x, pos.y);
+    this.pos.set(pos.x, pos.y);
+    this._initializedFocus = true;
+    this._inCinematic = false;
+    this._applyRoomBounds();
+  }
+
+  /**
+   * Aplica Room Clamping a `this.pos` adaptado al nivel de zoom activo.
+   * @private
+   */
+  _applyRoomBounds() {
+    if (!this.roomBounds) return;
+    const visibleWidth = this.viewportWidth / this.zoom;
+    const visibleHeight = this.viewportHeight / this.zoom;
+
+    const halfW = visibleWidth / 2;
+    const halfH = visibleHeight / 2;
+
+    const minX = this.roomBounds.x + halfW;
+    const maxX = this.roomBounds.x + this.roomBounds.width - halfW;
+    const minY = this.roomBounds.y + halfH;
+    const maxY = this.roomBounds.y + this.roomBounds.height - halfH;
+
+    if (maxX >= minX) {
+      if (this.pos.x < minX) this.pos.x = minX;
+      if (this.pos.x > maxX) this.pos.x = maxX;
+    } else {
+      this.pos.x = this.roomBounds.x + this.roomBounds.width / 2;
+    }
+
+    if (maxY >= minY) {
+      if (this.pos.y < minY) this.pos.y = minY;
+      if (this.pos.y > maxY) this.pos.y = maxY;
+    } else {
+      this.pos.y = this.roomBounds.y + this.roomBounds.height / 2;
+    }
+  }
+
+  /**
+   * Actualiza la cámara mediante **Zona Muerta Cuadrada (Square Deadzone)** y foco cinemático:
+   * - Dentro de la caja central (`±deadzoneHalfWidth`, `±deadzoneHalfHeight`) la cámara no se desplaza.
+   * - Al cruzar los bordes, `focusPos` se desliza acompañando al jugador con exactitud.
+   * - Si `cinematicTarget` está activo, interpola el encuadre suavemente hacia ese punto.
    * @param {Vector2|{x: number, y: number}} targetPos - Posición en el mundo del objetivo
    * @param {number} deltaTime - Tiempo del frame en segundos
+   * @param {{x: number, y: number}|null} [lookDir=null] - Dirección de mira opcional
+   * @param {{x: number, y: number}|null} [combatFocusPos=null] - Objetivo táctico opcional
    */
-  update(targetPos, deltaTime) {
-    const targetX = targetPos.x;
-    const targetY = targetPos.y;
+  update(targetPos, deltaTime, lookDir = null, combatFocusPos = null) {
+    const dt = deltaTime || 0.016;
+    this._noiseClock += dt * 42;
 
-    // LERP exponencial continuo: factor = 1 - e^(-k * dt)
-    const factor = 1 - Math.exp(-this.lerpSpeed * deltaTime);
-    this.pos.x += (targetX - this.pos.x) * factor;
-    this.pos.y += (targetY - this.pos.y) * factor;
-
-    // Room Clamping adaptado al nivel de zoom
-    if (this.roomBounds) {
-      const visibleWidth = this.viewportWidth / this.zoom;
-      const visibleHeight = this.viewportHeight / this.zoom;
-
-      const halfW = visibleWidth / 2;
-      const halfH = visibleHeight / 2;
-
-      const minX = this.roomBounds.x + halfW;
-      const maxX = this.roomBounds.x + this.roomBounds.width - halfW;
-      const minY = this.roomBounds.y + halfH;
-      const maxY = this.roomBounds.y + this.roomBounds.height - halfH;
-
-      if (maxX >= minX) {
-        if (this.pos.x < minX) this.pos.x = minX;
-        if (this.pos.x > maxX) this.pos.x = maxX;
-      } else {
-        this.pos.x = this.roomBounds.x + this.roomBounds.width / 2;
-      }
-
-      if (maxY >= minY) {
-        if (this.pos.y < minY) this.pos.y = minY;
-        if (this.pos.y > maxY) this.pos.y = maxY;
-      } else {
-        this.pos.y = this.roomBounds.y + this.roomBounds.height / 2;
-      }
+    if (!this._initializedFocus) {
+      this.snapTo(targetPos);
     }
+
+    // 1. Actualizar foco de Zona Muerta Cuadrada
+    const dx = targetPos.x - this.focusPos.x;
+    const dy = targetPos.y - this.focusPos.y;
+    if (dx > this.deadzoneHalfWidth) {
+      this.focusPos.x = targetPos.x - this.deadzoneHalfWidth;
+    } else if (dx < -this.deadzoneHalfWidth) {
+      this.focusPos.x = targetPos.x + this.deadzoneHalfWidth;
+    }
+
+    if (dy > this.deadzoneHalfHeight) {
+      this.focusPos.y = targetPos.y - this.deadzoneHalfHeight;
+    } else if (dy < -this.deadzoneHalfHeight) {
+      this.focusPos.y = targetPos.y + this.deadzoneHalfHeight;
+    }
+
+    // 2. Resolver foco cinemático vs retorno suave / seguimiento directo de zona muerta
+    if (this.cinematicTarget) {
+      const f = 1 - Math.exp(-this.cinematicLerpSpeed * dt);
+      this._camAnchorPos.x += (this.cinematicTarget.x - this._camAnchorPos.x) * f;
+      this._camAnchorPos.y += (this.cinematicTarget.y - this._camAnchorPos.y) * f;
+      this._inCinematic = true;
+    } else if (this._inCinematic) {
+      const dist = Math.hypot(this._camAnchorPos.x - this.focusPos.x, this._camAnchorPos.y - this.focusPos.y);
+      if (dist > 2) {
+        const retF = 1 - Math.exp(-14 * dt);
+        this._camAnchorPos.x += (this.focusPos.x - this._camAnchorPos.x) * retF;
+        this._camAnchorPos.y += (this.focusPos.y - this._camAnchorPos.y) * retF;
+      } else {
+        this._camAnchorPos.set(this.focusPos.x, this.focusPos.y);
+        this._inCinematic = false;
+      }
+    } else {
+      this._camAnchorPos.set(this.focusPos.x, this.focusPos.y);
+    }
+
+    this.pos.set(this._camAnchorPos.x, this._camAnchorPos.y);
+    this._applyRoomBounds();
 
     // Actualización y decaimiento del Screen Shake
     if (this.trauma > 0) {
       this.trauma -= (1 / this.shakeDuration) * deltaTime;
       if (this.trauma < 0) this.trauma = 0;
 
-      // Trauma cuadrático para atenuación orgánica
+      // Trauma cuadrático para atenuación orgánica + onda pseudo-Perlin determinista
       const shakeFactor = this.trauma * this.trauma;
       const maxOffset = 18; // Píxeles máximos de vibración
-      this.shakeOffset.x = (Math.random() * 2 - 1) * maxOffset * shakeFactor;
-      this.shakeOffset.y = (Math.random() * 2 - 1) * maxOffset * shakeFactor;
+      const t = this._noiseClock;
+      const waveX = Math.sin(t) * 0.62 + Math.cos(t * 2.13) * 0.38;
+      const waveY = Math.cos(t * 1.37) * 0.65 + Math.sin(t * 2.71) * 0.35;
+      this.shakeOffset.x = waveX * maxOffset * shakeFactor;
+      this.shakeOffset.y = waveY * maxOffset * shakeFactor;
     } else {
       this.shakeOffset.set(0, 0);
     }
@@ -178,25 +281,37 @@ export class Camera {
   }
 
   /**
-   * Aplica la matriz de transformación: DPR + Centrado + Zoom + Posición del Mundo + Shake.
-   * Emplea redondeo al píxel (Math.round) para consistencia visual pixel-perfect.
+   * Aplica traslación alineada a píxeles reales del viewport más escalado Pixel-Art entero.
+   * Mantiene movimiento sedoso en pantalla y píxeles perfectamente nítidos sin borrosidad.
    * @param {CanvasRenderingContext2D} ctx
    */
   applyTransform(ctx) {
     ctx.save();
-    // 0. Escalar por DPR si el buffer del canvas utiliza resolución física nativa
-    if (this.dpr && this.dpr !== 1) {
-      ctx.scale(this.dpr, this.dpr);
-    }
-    // 1. Mover al centro del viewport con redondeo entero
-    ctx.translate(Math.round(this.viewportWidth / 2), Math.round(this.viewportHeight / 2));
-    // 2. Aplicar escala de Zoom cinemático pixel-perfect
+    const cw = (ctx.canvas && ctx.canvas.width) ? ctx.canvas.width : this.viewportWidth;
+    const ch = (ctx.canvas && ctx.canvas.height) ? ctx.canvas.height : this.viewportHeight;
+    const tx = Math.round(cw * 0.5 - (this.pos.x + this.shakeOffset.x) * this.zoom);
+    const ty = Math.round(ch * 0.5 - (this.pos.y + this.shakeOffset.y) * this.zoom);
+    ctx.translate(tx, ty);
     ctx.scale(this.zoom, this.zoom);
-    // 3. Trasladar al objetivo mundial con Screen Shake y redondeo al píxel
-    ctx.translate(
-      -Math.round(this.pos.x + this.shakeOffset.x),
-      -Math.round(this.pos.y + this.shakeOffset.y)
-    );
+  }
+
+  /**
+   * Calcula el rectángulo de mundo actualmente visible en cámara con margen de seguridad
+   * para aplicar Frustum Culling O(1) en el renderizado de entidades sin recortar copas ni sombras.
+   * @param {number} [margin=96] - Margen extra en píxeles de mundo
+   * @returns {{minX: number, minY: number, maxX: number, maxY: number}}
+   */
+  getVisibleWorldBounds(margin = 96) {
+    const halfW = (this.viewportWidth / (this.zoom || 1)) * 0.5 + margin;
+    const halfH = (this.viewportHeight / (this.zoom || 1)) * 0.5 + margin;
+    const cx = this.pos.x + this.shakeOffset.x;
+    const cy = this.pos.y + this.shakeOffset.y;
+    const b = this._boundsCache;
+    b.minX = cx - halfW;
+    b.minY = cy - halfH;
+    b.maxX = cx + halfW;
+    b.maxY = cy + halfH;
+    return b;
   }
 
   /**

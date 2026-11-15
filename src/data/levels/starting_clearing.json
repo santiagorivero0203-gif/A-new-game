@@ -8,14 +8,16 @@
   },
   "playerSpawn": {
     "x": 624,
-    "y": 624
+    "y": 600
   },
   "entities": [
-    { "type": "house", "x": 560, "y": 260 },
-    { "type": "npc", "x": 640, "y": 410, "name": "Guardián Sabio Tarak" },
-    { "type": "enemy", "x": 540, "y": 520, "element": "plantas", "name": "Slime de Hojas" },
-    { "type": "enemy", "x": 710, "y": 520, "element": "fuego", "name": "Slime Ígneo" },
-    { "type": "enemy", "x": 624, "y": 490, "element": "kinetic", "name": "Gólem Cinético" }
+    { "type": "house", "x": 560, "y": 230 },
+    { "type": "npc", "x": 636, "y": 435, "name": "Guardián Sabio Tarak" },
+    { "type": "enemy", "x": 420, "y": 555, "element": "plantas", "archetype": "hound", "name": "Sabueso de Zarzas" },
+    { "type": "enemy", "x": 470, "y": 765, "element": "plantas", "archetype": "artillery", "name": "Esporífero Artillero" },
+    { "type": "enemy", "x": 830, "y": 545, "element": "kinetic", "archetype": "duelist", "name": "Duelista Implacable" },
+    { "type": "enemy", "x": 790, "y": 360, "element": "plantas", "archetype": "tank", "name": "Centinela Pavés" },
+    { "type": "enemy", "x": 805, "y": 755, "element": "fuego", "archetype": "artillery", "name": "Artillero de Brasa" }
   ],
   "foliage": [
     { "x": 530, "y": 560 },
@@ -28,14 +30,14 @@
     { "x": 680, "y": 350 }
   ],
   "clearingTrees": [
-    { "x": 400, "y": 520 },
-    { "x": 480, "y": 710 },
-    { "x": 800, "y": 540 },
-    { "x": 890, "y": 710 },
-    { "x": 380, "y": 360 },
-    { "x": 780, "y": 320 },
-    { "x": 310, "y": 600 },
-    { "x": 960, "y": 600 }
+    { "x": 360, "y": 490 },
+    { "x": 430, "y": 830 },
+    { "x": 890, "y": 470 },
+    { "x": 910, "y": 760 },
+    { "x": 380, "y": 330 },
+    { "x": 860, "y": 300 },
+    { "x": 290, "y": 620 },
+    { "x": 980, "y": 620 }
   ],
   "perimeterConfig": {
     "step": 75,

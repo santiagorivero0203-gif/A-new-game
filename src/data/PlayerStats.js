@@ -6,7 +6,7 @@ export const PLAYER_STATS = {
   energy_regen_rate: 6,
   guard_meter: 100,
   max_guard: 100,
-  speed: 195,
+  speed: 215,
   
   // Combate & Utilidad
   dash_cost: 10,
