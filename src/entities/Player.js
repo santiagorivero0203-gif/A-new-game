@@ -31,7 +31,7 @@ export class Player extends Entity {
     this.tags.push('player');
 
     /** @type {number} Velocidad base de desplazamiento en píxeles por segundo */
-    this.speed = PLAYER_STATS.speed || 195;
+    this.speed = PLAYER_STATS.speed || 155;
 
     /** @type {Vector2} Vector de velocidad del fotograma actual */
     this.velocity = new Vector2(0, 0);
@@ -367,7 +367,7 @@ export class Player extends Entity {
       this.applyEffect('iframe', 0.55);
       this._haloCooldown = 18.0;
       if (context.skillTreeManager && context.skillTreeManager.hasSkill('relic_aegis_halo')) {
-        this.energy = Math.min(this.max_energy, this.energy + 20);
+        this.energy = Math.min(this.max_energy, this.energy + 8);
       }
       if (context.audioManager) context.audioManager.playHeal();
       if (context.vfxRenderer) {
@@ -1026,7 +1026,7 @@ export class Player extends Entity {
         this.isSprinting = false;
         const staminaRank = skillTree ? skillTree.getSkillRank('stamina_mastery') : 0;
         this.max_stamina = 100 + staminaRank * 25;
-        const regenRate = 28 * (1 + staminaRank * 0.20);
+        const regenRate = 14 * (1 + staminaRank * 0.20);
         this.stamina = Math.min(this.max_stamina, this.stamina + regenRate * deltaTime);
         if (this.stamina >= 20) {
           this.staminaExhausted = false;
@@ -1397,9 +1397,9 @@ export class Player extends Entity {
       if (this.velocity.lengthSquared() > 1) {
         this.velocity.normalize();
       }
-      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Sprint (+62%) y Sigilo/Prone (-48%)
-      let speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.08 : 1.0;
-      if (this.isSprinting) speedMult *= 1.62;
+      // Ajuste dinámico de velocidad: Estilo S/A (+6%), Sprint (+36%) y Sigilo/Prone (-48%)
+      let speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.06 : 1.0;
+      if (this.isSprinting) speedMult *= 1.36;
       else if (this.isProne) speedMult *= 0.52;
       this.velocity.multiplyScalar(this.speed * speedMult * deltaTime);
       nextX = this.pos.x + this.velocity.x;

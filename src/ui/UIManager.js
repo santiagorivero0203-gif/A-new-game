@@ -1,6 +1,7 @@
 import { WEAPONS } from '../data/weapons.js';
 import { SHIELDS } from '../data/shields.js';
 import { WORLDS_LIST } from '../data/worlds.js';
+import { formatControlPrompts } from '../utils/textFormatter.js';
 
 /**
  * @module UIManager
@@ -506,6 +507,21 @@ export class UIManager {
   }
 
   /**
+   * Determina si la sesión actual está operando bajo controles táctiles / modo móvil.
+   * @private
+   * @returns {boolean}
+   */
+  _isMobileActive() {
+    return (
+      (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active')) ||
+      (typeof navigator !== 'undefined' && (
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        (navigator.userAgentData && navigator.userAgentData.mobile === true)
+      ))
+    );
+  }
+
+  /**
    * Actualiza la tarjeta inferior de diálogo diegético.
    * @param {import('../core/StateManager.js').StateManager} stateManager
    * @param {number} deltaTime
@@ -537,7 +553,9 @@ export class UIManager {
       if (this.dialogueBadge.textContent !== badge) this.dialogueBadge.textContent = badge;
     }
 
-    const formattedText = `"${dialogue.text}"`;
+    const isMobile = this._isMobileActive();
+    const cleanDialogue = formatControlPrompts(dialogue.text, isMobile);
+    const formattedText = `"${cleanDialogue}"`;
     if (this.dialogueText && this.dialogueText.textContent !== formattedText) {
       this.dialogueText.textContent = formattedText;
     }
@@ -762,7 +780,9 @@ export class UIManager {
     if (!stateManager) return;
 
     // 0. Rumbo / Objetivo Activo del Nivel
-    const objective = stateManager.get('level_objective') || 'Explora el Claro del Santuario';
+    const rawObjective = stateManager.get('level_objective') || 'Explora el Claro del Santuario';
+    const isMobile = this._isMobileActive();
+    const objective = formatControlPrompts(rawObjective, isMobile);
     if (objective !== this._lastObjectiveText && this.objectiveTextEl) {
       this._lastObjectiveText = objective;
       this.objectiveTextEl.textContent = objective;
@@ -824,9 +844,13 @@ export class UIManager {
    */
   _showHordeBanner(eyebrow, title, subtitle, durationMs) {
     if (!this.hordeBanner) return;
+    const isMobile = this._isMobileActive();
+    const cleanTitle = formatControlPrompts(title, isMobile);
+    const cleanSub = formatControlPrompts(subtitle, isMobile);
+
     if (this.hordeBannerEyebrow) this.hordeBannerEyebrow.textContent = eyebrow;
-    if (this.hordeBannerTitle) this.hordeBannerTitle.textContent = title;
-    if (this.hordeBannerSub) this.hordeBannerSub.textContent = subtitle;
+    if (this.hordeBannerTitle) this.hordeBannerTitle.textContent = cleanTitle;
+    if (this.hordeBannerSub) this.hordeBannerSub.textContent = cleanSub;
 
     this.hordeBanner.classList.remove('hidden', 'banner-fade-out');
     this.hordeBanner.classList.add('banner-slide-in');
@@ -908,41 +932,55 @@ export class UIManager {
     const equippedPower = stateManager?.get('equipped_power') || 'Fuego';
 
     const weaponCardsHtml = Object.values(WEAPONS).map((w) => {
+      const isUnlocked = equipmentManager ? equipmentManager.isWeaponUnlocked(w.id) : w.id === 'training_sword';
       const isEq = w.id === currentWeaponId;
       return `
-        <div class="st-equip-card ${isEq ? 'equipped' : ''}">
+        <div class="st-equip-card ${isEq ? 'equipped' : ''} ${!isUnlocked ? 'locked' : ''}">
           <div class="st-equip-info">
-            <h4>${w.name}</h4>
-            <p>${w.description}</p>
+            <div class="st-equip-title-row">
+              <h4>${w.name}</h4>
+              ${!isUnlocked ? '<span class="st-lock-pill">NIVEL SIGUIENTE 🔒</span>' : ''}
+            </div>
+            <p>${!isUnlocked ? 'Arma arcana de siguiente nivel. Requiere avanzar en la historia o encontrarla en el mundo.' : w.description}</p>
             <div class="st-equip-stats">
               <span class="st-stat-chip">DAÑO ${w.damage}</span>
               <span class="st-stat-chip">AVANCE ${w.lungeForce}</span>
               <span class="st-stat-chip">+${w.energyOnHit} ENERGÍA/GOLPE</span>
             </div>
           </div>
-          <button type="button" class="cel-action-btn ${isEq ? 'equipped-badge' : 'primary'}" data-equip-weapon="${w.id}" ${isEq ? 'disabled' : ''}>
-            ${isEq ? 'EQUIPADA' : 'EQUIPAR'}
-          </button>
+          ${!isUnlocked
+            ? `<button type="button" class="cel-action-btn locked-badge" disabled>BLOQUEADA</button>`
+            : `<button type="button" class="cel-action-btn ${isEq ? 'equipped-badge' : 'primary'}" data-equip-weapon="${w.id}" ${isEq ? 'disabled' : ''}>
+                 ${isEq ? 'EQUIPADA' : 'EQUIPAR'}
+               </button>`
+          }
         </div>
       `;
     }).join('');
 
     const shieldCardsHtml = Object.values(SHIELDS).map((sh) => {
+      const isUnlocked = equipmentManager ? equipmentManager.isShieldUnlocked(sh.id) : sh.id === 'wooden_shield';
       const isEq = sh.id === currentShieldId;
       const mitigation = Math.round((1 - (sh.posture_drain_rate || 1)) * 100);
       return `
-        <div class="st-equip-card ${isEq ? 'equipped' : ''}">
+        <div class="st-equip-card ${isEq ? 'equipped' : ''} ${!isUnlocked ? 'locked' : ''}">
           <div class="st-equip-info">
-            <h4>${sh.name}</h4>
-            <p>${sh.description}</p>
+            <div class="st-equip-title-row">
+              <h4>${sh.name}</h4>
+              ${!isUnlocked ? '<span class="st-lock-pill">NIVEL SIGUIENTE 🔒</span>' : ''}
+            </div>
+            <p>${!isUnlocked ? 'Escudo templado de nivel superior. Requiere progreso en la crónica.' : sh.description}</p>
             <div class="st-equip-stats">
               <span class="st-stat-chip">MITIGACIÓN ${mitigation >= 0 ? `+${mitigation}%` : `${mitigation}%`}</span>
               <span class="st-stat-chip">${sh.elemental_weakness ? `VULNERABLE A ${sh.elemental_weakness.toUpperCase()}` : 'IGNÍFUGO'}</span>
             </div>
           </div>
-          <button type="button" class="cel-action-btn ${isEq ? 'equipped-badge' : 'primary'}" data-equip-shield="${sh.id}" ${isEq ? 'disabled' : ''}>
-            ${isEq ? 'EQUIPADO' : 'EQUIPAR'}
-          </button>
+          ${!isUnlocked
+            ? `<button type="button" class="cel-action-btn locked-badge" disabled>BLOQUEADO</button>`
+            : `<button type="button" class="cel-action-btn ${isEq ? 'equipped-badge' : 'primary'}" data-equip-shield="${sh.id}" ${isEq ? 'disabled' : ''}>
+                 ${isEq ? 'EQUIPADO' : 'EQUIPAR'}
+               </button>`
+          }
         </div>
       `;
     }).join('');

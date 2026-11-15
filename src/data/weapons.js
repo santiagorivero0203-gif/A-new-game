@@ -11,9 +11,9 @@ export const WEAPONS = {
     damage: 16,
     recoveryTime: 0.16, // 160ms de recovery para fluidez en combate
     duration: 0.20,     // 200ms de ventana activa de tajo
-    knockback: 32,      // Fuerza de retroceso en píxeles
-    lungeForce: 10,     // Push-Forward hacia adelante en píxeles
-    energyOnHit: 6,     // Recarga activa de energía elemental
+    knockback: 30,      // Fuerza de retroceso en píxeles
+    lungeForce: 8,      // Push-Forward hacia adelante en píxeles
+    energyOnHit: 2,     // Recarga moderada de energía elemental por golpe
     element: 'physical',
     description: 'Espada de acero forjada para guardias y cadetes del reino.'
   },
@@ -23,9 +23,9 @@ export const WEAPONS = {
     damage: 28,
     recoveryTime: 0.12, // 120ms de recovery
     duration: 0.20,
-    knockback: 42,
-    lungeForce: 14,
-    energyOnHit: 10,
+    knockback: 40,
+    lungeForce: 12,
+    energyOnHit: 4,     // Recarga equilibrada para el filo sagrado
     element: 'physical',
     description: 'Espada ceremonial imbuida con resonancia elemental arcana.'
   }

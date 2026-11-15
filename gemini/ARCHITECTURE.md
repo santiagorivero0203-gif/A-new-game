@@ -137,3 +137,29 @@ sequenceDiagram
   MAIN->>REN: uiManager.render() [Dirty-Checked]
 ```
 
+---
+
+## 6. Actualización Táctica v2.1.0 (Resolución de Feedback y Pulido de Experiencia Móvil/Gameplay)
+
+### 6.1. Desaturación y Escalado Responsivo de UI (`ui.css`)
+- **HUD Jugador**: Escalado a `0.72` en modo táctil y `0.70` en pantallas compactas/horizontales (`max-height: 540px`).
+- **Cluster Táctil de Acciones**: Compactado a `0.78` de escala y reubicado en la esquina inferior derecha para liberar visibilidad de combate y exploración.
+- **Joystick Virtual**: Escalado a `0.80` con zona de toque optimizada.
+- **Banner de Victoria y Anuncios**: Reposicionado a `top: calc(var(--safe-top) + 48px)` con tipografía compacta, evitando tapar el avatar del héroe en el centro de la pantalla.
+
+### 6.2. Riberas y Colisiones de Agua (`Tilemap.js` y `PhysicsSystem.js`)
+- **Visual**: Supresión de patrones rectangulares discontinuos (`- - -`) en los bordes de los ríos. Transición orgánica de 3 capas: borde rocoso oscuro (`#182130`), lecho húmedo (`pal.dirtDark`) y profundidad acuática (`pal.waterDeep`).
+- **Física Estricta**: Eliminación del bypass que permitía atravesar losetas de agua (`tile === 3`) o precipicios (`tile === 2`). El puente (`tile === 4`) se preserva como la única vía de cruce válida sobre el cauce.
+
+### 6.3. Calibración Cinemática y Recurso Táctico (`PlayerStats.js`, `Player.js`, `weapons.js`)
+- **Velocidad de Movimiento**: Ajustada de `215 px/s` a `155 px/s` (caminata) y multiplicador de sprint regulado a `1.36` (anteriormente `1.62`), logrando control preciso en grillas de 32 px.
+- **Regeneración de Energía**: Reducida de `6.0/s` a `2.2/s` pasivo y de `6/10` a `2/4` por golpe exitoso, convirtiendo las habilidades elementales en recursos tácticos medidos y valiosos.
+
+### 6.4. Progresión de Inventario y Armas Bloqueadas (`EquipmentManager.js` y `UIManager.js`)
+- Implementación de un registro de desbloqueo (`unlockedWeapons`, `unlockedShields`).
+- El jugador inicia únicamente con la `training_sword` y el `wooden_shield`.
+- Armas de nivel superior (ej. `relic_blade`, `iron_pavise`) se muestran bloqueadas (`🔒 BLOQUEADA`) en el Arsenal del Santuario hasta su descubrimiento formal.
+
+### 6.5. Localización Adaptativa de Prompts Móvil (`textFormatter.js`)
+- Sustitución dinámica de atajos de teclado (`[Clic Izq / J]`, `[Clic Der / K]`, `[E]`, `[Espacio]`, etc.) por nombres de botones virtuales (`(botón ESPADA)`, `(botón FUEGO)`, `(botón USAR)`, `(botón DASH)`) cuando se detecta un dispositivo móvil o controles táctiles activos.
+

@@ -159,7 +159,6 @@ export class PhysicsSystem {
     let finalY = targetY;
 
     const originalHitbox = entity.getHitbox();
-    const currentlyInBlockedTile = this.isRectBlockedByTilemap(originalHitbox);
     const testBox = this._testBox;
     testBox.width = originalHitbox.width;
     testBox.height = originalHitbox.height;
@@ -190,7 +189,8 @@ export class PhysicsSystem {
         break;
       }
     }
-    if (!collidedX && !currentlyInBlockedTile && this.isRectBlockedByTilemap(testBox)) {
+    // Bloquear estricto contra agua (3) y acantilados (2): impide cruzar ríos fuera de puentes
+    if (!collidedX && this.isRectBlockedByTilemap(testBox)) {
       collidedX = true;
     }
 
@@ -212,7 +212,8 @@ export class PhysicsSystem {
         break;
       }
     }
-    if (!collidedY && !currentlyInBlockedTile && this.isRectBlockedByTilemap(testBox)) {
+    // Bloquear estricto contra agua (3) y acantilados (2): impide caerse de puentes o penetrar riberas
+    if (!collidedY && this.isRectBlockedByTilemap(testBox)) {
       collidedY = true;
     }
 

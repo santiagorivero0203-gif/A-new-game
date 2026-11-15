@@ -1,5 +1,6 @@
 import { Entity } from './Entity.js';
 import { CelSpriteAtlas } from '../render/CelSpriteAtlas.js';
+import { formatControlPrompts } from '../utils/textFormatter.js';
 
 /**
  * @module InteractableProp
@@ -400,6 +401,7 @@ export class InteractableProp extends Entity {
       if (player && typeof player.unlockSword === 'function') {
         player.unlockSword();
       }
+      const isMobile = context?.inputManager?.shouldShowTouchControls || (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active'));
       if (stateManager) {
         stateManager.set('has_sword', true);
         if ((stateManager.get('intro_stage') || 0) < 1) {
@@ -407,7 +409,7 @@ export class InteractableProp extends Entity {
         }
         stateManager.set(
           'level_objective',
-          'Rompe la roca agrietada [Clic Izq / J] y sigue el rastro ígneo hacia el Núcleo de Fuego'
+          formatControlPrompts('Rompe la roca agrietada [Clic Izq / J] y sigue el rastro ígneo hacia el Núcleo de Fuego', isMobile)
         );
       }
       if (context && context.audioManager) {
@@ -423,7 +425,7 @@ export class InteractableProp extends Entity {
       if (context && context.camera) {
         context.camera.shake(0.26, 0.15);
       }
-      return '¡Has empuñado la Espada del Alba! Su filo rúnico puede quebrar rocas agrietadas [Clic Izq / J].';
+      return formatControlPrompts('¡Has empuñado la Espada del Alba! Su filo rúnico puede quebrar rocas agrietadas [Clic Izq / J].', isMobile);
     }
 
     if (this.propType === 'relic_pedestal') {
@@ -438,14 +440,18 @@ export class InteractableProp extends Entity {
         const curEssence = stateManager.get('player_essence') ?? 0;
         stateManager.set('player_essence', curEssence + pedestalEssence);
       }
+      const isMobile = context?.inputManager?.shouldShowTouchControls || (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active'));
       if (stateManager) {
         stateManager.set('gauntlet_tier', Math.max(1, stateManager.get('gauntlet_tier') || 0));
         stateManager.set('equipped_power', 'Fuego');
         stateManager.set('intro_stage', 2);
-        stateManager.set('level_objective', 'Usa Fuego [Clic Der / K] para quemar las Zarzas del Puente');
+        stateManager.set(
+          'level_objective',
+          formatControlPrompts('Usa Fuego [Clic Der / K] para quemar las Zarzas del Puente', isMobile)
+        );
         stateManager.set('horde_victory_announcement', {
           title: 'NÚCLEO DE FUEGO DESPERTADO',
-          rewardText: `Ceniza Ígnea activa • Pulsa [Clic Der / K] para lanzar proyectiles de fuego (+${pedestalEssence} ✦)`
+          rewardText: formatControlPrompts(`Ceniza Ígnea activa • Pulsa [Clic Der / K] para lanzar proyectiles de fuego (+${pedestalEssence} ✦)`, isMobile)
         });
       }
       if (player) {

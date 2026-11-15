@@ -2644,3 +2644,155 @@ kbd {
     font-size: 10.5px;
   }
 }
+
+/* ============================================================================
+   6. ESTILOS DE PROGRESIÓN DE EQUIPAMIENTO: ARMAS Y ESCUDOS BLOQUEADOS
+   ============================================================================ */
+.st-equip-card.locked {
+  opacity: 0.72;
+  background: rgba(11, 18, 32, 0.76);
+  border: 2px dashed #334155;
+  box-shadow: none;
+}
+
+.st-equip-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.st-lock-pill {
+  font-family: 'Outfit', sans-serif;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.cel-action-btn.locked-badge {
+  background: #1e293b !important;
+  color: #64748b !important;
+  border-color: #334155 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.85;
+}
+
+/* ============================================================================
+   7. OPTIMIZACIÓN RESPONSIVA MÓVIL Y TOUCH: COMPACCIÓN DE HUD Y MANDOS
+   Evita la saturación visual en pantallas móviles horizontales/verticales,
+   despejando la escena para máxima legibilidad táctica del juego.
+   ============================================================================ */
+body.touch-controls-active .rpg-player-hud {
+  transform: scale(0.72);
+  transform-origin: top left;
+}
+
+body.touch-controls-active .hud-top-right-dock {
+  transform: scale(0.76);
+  transform-origin: top right;
+}
+
+body.touch-controls-active .touch-actions-cluster {
+  transform: scale(0.78);
+  transform-origin: bottom right;
+  bottom: max(6px, calc(var(--safe-bottom) - 8px));
+  right: max(6px, calc(var(--safe-right) - 8px));
+}
+
+body.touch-controls-active .touch-joystick-zone {
+  transform: scale(0.80);
+  transform-origin: bottom left;
+  bottom: max(6px, calc(var(--safe-bottom) - 8px));
+  left: max(6px, calc(var(--safe-left) - 8px));
+}
+
+body.touch-controls-active .objective-hud-tracker {
+  top: var(--safe-top);
+  left: calc(var(--safe-left) + 246px);
+  right: calc(var(--safe-right) + 144px);
+  max-width: 330px;
+  padding: 4px 10px;
+}
+
+body.touch-controls-active .objective-hud-text {
+  font-size: 10.5px;
+}
+
+body.touch-controls-active .horde-announcement-banner {
+  top: calc(var(--safe-top) + 48px);
+  max-width: 440px;
+}
+
+body.touch-controls-active .horde-banner-frame {
+  padding: 6px 14px;
+}
+
+body.touch-controls-active .horde-banner-title {
+  font-size: 13.5px;
+}
+
+body.touch-controls-active .horde-banner-sub {
+  font-size: 10px;
+}
+
+@media (max-height: 540px) {
+  .rpg-player-hud {
+    transform: scale(0.70);
+    transform-origin: top left;
+  }
+
+  .hud-top-right-dock {
+    transform: scale(0.74);
+    transform-origin: top right;
+  }
+
+  .objective-hud-tracker {
+    top: var(--safe-top);
+    left: calc(var(--safe-left) + 236px);
+    right: calc(var(--safe-right) + 136px);
+    max-width: 320px;
+    padding: 3px 9px;
+  }
+
+  .objective-hud-text {
+    font-size: 10px;
+  }
+
+  .touch-actions-cluster {
+    transform: scale(0.75);
+    transform-origin: bottom right;
+    bottom: 4px;
+    right: 4px;
+  }
+
+  .touch-joystick-zone {
+    transform: scale(0.76);
+    transform-origin: bottom left;
+    bottom: 4px;
+    left: 4px;
+  }
+
+  .horde-announcement-banner {
+    top: calc(var(--safe-top) + 42px);
+    max-width: 420px;
+  }
+
+  .horde-banner-frame {
+    padding: 5px 12px;
+  }
+
+  .horde-banner-title {
+    font-size: 12.5px;
+  }
+
+  .horde-banner-sub {
+    font-size: 9.5px;
+  }
+}
+

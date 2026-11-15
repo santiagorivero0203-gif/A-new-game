@@ -585,49 +585,64 @@ export class Tilemap {
           }
         }
 
-        // 2. Riberas escarpadas de piedra y espuma pixel-art en bordes de agua (tile === 3)
+        // 2. Riberas limpias y continuas pixel-art en bordes de agua (tile === 3)
+        // Se eliminan franjas discontinuas o guiones blancos que creaban artefactos de líneas cortadas
         if (tileId === 3) {
           if (isLand(top)) {
             ctx.fillStyle = '#182130';
             ctx.fillRect(px, py, ts, 2);
             ctx.fillStyle = pal.dirtDark;
-            ctx.fillRect(px, py + 2, ts, 3);
+            ctx.fillRect(px, py + 2, ts, 2);
             ctx.fillStyle = pal.waterDeep;
-            ctx.fillRect(px, py + 5, ts, 3);
-            ctx.fillStyle = pal.waterFoam;
-            ctx.fillRect(px + 2 + (h & 3), py + 6, 10, 2);
-            ctx.fillRect(px + 18, py + 7, 9, 1);
+            ctx.fillRect(px, py + 4, ts, 2);
           }
           if (isLand(bot)) {
             ctx.fillStyle = '#182130';
             ctx.fillRect(px, py + ts - 2, ts, 2);
             ctx.fillStyle = pal.dirtDark;
             ctx.fillRect(px, py + ts - 4, ts, 2);
-            ctx.fillStyle = pal.waterFoam;
-            ctx.fillRect(px + 4, py + ts - 6, 9, 2);
-            ctx.fillRect(px + 19, py + ts - 5, 8, 1);
+            ctx.fillStyle = pal.waterDeep;
+            ctx.fillRect(px, py + ts - 6, ts, 2);
           }
           if (isLand(left)) {
             ctx.fillStyle = '#182130';
             ctx.fillRect(px, py, 2, ts);
             ctx.fillStyle = pal.dirtDark;
-            ctx.fillRect(px + 2, py, 3, ts);
+            ctx.fillRect(px + 2, py, 2, ts);
             ctx.fillStyle = pal.waterDeep;
-            ctx.fillRect(px + 5, py, 3, ts);
-            ctx.fillStyle = pal.waterFoam;
-            ctx.fillRect(px + 6, py + 3 + ((h >> 3) & 3), 2, 8);
-            ctx.fillRect(px + 7, py + 17, 1, 9);
+            ctx.fillRect(px + 4, py, 2, ts);
           }
           if (isLand(right)) {
             ctx.fillStyle = '#182130';
             ctx.fillRect(px + ts - 2, py, 2, ts);
             ctx.fillStyle = pal.dirtDark;
-            ctx.fillRect(px + ts - 5, py, 3, ts);
+            ctx.fillRect(px + ts - 4, py, 2, ts);
             ctx.fillStyle = pal.waterDeep;
-            ctx.fillRect(px + ts - 8, py, 3, ts);
-            ctx.fillStyle = pal.waterFoam;
-            ctx.fillRect(px + ts - 7, py + 5, 2, 9);
-            ctx.fillRect(px + ts - 8, py + 19, 1, 8);
+            ctx.fillRect(px + ts - 6, py, 2, ts);
+          }
+          if (isLand(top) && isLand(left)) {
+            ctx.fillStyle = '#182130';
+            ctx.fillRect(px, py, 4, 4);
+            ctx.fillStyle = pal.dirtDark;
+            ctx.fillRect(px + 2, py + 2, 3, 3);
+          }
+          if (isLand(top) && isLand(right)) {
+            ctx.fillStyle = '#182130';
+            ctx.fillRect(px + ts - 4, py, 4, 4);
+            ctx.fillStyle = pal.dirtDark;
+            ctx.fillRect(px + ts - 5, py + 2, 3, 3);
+          }
+          if (isLand(bot) && isLand(left)) {
+            ctx.fillStyle = '#182130';
+            ctx.fillRect(px, py + ts - 4, 4, 4);
+            ctx.fillStyle = pal.dirtDark;
+            ctx.fillRect(px + 2, py + ts - 5, 3, 3);
+          }
+          if (isLand(bot) && isLand(right)) {
+            ctx.fillStyle = '#182130';
+            ctx.fillRect(px + ts - 4, py + ts - 4, 4, 4);
+            ctx.fillStyle = pal.dirtDark;
+            ctx.fillRect(px + ts - 5, py + ts - 5, 3, 3);
           }
           // Sombra del puente proyectada sobre el agua inmediatamente al sur (top === 4)
           if (top === 4) {
