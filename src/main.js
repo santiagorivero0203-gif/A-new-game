@@ -317,30 +317,39 @@ async function initAssets() {
 tilemap.build(null);
 initAssets();
 
+/** Objeto de contexto reutilizable Zero-GC para sistemas, entidades e interacciones */
+const _gameContext = {
+  deltaTime: 0.016,
+  input: inputManager,
+  state: stateManager,
+  physics: physicsSystem,
+  player,
+  camera,
+  entityManager,
+  combatManager,
+  equipmentManager,
+  skillTreeManager,
+  waveManager,
+  audioManager,
+  vfxRenderer,
+  uiManager,
+  engine: null,
+  tilemap: null,
+  time: 0,
+  ctx: null
+};
+
 /**
- * Construye el objeto de contexto unificado para sistemas, props e interacciones.
+ * Actualiza y retorna el objeto de contexto unificado (Zero-GC) para sistemas, props e interacciones.
  * @param {number} [deltaTime=0.016]
  */
 function buildGameContext(deltaTime = 0.016) {
-  return {
-    deltaTime,
-    input: inputManager,
-    state: stateManager,
-    physics: physicsSystem,
-    player,
-    camera,
-    entityManager,
-    combatManager,
-    equipmentManager,
-    skillTreeManager,
-    waveManager,
-    audioManager,
-    vfxRenderer,
-    uiManager,
-    engine,
-    time: engine ? engine.lastTime : 0,
-    ctx: null
-  };
+  _gameContext.deltaTime = deltaTime;
+  _gameContext.engine = engine || null;
+  _gameContext.tilemap = tilemap || null;
+  _gameContext.time = engine ? engine.lastTime : 0;
+  _gameContext.ctx = null;
+  return _gameContext;
 }
 
 let simClockSec = 0;
@@ -371,6 +380,11 @@ function update(deltaTime) {
   }
   stateManager.set('player_max_health', player.max_health);
 
+  // Evaluar interacción con hierba alta antes de actualizar enemigos para evitar retraso de 1 frame en sigilo
+  if (foliageSystem && player && !player.isDead) {
+    foliageSystem.updateInteraction(player);
+  }
+
   combatManager.update(gameContext);
   entityManager.update(gameContext);
   waveManager.update(gameContext);
@@ -378,7 +392,6 @@ function update(deltaTime) {
   updateCaveOrbIntroSequence(deltaTime);
   vfxRenderer.update(deltaTime, combatManager.activeAttacks);
   vfxRenderer.updateBiomeWeather(deltaTime, camera, currentWorldMeta.weather || 'pollen');
-  foliageSystem.updateInteraction(player);
 
   _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
   _playerCenterCache.y = Math.round(player.pos.y) + player.height * 0.5;
@@ -400,7 +413,7 @@ function update(deltaTime) {
 
   for (let i = 0; i < rawEntities.length; i++) {
     const ent = rawEntities[i];
-    if (!ent || !ent.active || ent.isDead || !ent.hasTag('enemy')) continue;
+    if (!ent || ent.active === false || ent.isDead || !ent.hasTag('enemy')) continue;
     const ex = ent.pos.x + ent.width / 2;
     const ey = ent.pos.y + ent.height / 2;
     const dx = ex - _playerCenterCache.x;
@@ -450,11 +463,12 @@ function update(deltaTime) {
   audioManager.setCriticalAudioState(isCriticalAudio);
 }
 
-// 7. Ciclo de Dibujado (Render con Frustum Culling)
+// 7. Ciclo de Dibujado (Render con Frustum Culling y capa de suelo previa al Y-Sort)
 function render(deltaTime) {
   renderer.begin(camera);
   tilemap.render(renderer.ctx, camera);
   const sortedEntities = entityManager.getEntities();
+  renderer.drawEnemyGroundDecals(sortedEntities, camera);
   renderer.drawCanopyShadows(sortedEntities, camera, simClockSec);
   renderer.drawEntities(sortedEntities, camera, lightManager);
   vfxRenderer.render(renderer.ctx, combatManager.activeAttacks, player);

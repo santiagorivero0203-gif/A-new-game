@@ -90,34 +90,54 @@ export class PhysicsSystem {
 
   /**
    * Determina si existe Línea de Visión (Line of Sight) directa entre dos puntos del mundo
-   * sin obstáculos sólidos interpuestos (extraído y optimizado de The-last-endo).
+   * sin obstáculos sólidos ni acantilados interpuestos.
    * @param {number} x1 Coordenada X origen
    * @param {number} y1 Coordenada Y origen
    * @param {number} x2 Coordenada X destino
    * @param {number} y2 Coordenada Y destino
-   * @returns {boolean} True si no hay muros u obstáculos bloqueando la vista
+   * @returns {boolean} True si no hay muros, pilares o acantilados bloqueando la vista
    */
   hasLineOfSight(x1, y1, x2, y2) {
-    const solids = this.entityManager.getSolids();
-    if (!solids || solids.length === 0) return true;
-
     const dx = x2 - x1;
     const dy = y2 - y1;
     const dist = Math.hypot(dx, dy);
     if (dist <= 18) return true;
 
-    // Muestreo con paso de 20 px
-    const steps = Math.ceil(dist / 20);
+    const solids = this.entityManager ? this.entityManager.getSolids() : null;
+    const hasTilemap = Boolean(this.tilemap && typeof this.tilemap.getTile === 'function');
+    if ((!solids || solids.length === 0) && !hasTilemap) return true;
+
+    const tileSize = hasTilemap ? (this.tilemap.tileSize || 32) : 32;
+
+    // Muestreo continuo con paso de 16 px para no atravesar pilares o muros delgados
+    const steps = Math.ceil(dist / 16);
     const stepX = dx / steps;
     const stepY = dy / steps;
 
     for (let i = 1; i < steps; i++) {
       const cx = x1 + stepX * i;
       const cy = y1 + stepY * i;
-      for (let s = 0; s < solids.length; s++) {
-        const b = solids[s];
-        if (cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height) {
+
+      // Los acantilados elevados (tile === 2) bloquean la visión, mientras el agua/puentes no
+      if (hasTilemap) {
+        const col = Math.floor(cx / tileSize);
+        const row = Math.floor(cy / tileSize);
+        if (this.tilemap.getTile(col, row) === 2) {
           return false;
+        }
+      }
+
+      if (solids && solids.length > 0) {
+        for (let s = 0; s < solids.length; s++) {
+          const b = solids[s];
+          if (!b || b.isDead || b.isConsumed) continue;
+          if (typeof b.hasTag === 'function' && (b.hasTag('enemy') || b.hasTag('player'))) {
+            continue;
+          }
+          const hb = typeof b.getHitbox === 'function' ? b.getHitbox() : b;
+          if (hb && cx >= hb.x && cx <= hb.x + hb.width && cy >= hb.y && cy <= hb.y + hb.height) {
+            return false;
+          }
         }
       }
     }

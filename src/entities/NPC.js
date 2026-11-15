@@ -153,14 +153,13 @@ export class NPC extends Entity {
       return;
     }
 
-    // 1. Sombra elíptica en el suelo
+    // 1. Sombra pixel-art escalonada en el suelo (sin borrosidad ni duplicación desde Renderer)
     ctx.fillStyle = 'rgba(11, 16, 29, 0.30)';
-    ctx.beginPath();
-    ctx.ellipse(x + 16, y + 30, 11.5, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(x + 6, y + 28, 20, 4);
+    ctx.fillRect(x + 4, y + 29, 24, 2);
 
     // Ligero temblor si está acorralado por enemigos
-    const panicOffsetX = this.isUnderThreat ? Math.sin(this.animClock * 6) * 1.2 : 0;
+    const panicOffsetX = this.isUnderThreat ? Math.round(Math.sin(this.animClock * 6) * 1.2) : 0;
     const bobY = Math.round(Math.sin(this.animClock * 0.8) * 1);
 
     // 2. Sprite 2D Cel-Shaded horneado ('tarak' o 'valerio')

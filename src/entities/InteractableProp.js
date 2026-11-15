@@ -588,11 +588,29 @@ export class InteractableProp extends Entity {
   }
 
   /**
-   * Renderizado 2D Cel-Shaded de alta limpieza con delineado de tinta e indicadores contextuales.
+   * Dibuja una sombra pixel-art escalonada bajo props terrestres visibles
+   * (sustituye las sombras genéricas duplicadas en Renderer).
+   * @private
+   */
+  _drawGroundShadow(ctx, x, y) {
+    if (this.propType === 'cave_mouth' || this.propType === 'world_portal') return;
+    const sw = Math.min(44, Math.max(20, Math.round(this.width * 0.62)));
+    const sx = Math.round(x + this.width * 0.5 - sw * 0.5);
+    const sy = Math.round(y + this.height - 6);
+    ctx.fillStyle = 'rgba(11, 16, 29, 0.28)';
+    ctx.fillRect(sx, sy, sw, 3);
+    ctx.fillRect(sx + 3, sy + 3, Math.max(10, sw - 6), 1);
+  }
+
+  /**
+   * Renderizado 2D Pixel-Art 16-bit de alta limpieza con indicadores contextuales y sombras únicas.
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
     if (this.isDead) return;
+    if ((this.propType === 'cracked_rock' || this.propType === 'burnable_vines') && this.isConsumed) {
+      return;
+    }
 
     const x = Math.round(this.pos.x);
     const y = Math.round(this.pos.y);
@@ -600,14 +618,13 @@ export class InteractableProp extends Entity {
     if (this.propType === 'cave_mouth') {
       const spr = CelSpriteAtlas.getCaveMouthSprite();
       if (spr) ctx.drawImage(spr, x, y);
-      // Halo místico tenue saliendo de la boca de la cueva
       const pulse = 0.14 + Math.sin(this.animClock) * 0.05;
       ctx.fillStyle = `rgba(192, 132, 252, ${pulse})`;
-      ctx.beginPath();
-      ctx.ellipse(x + 96, y + 122, 34, 16, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(x + 62, y + 114, 68, 18);
       return;
     }
+
+    this._drawGroundShadow(ctx, x, y);
 
     if (this.propType === 'cliff_rock' || this.propType === 'crystal_rock') {
       const spr = CelSpriteAtlas.getCliffRockSprite(this.propType === 'crystal_rock');
@@ -629,9 +646,7 @@ export class InteractableProp extends Entity {
         ctx.save();
         ctx.globalAlpha = pulse;
         ctx.fillStyle = this.runeColor;
-        ctx.beginPath();
-        ctx.ellipse(x + 28, y + 38, 26, 26, 0, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(x + 12, y + 16, 32, 42);
         ctx.restore();
       }
     } else if (this.propType === 'world_portal') {
@@ -643,7 +658,7 @@ export class InteractableProp extends Entity {
       ctx.globalAlpha = pulse;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(x + 38, y + 40, 29 + Math.sin(this.animClock) * 2, 19, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 38, y + 40, Math.round(29 + Math.sin(this.animClock) * 2), 19, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     } else if (this.propType === 'cracked_rock') {
@@ -669,89 +684,15 @@ export class InteractableProp extends Entity {
 
   /** @private */
   _drawCrackedRock(ctx, x, y) {
-    const isHit = this.flashTimer > 0;
-    const key = isHit ? 'prop_cracked_rock_hit' : 'prop_cracked_rock_v2';
-    const sprite = CelSpriteAtlas.getOrBake(key, this.width, this.height, (sctx, w, h) => {
-      const rows = [
-        [24, 18, 8],
-        [20, 28, 10],
-        [15, 36, 13],
-        [12, 42, 16],
-        [10, 45, 20],
-        [8, 49, 26],
-        [7, 51, 36],
-        [6, 52, 48]
-      ];
-      // Silueta principal pixelada
-      for (let yPos = 8; yPos <= 48; yPos++) {
-        let minX = 6;
-        let span = 52;
-        for (let r = 0; r < rows.length; r++) {
-          if (yPos <= rows[r][2]) {
-            minX = rows[r][0];
-            span = rows[r][1];
-            break;
-          }
-        }
-        sctx.fillStyle = isHit ? '#ffffff' : (yPos >= 44 ? '#334155' : '#64748b');
-        sctx.fillRect(minX, yPos, span, 1);
-      }
-      if (!isHit) {
-        // Plano de luz superior izquierdo y sombra lateral derecha
-        sctx.fillStyle = '#94a3b8';
-        sctx.fillRect(14, 14, 18, 6);
-        sctx.fillRect(10, 20, 12, 8);
-        sctx.fillStyle = '#475569';
-        sctx.fillRect(42, 18, 12, 24);
-        // Grietas luminosas ámbar en escalón pixel art
-        sctx.fillStyle = '#facc15';
-        sctx.fillRect(28, 12, 2, 7);
-        sctx.fillRect(26, 19, 2, 8);
-        sctx.fillRect(28, 27, 4, 2);
-        sctx.fillRect(32, 29, 3, 7);
-        sctx.fillRect(30, 36, 3, 9);
-        sctx.fillRect(17, 29, 9, 2);
-        sctx.fillStyle = '#fef08a';
-        sctx.fillRect(28, 13, 1, 5);
-        sctx.fillRect(32, 30, 1, 5);
-      }
-    });
-    ctx.drawImage(sprite, Math.round(x), Math.round(y));
+    const sprite = CelSpriteAtlas.getCrackedRockSprite(this.flashTimer > 0);
+    if (sprite) ctx.drawImage(sprite, Math.round(x), Math.round(y));
   }
 
   /** @private */
   _drawBurnableVines(ctx, x, y) {
     const state = this.flashTimer > 0 ? 'hit' : (this.isBurning ? 'burn' : 'idle');
-    const sprite = CelSpriteAtlas.getOrBake(`prop_burnable_vines_${state}_v2`, this.width, this.height, (sctx) => {
-      const bodyColor = state === 'hit' ? '#fca5a5' : (state === 'burn' ? '#ea580c' : '#1d5c38');
-      const lightColor = state === 'hit' ? '#fecaca' : (state === 'burn' ? '#fb923c' : '#6ebd30');
-      const thornColor = state === 'burn' ? '#fef08a' : '#e11d48';
-
-      for (let i = 0; i < 4; i++) {
-        const cx = 36 + (i % 2 === 0 ? -2 : 2);
-        const cy = 20 + i * 20;
-        CelSpriteAtlas._inkEllipse(sctx, cx, cy, 26, 12, bodyColor, '#050811', 1);
-        sctx.fillStyle = lightColor;
-        sctx.fillRect(cx - 14, cy - 6, 22, 4);
-      }
-
-      const thorns = [
-        [18, 22], [50, 28], [24, 48],
-        [48, 56], [20, 74], [46, 78]
-      ];
-      for (let i = 0; i < thorns.length; i++) {
-        const tx = thorns[i][0];
-        const ty = thorns[i][1];
-        sctx.fillStyle = '#050811';
-        sctx.fillRect(tx - 4, ty + 1, 9, 4);
-        sctx.fillRect(tx - 2, ty - 2, 5, 3);
-        sctx.fillRect(tx - 1, ty - 5, 3, 3);
-        sctx.fillStyle = thornColor;
-        sctx.fillRect(tx - 3, ty + 2, 7, 2);
-        sctx.fillRect(tx - 1, ty - 2, 3, 4);
-        sctx.fillRect(tx, ty - 4, 1, 2);
-      }
-    });
+    const sprite = CelSpriteAtlas.getBurnableVinesSprite(state);
+    if (!sprite) return;
 
     if (this.isBurning) {
       ctx.save();
@@ -819,28 +760,8 @@ export class InteractableProp extends Entity {
   _drawStarterSword(ctx, x, y) {
     const rx = Math.round(x);
     const ry = Math.round(y);
-    const stoneBase = CelSpriteAtlas.getOrBake('prop_starter_sword_stone_v1', this.width, this.height, (sctx) => {
-      // Base de piedra rúnica musgosa
-      CelSpriteAtlas._inkEllipse(sctx, 24, 45, 19, 9, '#475569', '#050811', 1);
-      sctx.fillStyle = '#64748b';
-      sctx.fillRect(10, 39, 28, 6);
-      sctx.fillStyle = '#94a3b8';
-      sctx.fillRect(14, 38, 20, 3);
-      // Musgo verde lateral
-      sctx.fillStyle = '#1d5c38';
-      sctx.fillRect(7, 42, 7, 5);
-      sctx.fillRect(34, 41, 7, 5);
-      sctx.fillStyle = '#6ebd30';
-      sctx.fillRect(9, 41, 4, 2);
-      sctx.fillRect(35, 40, 4, 2);
-      // Ranura central e incrustaciones rúnicas cian
-      sctx.fillStyle = '#0f172a';
-      sctx.fillRect(21, 39, 6, 4);
-      sctx.fillStyle = '#38bdf8';
-      sctx.fillRect(15, 43, 3, 2);
-      sctx.fillRect(30, 43, 3, 2);
-    });
-    ctx.drawImage(stoneBase, rx, ry);
+    const stoneBase = CelSpriteAtlas.getStarterSwordStoneSprite();
+    if (stoneBase) ctx.drawImage(stoneBase, rx, ry);
 
     if (!this.isConsumed) {
       const pulse = 0.22 + Math.sin(this.animClock * 2.1) * 0.1;
@@ -853,32 +774,8 @@ export class InteractableProp extends Entity {
       ctx.fillRect(rx + 22, ry - 18, 4, 54);
       ctx.restore();
 
-      const bladeSprite = CelSpriteAtlas.getOrBake('prop_starter_sword_blade_v1', this.width, this.height, (bctx) => {
-        // Pomo y empuñadura azul/dorada
-        bctx.fillStyle = '#050811';
-        bctx.fillRect(21, 5, 6, 13);
-        bctx.fillStyle = '#38bdf8';
-        bctx.fillRect(22, 6, 4, 3);
-        bctx.fillStyle = '#1e3a8a';
-        bctx.fillRect(22, 9, 4, 8);
-        // Guarda dorada del Alba
-        bctx.fillStyle = '#050811';
-        bctx.fillRect(14, 15, 20, 6);
-        bctx.fillStyle = '#eab308';
-        bctx.fillRect(15, 16, 18, 4);
-        bctx.fillStyle = '#fef08a';
-        bctx.fillRect(16, 16, 16, 2);
-        // Hoja luminosa clavada en vertical
-        bctx.fillStyle = '#050811';
-        bctx.fillRect(20, 21, 8, 21);
-        bctx.fillStyle = '#cbd5e1';
-        bctx.fillRect(21, 21, 6, 20);
-        bctx.fillStyle = '#f8fafc';
-        bctx.fillRect(22, 21, 2, 19);
-        bctx.fillStyle = '#38bdf8';
-        bctx.fillRect(24, 23, 2, 14);
-      });
-      ctx.drawImage(bladeSprite, rx, ry + hover);
+      const bladeSprite = CelSpriteAtlas.getStarterSwordBladeSprite();
+      if (bladeSprite) ctx.drawImage(bladeSprite, rx, ry + hover);
 
       // Destello pixelado de 4 puntas junto a la guarda
       const gl = (Math.floor(this.animClock * 3) % 2 === 0);

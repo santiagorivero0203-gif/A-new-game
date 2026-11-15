@@ -51,14 +51,39 @@ export class Renderer {
   }
 
   /**
-   * Dibuja la lista de entidades en pantalla aplicando Frustum Culling de cámara
-   * para descartar entidades fuera del campo visual y sostener 60/120 FPS estables.
-   * Se asume que vienen ordenadas por Y-Sort desde el EntityManager.
-   * @param {Array<import('../entities/Entity.js').Entity>} entities
+   * Renderiza los conos de visión y telégrafos terrestres de enemigos visibles en la capa de suelo,
+   * ANTES de dibujar cuerpos Y-Sort, asegurando que queden bajo arbustos, props y personajes.
+   * @param {Array<Object>} entities
    * @param {import('./Camera.js').Camera|null} [camera=null]
    */
+  drawEnemyGroundDecals(entities, camera = null) {
+    const bounds = (camera && typeof camera.getVisibleWorldBounds === 'function')
+      ? camera.getVisibleWorldBounds(240)
+      : null;
+
+    const ctx = this.ctx;
+    for (let i = 0; i < entities.length; i++) {
+      const ent = entities[i];
+      if (!ent || ent.active === false || ent.isDead || typeof ent.drawVisionCone !== 'function') {
+        continue;
+      }
+      if (bounds) {
+        if (
+          ent.pos.x + ent.width < bounds.minX ||
+          ent.pos.x > bounds.maxX ||
+          ent.pos.y + ent.height < bounds.minY ||
+          ent.pos.y > bounds.maxY
+        ) {
+          continue;
+        }
+      }
+      ent.drawVisionCone(ctx);
+    }
+  }
+
   /**
    * Renderiza entidades ordenadas por Y aplicando Frustum Culling de cámara.
+   * Cada entidad dibuja su propia sombra a medida, eliminando sombras genéricas duplicadas.
    * @param {Array<Object>} entities
    * @param {import('./Camera.js').Camera|null} [camera=null]
    * @param {import('./LightManager.js').LightManager|null} [lightManager=null]
@@ -71,6 +96,8 @@ export class Renderer {
     const ctx = this.ctx;
     for (let i = 0; i < entities.length; i++) {
       const ent = entities[i];
+      if (!ent || ent.active === false) continue;
+
       if (bounds) {
         if (
           ent.pos.x + ent.width < bounds.minX ||
@@ -80,27 +107,6 @@ export class Renderer {
         ) {
           continue;
         }
-      }
-
-      const tags = ent.tags || [];
-      let skipShadow = ent.propType === 'cave_mouth' || ent.propType === 'world_portal';
-      if (!skipShadow) {
-        for (let t = 0; t < tags.length; t++) {
-          const tag = tags[t];
-          if (tag === 'tree' || tag === 'house' || tag === 'terrain_barrier') {
-            skipShadow = true;
-            break;
-          }
-        }
-      }
-
-      if (!skipShadow) {
-        const sw = Math.min(34, Math.max(16, Math.round(ent.width * 0.56)));
-        const sx = Math.round(ent.pos.x + ent.width * 0.5 - sw * 0.5);
-        const sy = Math.round(ent.pos.y + ent.height - 3);
-        ctx.fillStyle = 'rgba(11, 16, 35, 0.28)';
-        ctx.fillRect(sx, sy, sw, 2);
-        ctx.fillRect(sx + 2, sy + 2, Math.max(8, sw - 4), 1);
       }
 
       ent.draw(ctx);

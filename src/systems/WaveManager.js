@@ -128,6 +128,14 @@ export class WaveManager {
   }
 
   /**
+   * Indica si existe una oleada de horda actualmente activa o invocándose.
+   * @returns {boolean}
+   */
+  get isWaveActive() {
+    return Boolean(this.isStarted && (this.state === 'ACTIVE' || this.state === 'SPAWNING'));
+  }
+
+  /**
    * Reinicia el gestor de oleadas y limpia enemigos activos al viajar a otro bioma o mundo.
    * @param {{x: number, y: number}|null} [arenaCenter=null]
    */
@@ -293,6 +301,11 @@ export class WaveManager {
       enemy.tags.push('wave_enemy');
       enemy.noRespawn = true;
       enemy.respawnTimer = 999999; // Gestionado exclusivamente por WaveManager
+
+      // Orientar inicialmente al enemigo hacia el centro táctico de la arena
+      if (this.arenaCenter && typeof enemy._faceVector === 'function') {
+        enemy._faceVector(this.arenaCenter.x - spawnX, this.arenaCenter.y - spawnY, 1.0);
+      }
 
       if (entData.hasWoodenShield) {
         enemy.hasWoodenShield = true;

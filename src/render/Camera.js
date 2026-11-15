@@ -74,6 +74,8 @@ export class Camera {
 
     /** @type {Vector2} Desplazamiento auxiliar en caché */
     this.lookaheadOffset = new Vector2(0, 0);
+    /** @type {Vector2} Desplazamiento táctico suavizado hacia foco de combate (Zero-GC) */
+    this._combatLeadOffset = new Vector2(0, 0);
     /** @type {number} Reloj determinista para oscilación pseudo-Perlin del shake */
     this._noiseClock = 0;
 
@@ -146,6 +148,7 @@ export class Camera {
     if (!pos) return;
     this.focusPos.set(pos.x, pos.y);
     this._camAnchorPos.set(pos.x, pos.y);
+    this._combatLeadOffset.set(0, 0);
     this.pos.set(pos.x, pos.y);
     this._initializedFocus = true;
     this._inCinematic = false;
@@ -217,24 +220,46 @@ export class Camera {
       this.focusPos.y = targetPos.y + this.deadzoneHalfHeight;
     }
 
-    // 2. Resolver foco cinemático vs retorno suave / seguimiento directo de zona muerta
+    // 2. Calcular desplazamiento táctico acotado hacia el centroide de combate (si aplica)
+    if (!this.cinematicTarget && combatFocusPos) {
+      const rawLeadX = (combatFocusPos.x - targetPos.x) * 0.18;
+      const rawLeadY = (combatFocusPos.y - targetPos.y) * 0.18;
+      const clampedX = Math.max(-24, Math.min(24, rawLeadX));
+      const clampedY = Math.max(-18, Math.min(18, rawLeadY));
+      const leadBlend = 1 - Math.exp(-6.5 * dt);
+      this._combatLeadOffset.x += (clampedX - this._combatLeadOffset.x) * leadBlend;
+      this._combatLeadOffset.y += (clampedY - this._combatLeadOffset.y) * leadBlend;
+    } else if (Math.abs(this._combatLeadOffset.x) > 0.05 || Math.abs(this._combatLeadOffset.y) > 0.05) {
+      const decayBlend = 1 - Math.exp(-8.0 * dt);
+      this._combatLeadOffset.x *= (1 - decayBlend);
+      this._combatLeadOffset.y *= (1 - decayBlend);
+    } else {
+      this._combatLeadOffset.set(0, 0);
+    }
+
+    // 3. Resolver foco cinemático vs retorno suave / seguimiento directo de zona muerta
     if (this.cinematicTarget) {
       const f = 1 - Math.exp(-this.cinematicLerpSpeed * dt);
       this._camAnchorPos.x += (this.cinematicTarget.x - this._camAnchorPos.x) * f;
       this._camAnchorPos.y += (this.cinematicTarget.y - this._camAnchorPos.y) * f;
       this._inCinematic = true;
     } else if (this._inCinematic) {
-      const dist = Math.hypot(this._camAnchorPos.x - this.focusPos.x, this._camAnchorPos.y - this.focusPos.y);
+      const targetAnchorX = this.focusPos.x + this._combatLeadOffset.x;
+      const targetAnchorY = this.focusPos.y + this._combatLeadOffset.y;
+      const dist = Math.hypot(this._camAnchorPos.x - targetAnchorX, this._camAnchorPos.y - targetAnchorY);
       if (dist > 2) {
         const retF = 1 - Math.exp(-14 * dt);
-        this._camAnchorPos.x += (this.focusPos.x - this._camAnchorPos.x) * retF;
-        this._camAnchorPos.y += (this.focusPos.y - this._camAnchorPos.y) * retF;
+        this._camAnchorPos.x += (targetAnchorX - this._camAnchorPos.x) * retF;
+        this._camAnchorPos.y += (targetAnchorY - this._camAnchorPos.y) * retF;
       } else {
-        this._camAnchorPos.set(this.focusPos.x, this.focusPos.y);
+        this._camAnchorPos.set(targetAnchorX, targetAnchorY);
         this._inCinematic = false;
       }
     } else {
-      this._camAnchorPos.set(this.focusPos.x, this.focusPos.y);
+      this._camAnchorPos.set(
+        this.focusPos.x + this._combatLeadOffset.x,
+        this.focusPos.y + this._combatLeadOffset.y
+      );
     }
 
     this.pos.set(this._camAnchorPos.x, this._camAnchorPos.y);

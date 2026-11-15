@@ -558,8 +558,8 @@ export class InputManager {
     // 3.6 Botón de Curación Milenaria del Guante
     bindBtn('touch-btn-heal', () => { this.isHealPressed = true; }, () => { this.isHealPressed = false; }, 'heal');
 
-    // 3.7 Botón de Sprint / Carrera con Resistencia
-    bindBtn('touch-btn-sprint', () => { this.isSprintPressed = true; }, () => { this.isSprintPressed = false; }, 'sprint');
+    // 3.7 Botón de Sprint / Carrera con Resistencia (acción continua mientras se mantiene pulsado)
+    bindBtn('touch-btn-sprint', () => { this.isSprintPressed = true; }, () => { this.isSprintPressed = false; });
 
     // 3.8 Botón de Sigilo / Agacharse en Grama Alta
     bindBtn('touch-btn-stealth', () => { this.isStealthPressed = true; }, () => { this.isStealthPressed = false; }, 'stealth');

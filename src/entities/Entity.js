@@ -25,6 +25,9 @@ export class Entity {
     /** @type {number} */
     this.height = height;
 
+    /** @type {boolean} Indica si la entidad participa activamente en la simulación y evaluación táctica */
+    this.active = true;
+
     /** @type {string} Color de placeholder para renderizado base */
     this.color = 'gray';
 

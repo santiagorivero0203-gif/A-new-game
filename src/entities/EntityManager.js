@@ -23,6 +23,18 @@ export class EntityManager {
 
     /** @type {boolean} Bandera de reordenamiento Y-Sort bajo demanda */
     this._sortedDirty = true;
+
+    /** @type {boolean} Bandera de reconstrucción del buffer visible cuando cambia la colección */
+    this._bufferDirty = true;
+  }
+
+  /**
+   * Indica si la entidad es un colisionador invisible puramente físico (sin representación gráfica).
+   * @param {import('./Entity.js').Entity} entity
+   * @returns {boolean}
+   */
+  _isRenderHidden(entity) {
+    return Boolean(entity && entity.tags && entity.tags.includes('terrain_barrier'));
   }
 
   /**
@@ -31,10 +43,13 @@ export class EntityManager {
    */
   addEntity(entity) {
     this.entities.push(entity);
-    this._sortedBuffer.push(entity);
+    if (!this._isRenderHidden(entity)) {
+      this._sortedBuffer.push(entity);
+    }
     this._solidsCache = null;
     this._tagCache.clear();
     this._sortedDirty = true;
+    this._bufferDirty = true;
   }
 
   /**
@@ -50,6 +65,7 @@ export class EntityManager {
       this._solidsCache = null;
       this._tagCache.clear();
       this._sortedDirty = true;
+      this._bufferDirty = true;
     }
   }
 
@@ -85,22 +101,29 @@ export class EntityManager {
   }
 
   /**
-   * Retorna las entidades ordenadas por profundidad (Y-Sorting) reutilizando el buffer interno.
-   * Solo reordena cuando `_sortedDirty` está activo para evitar `.sort()` redundantes por fotograma.
+   * Retorna las entidades visibles ordenadas por profundidad (Y-Sorting) reutilizando el buffer interno.
+   * Excluye barreras invisibles (`terrain_barrier`) y precalcula `_sortY` en O(N) para acelerar `.sort()`.
    * @returns {Array<import('./Entity.js').Entity>}
    */
   getEntities() {
-    if (this._sortedBuffer.length !== this.entities.length) {
-      this._sortedBuffer = this.entities.slice();
+    if (this._bufferDirty) {
+      this._sortedBuffer.length = 0;
+      for (let i = 0; i < this.entities.length; i++) {
+        const ent = this.entities[i];
+        if (!this._isRenderHidden(ent)) {
+          this._sortedBuffer.push(ent);
+        }
+      }
+      this._bufferDirty = false;
       this._sortedDirty = true;
     }
 
     if (this._sortedDirty) {
-      this._sortedBuffer.sort((a, b) => {
-        const aBottom = a.pos.y + a.hitbox.offsetY + a.hitbox.height;
-        const bBottom = b.pos.y + b.hitbox.offsetY + b.hitbox.height;
-        return aBottom - bBottom;
-      });
+      for (let i = 0; i < this._sortedBuffer.length; i++) {
+        const e = this._sortedBuffer[i];
+        e._sortY = e.pos.y + e.hitbox.offsetY + e.hitbox.height;
+      }
+      this._sortedBuffer.sort((a, b) => a._sortY - b._sortY);
       this._sortedDirty = false;
     }
 
@@ -151,9 +174,10 @@ export class EntityManager {
     if (player) {
       this.entities.push(player);
     }
-    this._sortedBuffer = this.entities.slice();
+    this._sortedBuffer.length = 0;
     this._solidsCache = null;
     this._tagCache.clear();
     this._sortedDirty = true;
+    this._bufferDirty = true;
   }
 }

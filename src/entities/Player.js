@@ -111,8 +111,9 @@ export class Player extends Entity {
     this._ghostPool = [];
     this._ghostSpawnAccum = 0;
 
-    // --- Animación Procedural (Squash & Stretch + Bobbing) ---
+    // --- Animación Procedural (Squash & Stretch + Bobbing + Reloj determinista) ---
     this.walkCycle = 0;
+    this.animClock = 0;
     this.scaleX = 1.0;
     this.scaleY = 1.0;
 
@@ -712,6 +713,11 @@ export class Player extends Entity {
       if (isStealthStrike) {
         this.isProne = false;
         this.isStealthHidden = false;
+        if (context && context.state) {
+          context.state.set('player_is_prone', false);
+          context.state.set('player_is_stealth', false);
+          context.state.set('player_stealth_hidden', false);
+        }
       }
 
       const initialHitbox = isWhirlwind
@@ -872,7 +878,8 @@ export class Player extends Entity {
       }
     }
 
-    // Relajar Squash & Stretch elásticamente hacia (1, 1)
+    // Relajar Squash & Stretch elásticamente hacia (1, 1) y avanzar reloj determinista de render
+    this.animClock += deltaTime;
     const relax = Math.min(1, deltaTime * 14);
     this.scaleX += (1.0 - this.scaleX) * relax;
     this.scaleY += (1.0 - this.scaleY) * relax;
@@ -995,6 +1002,13 @@ export class Player extends Entity {
       // 1.5 Alternar Sigilo / Cuerpo a Tierra (Prone) y Gestión de Sprint con Resistencia
       if (input.isStealthPressed) {
         this.isProne = !this.isProne;
+        // Sincronizar sigilo en el mismo fotograma para respuesta inmediata de HUD e IA
+        this.isStealthHidden = Boolean(this.inTallGrass && this.isProne);
+        if (isContext && contextOrDt.state) {
+          contextOrDt.state.set('player_is_prone', this.isProne);
+          contextOrDt.state.set('player_is_stealth', this.isStealthHidden);
+          contextOrDt.state.set('player_stealth_hidden', this.isStealthHidden);
+        }
         if (typeof input.consumeStealth === 'function') input.consumeStealth();
       }
 
@@ -1396,6 +1410,7 @@ export class Player extends Entity {
       context.state.set('player_stamina', this.stamina);
       context.state.set('player_max_stamina', this.max_stamina);
       context.state.set('player_is_stealth', this.isStealthHidden);
+      context.state.set('player_stealth_hidden', this.isStealthHidden);
       context.state.set('player_is_prone', this.isProne);
       context.state.set('player_is_sprinting', this.isSprinting);
     }
@@ -1426,8 +1441,8 @@ export class Player extends Entity {
       ctx.restore();
     }
 
-    // Parpadeo sutil durante fotogramas de invulnerabilidad post-daño (no durante Dash limpio)
-    if (this.hasTag('iframe') && !this.isDashing && Math.floor(performance.now() / 65) % 2 === 0) {
+    // Parpadeo sutil determinista durante fotogramas de invulnerabilidad post-daño (sin performance.now())
+    if (this.hasTag('iframe') && !this.isDashing && Math.floor(this.animClock * 15) % 2 === 0) {
       ctx.save();
       ctx.globalAlpha = 0.45;
       this._drawCharacterBody(ctx);
@@ -1439,8 +1454,8 @@ export class Player extends Entity {
   }
 
   /**
-   * Dibuja el cuerpo 2D Cel-Shaded de Santi (fiel a las cinemáticas) aplicando Squash & Stretch,
-   * animación de zancada, color dinámico del Guantelete y hoja direccional de espada.
+   * Dibuja el cuerpo 2D Pixel-Art de Santi con sombra propia nítida, postura agachada entera
+   * (`isProne` sin escalado fraccionario borroso), color dinámico del Guantelete y espada.
    * @private
    */
   _drawCharacterBody(ctx) {
@@ -1452,22 +1467,23 @@ export class Player extends Entity {
       return;
     }
 
+    // 1. Sombra pixel-art propia bajo los pies de Santi
+    ctx.fillStyle = this.isStealthHidden ? 'rgba(20, 83, 45, 0.35)' : 'rgba(11, 16, 29, 0.32)';
+    ctx.fillRect(x + 8, y + 28, 16, 3);
+    ctx.fillRect(x + 10, y + 27, 12, 5);
+
     const isMoving = this.fsmState === 'STATE_MOVE';
     const bobY = isMoving ? Math.round(Math.abs(Math.sin(this.walkCycle)) * -2) : 0;
+    const proneYOffset = this.isProne ? 4 : 0;
     const stepPhase = Math.floor(this.walkCycle * 1.35) & 3;
     const stepFrame = isMoving ? (stepPhase === 0 ? 1 : stepPhase === 2 ? 3 : 0) : 0;
 
-    // Pivote pixel-art entero para bob vertical sin escalado borroso
+    // Pivote pixel-art entero para bob vertical y postura de sigilo (cero escalado fraccionario)
     ctx.save();
-    ctx.translate(0, bobY);
+    ctx.translate(0, bobY + proneYOffset);
 
     if (this.isProne) {
-      ctx.translate(x + 16, y + 20);
-      ctx.scale(1.18, 0.62);
-      ctx.translate(-(x + 16), -(y + 20));
-      if (this.isStealthHidden) {
-        ctx.globalAlpha = 0.78;
-      }
+      ctx.globalAlpha = this.isStealthHidden ? 0.68 : 0.90;
     }
 
     // Determinar color de gema del Guantelete (apagado en pizarra si aún está latente)
@@ -1480,57 +1496,56 @@ export class Player extends Entity {
           : '#4ade80';
     }
 
-    // 2. Dibujar Sprite 2D Cel-Shaded horneado de Santi (40x44 centrado sobre 32x32)
+    // 2. Dibujar Sprite 2D Pixel-Art horneado de Santi (40x44 centrado sobre 32x32)
     const santiSprite = CelSpriteAtlas.getSantiSprite(this.facing, stepFrame, relicColor, this.hasSword);
     if (santiSprite) {
       ctx.drawImage(santiSprite, x - 4, y - 9);
     }
 
-    // Flash cel-shaded blanco-carmesí si acaba de recibir daño
+    // Destello cel-shaded blanco-carmesí pixel-art si acaba de recibir daño
     if (this.hurtTimer > 0) {
-      ctx.fillStyle = 'rgba(254, 202, 202, 0.55)';
-      ctx.beginPath();
-      ctx.arc(x + 16, y + 14, 15, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillStyle = 'rgba(254, 202, 202, 0.45)';
+      ctx.fillRect(x + 4, y, 24, 28);
     }
 
-    // 3. Hoja de Espada Rúnica Cel-Shaded direccional activa durante el swing físico en `aimAngle`
+    // 3. Hoja de Espada Rúnica direccional activa durante el swing físico en `aimAngle`
     if (this.hasSword && this.attackTimer > 0 && (this.fsmState === 'STATE_ATTACK_WEAK' || this.fsmState === 'STATE_ATTACK_STRONG')) {
       ctx.save();
       ctx.translate(x + 16, y + 18);
       ctx.rotate(this.aimAngle);
-      // Hoja con delineado de tinta negra y brillo celeste/dorado
       ctx.fillStyle = '#0b101d';
-      ctx.fillRect(7, -3.5, 20, 7);
+      ctx.fillRect(7, -3, 20, 6);
       ctx.fillStyle = this.fsmState === 'STATE_ATTACK_STRONG' ? '#fef08a' : '#e2e8f0';
-      ctx.fillRect(8.5, -2, 17, 4);
-      // Guarda dorada
+      ctx.fillRect(8, -2, 17, 4);
       ctx.fillStyle = '#facc15';
-      ctx.fillRect(5.5, -5, 3.5, 10);
+      ctx.fillRect(5, -5, 3, 10);
       ctx.restore();
     }
 
     // 4. Destello de "Tempo Perfecto" cuando está abierta la ventana rítmica de combo
     if (this.attackTimer <= 0 && this.comboStep > 0 && this.comboWindowTimer >= 0.36) {
-      const wristX = this.facing === 'left' ? x + 5 : x + 26;
+      const wristX = this.facing === 'left' ? x + 4 : x + 24;
+      ctx.fillStyle = '#0b101d';
+      ctx.fillRect(wristX - 1, y + 15, 6, 6);
       ctx.fillStyle = '#fef08a';
-      ctx.strokeStyle = '#0b101d';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.arc(wristX, y + 18, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      ctx.fillRect(wristX, y + 16, 4, 4);
     }
 
     ctx.restore();
 
-    // 5. Indicador de Estrellas de Aturdimiento si sufrió Guard Break
+    // 5. Indicador discreto de postura agachada/sigilo nítido sobre los píxeles
+    if (this.isProne) {
+      ctx.fillStyle = this.isStealthHidden ? '#4ade80' : '#94a3b8';
+      ctx.fillRect(x + 10, y + 32, 12, 2);
+    }
+
+    // 6. Indicador de Estrellas de Aturdimiento determinista si sufrió Guard Break
     if (this.fsmState === 'STATE_GUARD_BREAK') {
-      const t = performance.now() / 180;
+      const t = this.animClock * 5.5;
       for (let i = 0; i < 3; i++) {
         const ang = t + (i * Math.PI * 2 / 3);
-        const sx = x + 16 + Math.cos(ang) * 11;
-        const sy = y - 3 + Math.sin(ang) * 4;
+        const sx = Math.round(x + 16 + Math.cos(ang) * 11);
+        const sy = Math.round(y - 3 + Math.sin(ang) * 4);
         ctx.fillStyle = '#facc15';
         ctx.fillRect(sx - 2, sy - 2, 4, 4);
       }

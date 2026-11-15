@@ -68,13 +68,19 @@ const context = {
 
 ## 3. Patrones de Rendimiento Anti-GC (Zero-Alloc Hot-Paths)
 
-En un Action-RPG a 60/120 FPS, instanciar objetos en bucles críticos genera caídas bruscas de fotogramas por Garbage Collection. El motor impone 3 reglas estrictas:
+En un Action-RPG a 60/120 FPS, instanciar objetos en bucles críticos genera caídas bruscas de fotogramas por Garbage Collection. El motor impone reglas estrictas en CPU y GPU/Canvas:
 
-1. **Reutilización de Hitbox (`_hitboxCache`):**
+1. **Contexto Persistente (`_gameContext`):**
+   `buildGameContext(deltaTime)` en `main.js` actualiza en sitio un único objeto persistente prealocado en lugar de crear un diccionario de 17 propiedades en cada fotograma.
+2. **Reutilización de Hitbox (`_hitboxCache`):**
    `Entity.getHitbox()` muta y devuelve su propio objeto prealocado `this._hitboxCache`. **Nunca** guardes la referencia devuelta en colecciones permanentes; lee sus campos inmediatamente (`x`, `y`, `width`, `height`).
-2. **Caché de Sólidos e Invalidation:**
+3. **Buffer Y-Sort Filtrado (`_sortedBuffer` + `_sortY`):**
+   `EntityManager.getEntities()` mantiene un buffer persistente que excluye colisionadores invisibles (`terrain_barrier`) mediante `_bufferDirty`, y precalcula `e._sortY` en $O(N)$ antes de ordenar para reducir comparaciones en `.sort()`.
+4. **Caché de Sólidos e Invalidation:**
    `EntityManager.getSolids()` mantiene un arreglo `this._solidsCache`. Solo se recalcula cuando se agrega, remueve o destruye una entidad (`this._solidsCache = null`).
-3. **Pools de Objetos Dedicados:**
+5. **Pasada de Suelo Pre-Entidades y Sprites Pre-horneados:**
+   `Renderer.drawEnemyGroundDecals()` dibuja los conos de visión enemigos en la capa del suelo con *Frustum Culling* antes de las sombras de dosel y de los cuerpos Y-Sort, evitando solapamientos sobre arbustos y personajes. Cada entidad dibuja su propia sombra pixel-art sin duplicación genérica y `CelSpriteAtlas.prewarm()` pre-hornea todos los sprites de los 4 biomas al iniciar.
+6. **Pools de Objetos Dedicados:**
    * Las estelas fantasma del dash del jugador usan `_ghostPool` con técnica *swap-and-pop*.
    * Las partículas de `VFXRenderer` se extraen de pools preinicializados.
    * La deduplicación de impactos usa colecciones reutilizables.
@@ -109,9 +115,10 @@ sequenceDiagram
   participant RAF as Engine.loop(dt)
   participant MAIN as main.js
   participant IN as InputManager
+  participant FOL as FoliageSystem
   participant CM as CombatManager
   participant EM as EntityManager
-  participant SYS as Systems (Physics, Wave, Foliage)
+  participant SYS as Wave & Interaction
   participant REN as Renderer & UIManager
 
   RAF->>MAIN: update(dt)
@@ -119,13 +126,14 @@ sequenceDiagram
   alt engine.hitStopTimer > 0
     Note over RAF: HitStop activo: descuenta timer, congela simulación
   else STATE_PLAYING
-    MAIN->>CM: 1. combatManager.update(context)
-    MAIN->>EM: 2. entityManager.update(context)
-    MAIN->>SYS: 3. physics.update, wave.update, foliage.update
-    MAIN->>REN: 4. camera.update(context.player, dt)
+    MAIN->>FOL: 1. foliageSystem.updateInteraction(player) [Sigilo en mismo frame]
+    MAIN->>CM: 2. combatManager.update(context)
+    MAIN->>EM: 3. entityManager.update(context)
+    MAIN->>SYS: 4. wave.update, interaction.update
+    MAIN->>REN: 5. camera.update(playerCenter, dt, aimDir, combatFocus)
   end
   RAF->>MAIN: render(dt)
-  MAIN->>REN: camera.apply(), renderer.render(), lightManager.render(), vfxRenderer.render()
-  MAIN->>REN: uiManager.updateHUD(player, state) [Dirty-Checked]
+  MAIN->>REN: camera.apply(), tilemap.render(), drawEnemyGroundDecals(), drawCanopyShadows(), drawEntities(), vfxRenderer.render(), lightManager.render()
+  MAIN->>REN: uiManager.render() [Dirty-Checked]
 ```
 

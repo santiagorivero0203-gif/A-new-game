@@ -197,26 +197,22 @@ export class CelSpriteAtlas {
   }
 
   /**
-   * Dibuja una chispa/destello de cuatro puntas estilo anime cel-shaded.
+   * Dibuja una chispa/destello pixel-art de cuatro puntas alineada a enteros.
    * @param {CanvasRenderingContext2D} ctx
    * @param {number} cx
    * @param {number} cy
    * @param {number} size
-   * @param {string} color
+   * @param {string} [color='#fef9c3']
    */
   static _drawSparkle(ctx, cx, cy, size, color = '#fef9c3') {
+    const ix = Math.round(cx);
+    const iy = Math.round(cy);
+    const r = Math.max(2, Math.round(size));
     ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - size);
-    ctx.lineTo(cx + size * 0.28, cy - size * 0.28);
-    ctx.lineTo(cx + size, cy);
-    ctx.lineTo(cx + size * 0.28, cy + size * 0.28);
-    ctx.lineTo(cx, cy + size);
-    ctx.lineTo(cx - size * 0.28, cy + size * 0.28);
-    ctx.lineTo(cx - size, cy);
-    ctx.lineTo(cx - size * 0.28, cy - size * 0.28);
-    ctx.closePath();
-    ctx.fill();
+    ctx.fillRect(ix - r, iy, r * 2 + 1, 1);
+    ctx.fillRect(ix, iy - r, 1, r * 2 + 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(ix - 1, iy - 1, 3, 3);
   }
 
   // =========================================================================
@@ -805,223 +801,186 @@ export class CelSpriteAtlas {
   }
 
   // =========================================================================
-  // PROPS ARQUITECTÓNICOS Y DE NARRATIVA AMBIENTAL
+  // PROPS ARQUITECTÓNICOS Y DE NARRATIVA AMBIENTAL (PIXEL-ART 16-BIT)
   // =========================================================================
 
   /**
-   * Boca de caverna cel-shaded de 192x156 px con clave rúnica y sombra índigo.
+   * Helper interno para trazar un contorno + relleno pixel-art por franjas horizontales `[yStart, yEnd, leftX, width]`.
+   * Garantiza bordes exteriores de 1px totalmente definidos sin suavizado sub-píxel.
+   * @private
+   */
+  static _fillRowBands(ctx, bands, fillColor, outlineColor = INK) {
+    if (outlineColor) {
+      ctx.fillStyle = outlineColor;
+      for (let b = 0; b < bands.length; b++) {
+        const [y0, y1, lx, w] = bands[b];
+        for (let y = y0; y <= y1; y++) {
+          ctx.fillRect(lx - 1, y - 1, w + 2, 3);
+        }
+      }
+    }
+    ctx.fillStyle = fillColor;
+    for (let b = 0; b < bands.length; b++) {
+      const [y0, y1, lx, w] = bands[b];
+      ctx.fillRect(lx, y0, w, y1 - y0 + 1);
+    }
+  }
+
+  /**
+   * Boca de caverna pixel-art de 192x156 px con clave rúnica, arco en peldaños enteros y musgo.
    * @returns {HTMLCanvasElement}
    */
   static getCaveMouthSprite() {
-    return CelSpriteAtlas.getOrBake('prop_cave_mouth_v2', 192, 156, (ctx, w, h) => {
-      // Base de piedra y escombros en tonos pizarra-índigo
-      ctx.fillStyle = '#2d3748';
-      ctx.beginPath();
-      ctx.moveTo(8, h - 8);
-      ctx.lineTo(14, 58);
-      ctx.lineTo(44, 18);
-      ctx.lineTo(98, 6);
-      ctx.lineTo(150, 20);
-      ctx.lineTo(178, 56);
-      ctx.lineTo(w - 8, h - 8);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 3.2;
-      ctx.lineJoin = 'round';
-      ctx.stroke();
+    return CelSpriteAtlas.getOrBake('prop_cave_mouth_v3', 192, 156, (ctx, w, h) => {
+      // Silueta escalonada de piedra basáltica (sin diagonales borrosas)
+      const rockBands = [
+        [8, 15, 62, 68],
+        [16, 27, 44, 104],
+        [28, 43, 28, 136],
+        [44, 65, 16, 160],
+        [66, h - 10, 10, 172]
+      ];
+      CelSpriteAtlas._fillRowBands(ctx, rockBands, '#334155', INK);
 
-      // Banda superior cálida iluminada por el sol
+      // Plano superior iluminado cálido
       ctx.fillStyle = '#64748b';
-      ctx.beginPath();
-      ctx.moveTo(24, 56);
-      ctx.lineTo(48, 22);
-      ctx.lineTo(98, 11);
-      ctx.lineTo(146, 24);
-      ctx.lineTo(132, 44);
-      ctx.lineTo(54, 46);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(62, 10, 68, 8);
+      ctx.fillRect(46, 18, 92, 10);
+      ctx.fillRect(30, 28, 98, 14);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(64, 10, 54, 4);
+      ctx.fillRect(48, 18, 60, 4);
 
-      // Sombra lateral índigo profunda
+      // Sombra índigo lateral derecha
       ctx.fillStyle = '#1e1b4b';
-      ctx.beginPath();
-      ctx.moveTo(136, 46);
-      ctx.lineTo(174, 58);
-      ctx.lineTo(w - 12, h - 10);
-      ctx.lineTo(140, h - 10);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(142, 46, 28, h - 56);
+      ctx.fillRect(156, 68, 22, h - 78);
 
-      // Arco interior abismal (púrpura-negro índigo)
-      ctx.fillStyle = '#090919';
-      ctx.beginPath();
-      ctx.moveTo(52, h - 10);
-      ctx.lineTo(52, 84);
-      ctx.quadraticCurveTo(96, 36, 140, 84);
-      ctx.lineTo(140, h - 10);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      // Arco interior abismal escalonado pixel-art
+      const abyssBands = [
+        [54, 61, 76, 40],
+        [62, 71, 64, 64],
+        [72, 83, 56, 80],
+        [84, h - 10, 52, 88]
+      ];
+      CelSpriteAtlas._fillRowBands(ctx, abyssBands, '#090919', INK);
 
-      // Clave del arco con runa turquesa tenue
-      CelSpriteAtlas._inkRoundRect(ctx, 84, 38, 24, 18, 3, '#475569', INK, 2);
+      // Dintel superior de piedra labrada y clave con runa turquesa
+      CelSpriteAtlas._inkRoundRect(ctx, 84, 38, 24, 18, 2, '#475569', INK, 1);
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(94, 42, 4, 10);
       ctx.fillRect(91, 45, 10, 3);
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fillRect(95, 43, 2, 4);
 
-      // Musgo cel-shaded con transición de color cálida
-      ctx.fillStyle = '#15803d';
-      ctx.beginPath();
-      ctx.ellipse(42, 40, 22, 9, -0.25, 0, Math.PI * 2);
-      ctx.ellipse(144, 46, 20, 8, 0.25, 0, Math.PI * 2);
-      ctx.fill();
+      // Parches de musgo verde pixel-art sobre las esquinas del dintel
+      CelSpriteAtlas._inkRoundRect(ctx, 24, 34, 32, 10, 2, '#15803d', INK, 1);
       ctx.fillStyle = '#84cc16';
-      ctx.fillRect(28, 34, 18, 4);
-      ctx.fillRect(132, 41, 15, 3.5);
+      ctx.fillRect(28, 36, 20, 3);
+      CelSpriteAtlas._inkRoundRect(ctx, 132, 40, 28, 9, 2, '#15803d', INK, 1);
+      ctx.fillStyle = '#84cc16';
+      ctx.fillRect(136, 42, 16, 3);
+
+      // Escombros basales pixelados a ambos lados del túnel
+      CelSpriteAtlas._inkRoundRect(ctx, 16, h - 22, 24, 12, 2, '#475569', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 152, h - 24, 26, 14, 2, '#334155', INK, 1);
     });
   }
 
   /**
-   * Roca de acantilado angular cel-shaded (64x60 px), opcionalmente con cristales arcanos.
+   * Roca de acantilado en bloques pixel-art enteros (64x60 px), con cristal arcano opcional.
    * @param {boolean} [withCrystal=false]
    * @returns {HTMLCanvasElement}
    */
   static getCliffRockSprite(withCrystal = false) {
-    return CelSpriteAtlas.getOrBake(`prop_cliff_rock_v2_${withCrystal ? 'crystal' : 'plain'}`, 64, 60, (ctx) => {
-      ctx.fillStyle = COOL_SHADOW_TINT;
-      ctx.beginPath();
-      ctx.ellipse(32, 53, 25, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
+    return CelSpriteAtlas.getOrBake(`prop_cliff_rock_v3_${withCrystal ? 'crystal' : 'plain'}`, 64, 60, (ctx) => {
+      const bands = [
+        [14, 19, 22, 20],
+        [20, 27, 14, 36],
+        [28, 37, 10, 44],
+        [38, 51, 8, 48]
+      ];
+      CelSpriteAtlas._fillRowBands(ctx, bands, '#334155', INK);
 
-      ctx.fillStyle = '#334155';
-      ctx.beginPath();
-      ctx.moveTo(8, 49);
-      ctx.lineTo(12, 23);
-      ctx.lineTo(29, 12);
-      ctx.lineTo(48, 17);
-      ctx.lineTo(57, 45);
-      ctx.lineTo(40, 52);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2.4;
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-
-      // Plano iluminado superior y sombra índigo
+      // Plano de luz pizarra superior e izquierda
       ctx.fillStyle = '#64748b';
-      ctx.beginPath();
-      ctx.moveTo(14, 24);
-      ctx.lineTo(29, 14);
-      ctx.lineTo(46, 19);
-      ctx.lineTo(31, 29);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(22, 15, 18, 5);
+      ctx.fillRect(14, 20, 26, 8);
+      ctx.fillRect(10, 28, 22, 12);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(22, 15, 14, 2);
+      ctx.fillRect(15, 20, 14, 3);
 
+      // Plano de sombra índigo derecha e inferior
       ctx.fillStyle = '#1e1b4b';
-      ctx.beginPath();
-      ctx.moveTo(31, 29);
-      ctx.lineTo(54, 43);
-      ctx.lineTo(40, 50);
-      ctx.lineTo(12, 47);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(36, 26, 18, 22);
+      ctx.fillRect(12, 46, 42, 5);
 
       if (withCrystal) {
-        ctx.fillStyle = '#38bdf8';
-        ctx.beginPath();
-        ctx.moveTo(27, 25);
-        ctx.lineTo(32, 5);
-        ctx.lineTo(40, 17);
-        ctx.lineTo(36, 28);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = INK;
-        ctx.lineWidth = 1.9;
-        ctx.stroke();
+        CelSpriteAtlas._inkRoundRect(ctx, 27, 8, 10, 18, 2, '#38bdf8', INK, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, 35, 13, 7, 12, 2, '#0284c7', INK, 1);
         ctx.fillStyle = '#e0f2fe';
-        ctx.fillRect(31, 10, 3, 12);
+        ctx.fillRect(29, 10, 3, 11);
+        ctx.fillRect(36, 15, 2, 6);
       }
     });
   }
 
   /**
-   * Estatua rota del Santuario cubierta de musgo e incrustaciones doradas (64x80 px).
-   * Prop de narrativa ambiental: muestra la caída de los antiguos guardianes.
+   * Estatua rota del Santuario en pixel-art entero cubierta de musgo bioma (64x80 px).
    * @param {string} [biome='forest']
    * @returns {HTMLCanvasElement}
    */
   static getBrokenStatueSprite(biome = 'forest') {
-    return CelSpriteAtlas.getOrBake(`prop_broken_statue_${biome}`, 64, 80, (ctx) => {
-      const mossCol = biome === 'ash' ? '#78350f' : biome === 'marsh' ? '#0d9488' : '#15803d';
-      const mossLight = biome === 'ash' ? '#fb923c' : biome === 'marsh' ? '#5eead4' : '#84cc16';
+    return CelSpriteAtlas.getOrBake(`prop_broken_statue_v3_${biome}`, 64, 80, (ctx) => {
+      const mossCol = biome === 'ash' ? '#92400e' : biome === 'marsh' ? '#0d9488' : biome === 'astral' ? '#6b21a8' : '#15803d';
+      const mossLight = biome === 'ash' ? '#fb923c' : biome === 'marsh' ? '#5eead4' : biome === 'astral' ? '#e879f9' : '#84cc16';
 
-      // Sombra proyectada
-      ctx.fillStyle = COOL_SHADOW_TINT;
-      ctx.beginPath();
-      ctx.ellipse(32, 72, 23, 6.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Pedestal escalonado
-      CelSpriteAtlas._inkRoundRect(ctx, 10, 56, 44, 15, 3, '#475569', INK, 2.2);
+      // Pedestal escalonado pixel-art
+      CelSpriteAtlas._inkRoundRect(ctx, 10, 56, 44, 15, 2, '#475569', INK, 1);
       ctx.fillStyle = '#1e1b4b';
       ctx.fillRect(12, 64, 40, 5);
-      CelSpriteAtlas._inkRoundRect(ctx, 14, 48, 36, 10, 2.5, '#64748b', INK, 2);
+      CelSpriteAtlas._inkRoundRect(ctx, 14, 48, 36, 10, 2, '#64748b', INK, 1);
 
       // Runa dorada en el pedestal
       ctx.fillStyle = '#eab308';
-      ctx.fillRect(28, 57.5, 8, 2.2);
+      ctx.fillRect(28, 58, 8, 2);
       ctx.fillRect(31, 55, 2, 7);
 
-      // Torso de mármol quebrado diagonalmente
-      ctx.fillStyle = '#94a3b8';
-      ctx.beginPath();
-      ctx.moveTo(19, 49);
-      ctx.lineTo(17, 25);
-      ctx.lineTo(29, 17);
-      ctx.lineTo(44, 29);
-      ctx.lineTo(45, 49);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2.2;
-      ctx.stroke();
-
-      // Sombra lateral fría del torso + brillo marfil
+      // Torso de mármol quebrado en escalones enteros
+      const torsoBands = [
+        [18, 22, 23, 14],
+        [23, 28, 19, 22],
+        [29, 48, 18, 26]
+      ];
+      CelSpriteAtlas._fillRowBands(ctx, torsoBands, '#94a3b8', INK);
       ctx.fillStyle = '#cbd5e1';
-      ctx.fillRect(20, 26, 7, 19);
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(35, 30, 8, 17);
+      ctx.fillRect(20, 24, 8, 20);
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(35, 30, 8, 18);
 
       // Cabeza caída junto al pedestal
-      CelSpriteAtlas._inkRoundRect(ctx, 41, 61, 14, 11, 4, '#94a3b8', INK, 1.8);
+      CelSpriteAtlas._inkRoundRect(ctx, 41, 61, 14, 11, 2, '#94a3b8', INK, 1);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(43, 63, 6, 4);
 
-      // Enredadera / musgo ambiental
-      ctx.fillStyle = mossCol;
-      ctx.beginPath();
-      ctx.ellipse(22, 47, 7.5, 4, 0.2, 0, Math.PI * 2);
-      ctx.ellipse(40, 52, 6.5, 3.5, -0.2, 0, Math.PI * 2);
-      ctx.fill();
+      // Enredadera / musgo ambiental pixel-art
+      CelSpriteAtlas._inkRoundRect(ctx, 15, 44, 14, 7, 2, mossCol, INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 34, 49, 13, 6, 2, mossCol, INK, 1);
       ctx.fillStyle = mossLight;
-      ctx.fillRect(19, 44.5, 5, 2);
+      ctx.fillRect(17, 45, 7, 2);
+      ctx.fillRect(36, 50, 6, 2);
     });
   }
 
   /**
    * Espadón oxidado de un antiguo caballero clavado en piedra en grilla pixel-art nítida (48x56 px).
-   * Elimina rotaciones fraccionarias para conservar bordes de 1px totalmente definidos.
    * @returns {HTMLCanvasElement}
    */
   static getRustedGreatswordSprite() {
-    return CelSpriteAtlas.getOrBake('prop_rusted_greatsword_v2', 48, 56, (ctx) => {
-      // Sombra elíptica fría bajo el túmulo
-      CelSpriteAtlas._inkEllipse(ctx, 24, 49, 15, 4, COOL_SHADOW_TINT, null, 0);
-
+    return CelSpriteAtlas.getOrBake('prop_rusted_greatsword_v3', 48, 56, (ctx) => {
       // Túmulo de piedra rúnica escalonado + musgo
-      CelSpriteAtlas._inkRoundRect(ctx, 10, 38, 28, 12, 3, '#475569', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 10, 38, 28, 12, 2, '#475569', INK, 1);
       ctx.fillStyle = '#1e1b4b';
       ctx.fillRect(12, 45, 24, 4);
       ctx.fillStyle = '#94a3b8';
@@ -1072,53 +1031,37 @@ export class CelSpriteAtlas {
   }
 
   /**
-   * Obelisco rúnico del Santuario (56x88 px) que reacciona al Guantelete Elemental.
+   * Obelisco rúnico pixel-art del Santuario (56x88 px) que reacciona al Guantelete Elemental.
    * @param {boolean} [activated=false] - Si las runas brillan con energía activa.
    * @param {string} [runeColor='#38bdf8'] - Color elemental de las runas.
    * @returns {HTMLCanvasElement}
    */
   static getRunicObeliskSprite(activated = false, runeColor = '#38bdf8') {
-    const key = `prop_runic_obelisk_${activated ? 'on' : 'off'}_${runeColor}`;
+    const key = `prop_runic_obelisk_v3_${activated ? 'on' : 'off'}_${runeColor}`;
     return CelSpriteAtlas.getOrBake(key, 56, 88, (ctx) => {
-      ctx.fillStyle = COOL_SHADOW_TINT;
-      ctx.beginPath();
-      ctx.ellipse(28, 81, 18, 5.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-
       // Base escalonada
-      CelSpriteAtlas._inkRoundRect(ctx, 10, 67, 36, 13, 3, '#334155', INK, 2.1);
+      CelSpriteAtlas._inkRoundRect(ctx, 10, 67, 36, 13, 2, '#334155', INK, 1);
       ctx.fillStyle = '#1e1b4b';
       ctx.fillRect(13, 73, 30, 5);
 
-      // Columna de basalto afilada
-      ctx.fillStyle = '#1e293b';
-      ctx.beginPath();
-      ctx.moveTo(15, 68);
-      ctx.lineTo(19, 18);
-      ctx.lineTo(28, 7);
-      ctx.lineTo(37, 18);
-      ctx.lineTo(41, 68);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2.2;
-      ctx.stroke();
+      // Columna de basalto afilada en peldaños enteros
+      const obeliskBands = [
+        [8, 13, 25, 6],
+        [14, 21, 21, 14],
+        [22, 35, 18, 20],
+        [36, 68, 15, 26]
+      ];
+      CelSpriteAtlas._fillRowBands(ctx, obeliskBands, '#1e293b', INK);
 
-      // Plano izquierdo iluminado cálido/azulado
+      // Plano izquierdo iluminado pizarra
       ctx.fillStyle = '#475569';
-      ctx.beginPath();
-      ctx.moveTo(16.5, 66);
-      ctx.lineTo(20, 19);
-      ctx.lineTo(28, 9);
-      ctx.lineTo(28, 66);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(25, 9, 3, 5);
+      ctx.fillRect(21, 14, 7, 8);
+      ctx.fillRect(19, 22, 9, 14);
+      ctx.fillRect(16, 36, 12, 30);
 
-      // Grabados rúnicos verticales
-      const glowAlpha = activated ? 1 : 0.35;
-      ctx.save();
-      ctx.globalAlpha = glowAlpha;
-      ctx.fillStyle = runeColor;
+      // Grabados rúnicos verticales sólidos
+      ctx.fillStyle = activated ? runeColor : '#334155';
       ctx.fillRect(26, 22, 4, 12);
       ctx.fillRect(23, 27, 10, 3);
       ctx.fillRect(26, 38, 4, 10);
@@ -1127,45 +1070,194 @@ export class CelSpriteAtlas {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(27, 23, 2, 10);
         ctx.fillRect(27, 39, 2, 8);
-        CelSpriteAtlas._drawSparkle(ctx, 28, 12, 6, runeColor);
+        CelSpriteAtlas._drawSparkle(ctx, 28, 12, 4, runeColor);
       }
-      ctx.restore();
     });
   }
 
   /**
-   * Portal del Atlas / Reliquia (76x76 px) para transicionar entre los 4 Mundos.
+   * Portal del Atlas / Reliquia en pixel-art entero (76x76 px) para transicionar entre los 4 Mundos.
    * @param {string} [portalColor='#38bdf8']
    * @returns {HTMLCanvasElement}
    */
   static getWorldPortalSprite(portalColor = '#38bdf8') {
-    return CelSpriteAtlas.getOrBake(`prop_world_portal_${portalColor}`, 76, 76, (ctx) => {
+    return CelSpriteAtlas.getOrBake(`prop_world_portal_v3_${portalColor}`, 76, 76, (ctx) => {
       const cx = 38;
       const cy = 40;
-      // Aro rúnico grabado en el suelo
-      CelSpriteAtlas._inkEllipse(ctx, cx, cy, 31, 22, '#1e1b4b', INK, 2.4);
-      CelSpriteAtlas._inkEllipse(ctx, cx, cy, 24, 16, '#0f172a', portalColor, 2.2);
-
-      // Espiral cel-shaded interior
-      ctx.fillStyle = portalColor;
-      ctx.globalAlpha = 0.65;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 18, 11.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-
-      ctx.fillStyle = '#e0f2fe';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 9.5, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
+      CelSpriteAtlas._inkEllipse(ctx, cx, cy, 31, 22, '#1e1b4b', INK, 1);
+      CelSpriteAtlas._inkEllipse(ctx, cx, cy, 24, 16, '#0f172a', portalColor, 1);
+      CelSpriteAtlas._inkEllipse(ctx, cx, cy, 17, 11, portalColor, null, 0);
+      CelSpriteAtlas._inkEllipse(ctx, cx, cy, 9, 6, '#e0f2fe', null, 0);
 
       // Pilares laterales con runas flotantes
-      CelSpriteAtlas._inkRoundRect(ctx, 6, 15, 11, 28, 3, '#334155', INK, 2);
-      CelSpriteAtlas._inkRoundRect(ctx, 59, 15, 11, 28, 3, '#334155', INK, 2);
+      CelSpriteAtlas._inkRoundRect(ctx, 6, 15, 11, 28, 2, '#334155', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 59, 15, 11, 28, 2, '#334155', INK, 1);
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(8, 17, 7, 4);
+      ctx.fillRect(61, 17, 7, 4);
       ctx.fillStyle = portalColor;
-      ctx.fillRect(9.5, 22, 4, 8);
-      ctx.fillRect(62.5, 22, 4, 8);
-      CelSpriteAtlas._drawSparkle(ctx, cx, 11, 5.5, '#fde68a');
+      ctx.fillRect(9, 22, 4, 8);
+      ctx.fillRect(63, 22, 4, 8);
+      CelSpriteAtlas._drawSparkle(ctx, cx, 11, 4, '#fde68a');
+    });
+  }
+
+  /**
+   * Barricada mineral agrietada ('cracked_rock', 64x56 px) rompible con espada/embestida.
+   * @param {boolean} [isHit=false]
+   * @returns {HTMLCanvasElement}
+   */
+  static getCrackedRockSprite(isHit = false) {
+    const key = isHit ? 'prop_cracked_rock_hit' : 'prop_cracked_rock_v2';
+    return CelSpriteAtlas.getOrBake(key, 64, 56, (sctx) => {
+      const rows = [
+        [24, 18, 8],
+        [20, 28, 10],
+        [15, 36, 13],
+        [12, 42, 16],
+        [10, 45, 20],
+        [8, 49, 26],
+        [7, 51, 36],
+        [6, 52, 48]
+      ];
+      for (let yPos = 8; yPos <= 48; yPos++) {
+        let minX = 6;
+        let span = 52;
+        for (let r = 0; r < rows.length; r++) {
+          if (yPos <= rows[r][2]) {
+            minX = rows[r][0];
+            span = rows[r][1];
+            break;
+          }
+        }
+        sctx.fillStyle = INK;
+        sctx.fillRect(minX - 1, yPos, span + 2, 1);
+        sctx.fillStyle = isHit ? '#ffffff' : (yPos >= 44 ? '#334155' : '#64748b');
+        sctx.fillRect(minX, yPos, span, 1);
+      }
+      if (!isHit) {
+        sctx.fillStyle = '#94a3b8';
+        sctx.fillRect(14, 14, 18, 6);
+        sctx.fillRect(10, 20, 12, 8);
+        sctx.fillStyle = '#475569';
+        sctx.fillRect(42, 18, 12, 24);
+        sctx.fillStyle = '#facc15';
+        sctx.fillRect(28, 12, 2, 7);
+        sctx.fillRect(26, 19, 2, 8);
+        sctx.fillRect(28, 27, 4, 2);
+        sctx.fillRect(32, 29, 3, 7);
+        sctx.fillRect(30, 36, 3, 9);
+        sctx.fillRect(17, 29, 9, 2);
+        sctx.fillStyle = '#fef08a';
+        sctx.fillRect(28, 13, 1, 5);
+        sctx.fillRect(32, 30, 1, 5);
+      }
+    });
+  }
+
+  /**
+   * Zarzas espinosas quemables ('burnable_vines', 72x96 px).
+   * @param {'idle'|'hit'|'burn'} [state='idle']
+   * @returns {HTMLCanvasElement}
+   */
+  static getBurnableVinesSprite(state = 'idle') {
+    return CelSpriteAtlas.getOrBake(`prop_burnable_vines_${state}_v2`, 72, 96, (sctx) => {
+      const bodyColor = state === 'hit' ? '#fca5a5' : (state === 'burn' ? '#ea580c' : '#1d5c38');
+      const lightColor = state === 'hit' ? '#fecaca' : (state === 'burn' ? '#fb923c' : '#6ebd30');
+      const thornColor = state === 'burn' ? '#fef08a' : '#e11d48';
+
+      for (let i = 0; i < 4; i++) {
+        const cx = 36 + (i % 2 === 0 ? -2 : 2);
+        const cy = 20 + i * 20;
+        CelSpriteAtlas._inkEllipse(sctx, cx, cy, 26, 12, bodyColor, '#050811', 1);
+        sctx.fillStyle = lightColor;
+        sctx.fillRect(cx - 14, cy - 6, 22, 4);
+      }
+
+      const thorns = [
+        [18, 22], [50, 28], [24, 48],
+        [48, 56], [20, 74], [46, 78]
+      ];
+      for (let i = 0; i < thorns.length; i++) {
+        const tx = thorns[i][0];
+        const ty = thorns[i][1];
+        sctx.fillStyle = '#050811';
+        sctx.fillRect(tx - 4, ty + 1, 9, 4);
+        sctx.fillRect(tx - 2, ty - 2, 5, 3);
+        sctx.fillRect(tx - 1, ty - 5, 3, 3);
+        sctx.fillStyle = thornColor;
+        sctx.fillRect(tx - 3, ty + 2, 7, 2);
+        sctx.fillRect(tx - 1, ty - 2, 3, 4);
+        sctx.fillRect(tx, ty - 4, 1, 2);
+      }
+    });
+  }
+
+  /**
+   * Losa de piedra musgosa del pedestal de la Espada del Alba (48x58 px).
+   * @returns {HTMLCanvasElement}
+   */
+  static getStarterSwordStoneSprite() {
+    return CelSpriteAtlas.getOrBake('prop_starter_sword_stone_v1', 48, 58, (sctx) => {
+      CelSpriteAtlas._inkEllipse(sctx, 24, 45, 19, 9, '#475569', '#050811', 1);
+      sctx.fillStyle = '#64748b';
+      sctx.fillRect(10, 39, 28, 6);
+      sctx.fillStyle = '#94a3b8';
+      sctx.fillRect(14, 38, 20, 3);
+      sctx.fillStyle = '#1d5c38';
+      sctx.fillRect(7, 42, 7, 5);
+      sctx.fillRect(34, 41, 7, 5);
+      sctx.fillStyle = '#6ebd30';
+      sctx.fillRect(9, 41, 4, 2);
+      sctx.fillRect(35, 40, 4, 2);
+      sctx.fillStyle = '#0f172a';
+      sctx.fillRect(21, 39, 6, 4);
+      sctx.fillStyle = '#38bdf8';
+      sctx.fillRect(15, 43, 3, 2);
+      sctx.fillRect(30, 43, 3, 2);
+    });
+  }
+
+  /**
+   * Hoja flotante de la Espada del Alba (48x58 px).
+   * @returns {HTMLCanvasElement}
+   */
+  static getStarterSwordBladeSprite() {
+    return CelSpriteAtlas.getOrBake('prop_starter_sword_blade_v1', 48, 58, (bctx) => {
+      bctx.fillStyle = '#050811';
+      bctx.fillRect(21, 5, 6, 13);
+      bctx.fillStyle = '#38bdf8';
+      bctx.fillRect(22, 6, 4, 3);
+      bctx.fillStyle = '#1e3a8a';
+      bctx.fillRect(22, 9, 4, 8);
+      bctx.fillStyle = '#050811';
+      bctx.fillRect(14, 15, 20, 6);
+      bctx.fillStyle = '#eab308';
+      bctx.fillRect(15, 16, 18, 4);
+      bctx.fillStyle = '#fef08a';
+      bctx.fillRect(16, 16, 16, 2);
+      bctx.fillStyle = '#050811';
+      bctx.fillRect(20, 21, 8, 21);
+      bctx.fillStyle = '#cbd5e1';
+      bctx.fillRect(21, 21, 6, 20);
+      bctx.fillStyle = '#f8fafc';
+      bctx.fillRect(22, 21, 2, 19);
+      bctx.fillStyle = '#38bdf8';
+      bctx.fillRect(24, 23, 2, 14);
+    });
+  }
+
+  /**
+   * Variante compuesta pre-horneada del pedestal de la Espada del Alba (`isConsumed` true/false).
+   * @param {boolean} [isConsumed=false]
+   * @returns {HTMLCanvasElement}
+   */
+  static getStarterSwordPedestalSprite(isConsumed = false) {
+    return CelSpriteAtlas.getOrBake(`prop_starter_sword_full_${isConsumed ? 'empty' : 'full'}`, 48, 58, (ctx) => {
+      ctx.drawImage(CelSpriteAtlas.getStarterSwordStoneSprite(), 0, 0);
+      if (!isConsumed) {
+        ctx.drawImage(CelSpriteAtlas.getStarterSwordBladeSprite(), 0, 0);
+      }
     });
   }
 
@@ -1189,7 +1281,7 @@ export class CelSpriteAtlas {
     CelSpriteAtlas.getNPCSprite('valerio');
 
     const archetypes = ['hound', 'artillery', 'tank', 'duelist', 'slime'];
-    const elements = ['plantas', 'fuego', 'kinetic'];
+    const elements = ['plantas', 'fuego', 'kinetic', 'astral'];
     for (const arch of archetypes) {
       for (const elem of elements) {
         CelSpriteAtlas.getEnemySprite(arch, elem, false);
@@ -1200,10 +1292,26 @@ export class CelSpriteAtlas {
     CelSpriteAtlas.getCaveMouthSprite();
     CelSpriteAtlas.getCliffRockSprite(false);
     CelSpriteAtlas.getCliffRockSprite(true);
-    CelSpriteAtlas.getBrokenStatueSprite('forest');
     CelSpriteAtlas.getRustedGreatswordSprite();
-    CelSpriteAtlas.getRunicObeliskSprite(false, '#38bdf8');
-    CelSpriteAtlas.getRunicObeliskSprite(true, '#38bdf8');
-    CelSpriteAtlas.getWorldPortalSprite('#38bdf8');
+
+    const biomes = ['forest', 'marsh', 'ash', 'astral'];
+    for (const biome of biomes) {
+      CelSpriteAtlas.getBrokenStatueSprite(biome);
+    }
+
+    const worldColors = ['#38bdf8', '#fb923c', '#22c55e', '#c084fc'];
+    for (const wc of worldColors) {
+      CelSpriteAtlas.getRunicObeliskSprite(false, wc);
+      CelSpriteAtlas.getRunicObeliskSprite(true, wc);
+      CelSpriteAtlas.getWorldPortalSprite(wc);
+    }
+
+    CelSpriteAtlas.getCrackedRockSprite(false);
+    CelSpriteAtlas.getCrackedRockSprite(true);
+    CelSpriteAtlas.getBurnableVinesSprite('idle');
+    CelSpriteAtlas.getBurnableVinesSprite('hit');
+    CelSpriteAtlas.getBurnableVinesSprite('burn');
+    CelSpriteAtlas.getStarterSwordPedestalSprite(false);
+    CelSpriteAtlas.getStarterSwordPedestalSprite(true);
   }
 }
