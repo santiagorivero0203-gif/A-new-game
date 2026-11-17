@@ -22,6 +22,7 @@ export class UIManager {
     // 1. HUD Principal Cel-Shaded del Jugador (Top-Left)
     this.hudContainer = document.getElementById('hud-container');
     this.hudRelicBadge = document.getElementById('hud-relic-badge');
+    this.hudCrestImg = document.getElementById('hud-crest-img');
     this.hudRelicIcon = document.getElementById('hud-relic-icon');
     this.hudRelicCircle = this.hudRelicIcon ? this.hudRelicIcon.querySelector('circle') : null;
     this.hudCrestTag = document.getElementById('hud-crest-tag');
@@ -77,6 +78,7 @@ export class UIManager {
 
     // 2. Hub Unificado del Santuario (4 Pestañas)
     this.sanctuaryModal = document.getElementById('skill-tree-modal');
+    this.stPreviewImg = document.getElementById('st-preview-img');
     this.sanctuaryTabBtns = Array.from(document.querySelectorAll('[data-sanctuary-tab]'));
     this.sanctuaryPanes = Array.from(document.querySelectorAll('[data-sanctuary-pane]'));
     this.activeSanctuaryTab = 'skills';
@@ -149,6 +151,16 @@ export class UIManager {
     this._lastEnemiesRemaining = -1;
     this._lastIntermission = null;
     this._lastObjectiveText = '';
+    this._lastRawObjective = null;
+    this._lastObjectiveMobile = null;
+    this._lastRawDialogueText = null;
+    this._lastDialogueMobile = null;
+    this._dialogueVisible = false;
+    this._bossThreatVisible = false;
+    this._isMobileUA = (typeof navigator !== 'undefined') && (
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      Boolean(navigator.userAgentData && navigator.userAgentData.mobile === true)
+    );
     this._bannerDismissTimeout = null;
     this._bannerHideTimeout = null;
     this._comboPulseTimeout = null;
@@ -487,42 +499,42 @@ export class UIManager {
       }
     }
 
-    // 6. Viñeta Táctica de Amenaza en Esquinas de Pantalla (Threat Corner Vignette)
-    const threatLevel = stateManager ? (stateManager.get('threat_level') || 'calm') : 'calm';
+    // 6. Viñeta Táctica de Amenaza en Esquinas (solo activa si StealthSystem está habilitado)
+    const stealthEnabled = Boolean(stateManager && stateManager.get('stealth_mode_enabled'));
+    const threatLevel = stealthEnabled ? (stateManager.get('threat_level') || 'calm') : 'calm';
     if (threatLevel !== this._lastThreatLevel) {
       this._lastThreatLevel = threatLevel;
       if (this.threatVignetteEl) {
         this.threatVignetteEl.className = 'threat-corner-vignette';
-        if (threatLevel === 'danger') {
+        if (!stealthEnabled || threatLevel === 'calm') {
+          this.threatVignetteEl.classList.add('hidden');
+        } else if (threatLevel === 'danger') {
           this.threatVignetteEl.classList.add('threat-danger');
         } else if (threatLevel === 'alert') {
           this.threatVignetteEl.classList.add('threat-alert');
         } else if (threatLevel === 'stealth') {
           this.threatVignetteEl.classList.add('threat-stealth');
-        } else {
-          this.threatVignetteEl.classList.add('hidden');
         }
       }
     }
   }
 
   /**
-   * Determina si la sesión actual está operando bajo controles táctiles / modo móvil.
+   * Determina en O(1) si la sesión actual está operando bajo controles táctiles / modo móvil.
+   * Utiliza resultado precalculado del User-Agent y estado DOM actual sin ejecutar RegEx por frame.
    * @private
    * @returns {boolean}
    */
   _isMobileActive() {
-    return (
+    return Boolean(
+      this._lastTouchShow ||
       (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active')) ||
-      (typeof navigator !== 'undefined' && (
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-        (navigator.userAgentData && navigator.userAgentData.mobile === true)
-      ))
+      this._isMobileUA
     );
   }
 
   /**
-   * Actualiza la tarjeta inferior de diálogo diegético.
+   * Actualiza la tarjeta inferior de diálogo diegético con caché RegEx O(1) por cambio de texto.
    * @param {import('../core/StateManager.js').StateManager} stateManager
    * @param {number} deltaTime
    */
@@ -531,8 +543,9 @@ export class UIManager {
 
     const dialogue = stateManager.get('active_dialogue');
     if (!dialogue) {
-      if (!this.dialogueCard.classList.contains('hidden')) {
+      if (this._dialogueVisible || !this.dialogueCard.classList.contains('hidden')) {
         this.dialogueCard.classList.add('hidden');
+        this._dialogueVisible = false;
       }
       return;
     }
@@ -541,6 +554,7 @@ export class UIManager {
     if (dialogue.timer <= 0) {
       stateManager.set('active_dialogue', null);
       this.dialogueCard.classList.add('hidden');
+      this._dialogueVisible = false;
       return;
     }
 
@@ -554,12 +568,20 @@ export class UIManager {
     }
 
     const isMobile = this._isMobileActive();
-    const cleanDialogue = formatControlPrompts(dialogue.text, isMobile);
-    const formattedText = `"${cleanDialogue}"`;
-    if (this.dialogueText && this.dialogueText.textContent !== formattedText) {
-      this.dialogueText.textContent = formattedText;
+    if (dialogue.text !== this._lastRawDialogueText || isMobile !== this._lastDialogueMobile) {
+      this._lastRawDialogueText = dialogue.text;
+      this._lastDialogueMobile = isMobile;
+      const cleanDialogue = formatControlPrompts(dialogue.text, isMobile);
+      const formattedText = `"${cleanDialogue}"`;
+      if (this.dialogueText && this.dialogueText.textContent !== formattedText) {
+        this.dialogueText.textContent = formattedText;
+      }
     }
-    this.dialogueCard.classList.remove('hidden');
+
+    if (!this._dialogueVisible) {
+      this.dialogueCard.classList.remove('hidden');
+      this._dialogueVisible = true;
+    }
   }
 
   /**
@@ -646,6 +668,16 @@ export class UIManager {
     this._lastGameState = gameState;
 
     const isPlaying = gameState === 'STATE_PLAYING';
+
+    if (this.hudCrestImg) {
+      if (isPlaying) {
+        if (this.hudCrestImg.dataset?.src && !this.hudCrestImg.getAttribute('src')) {
+          this.hudCrestImg.setAttribute('src', this.hudCrestImg.dataset.src);
+        }
+      } else if (gameState === 'STATE_MENU' && typeof this.hudCrestImg.removeAttribute === 'function') {
+        this.hudCrestImg.removeAttribute('src');
+      }
+    }
 
     if (this.gameplayLayer) {
       this.gameplayLayer.classList.toggle('hidden', !isPlaying);
@@ -740,14 +772,18 @@ export class UIManager {
 
     const threat = stateManager.get('active_threat');
     if (!threat || threat.health <= 0) {
-      if (!this.bossThreatBar.classList.contains('hidden')) {
+      if (this._bossThreatVisible || !this.bossThreatBar.classList.contains('hidden')) {
         this.bossThreatBar.classList.add('hidden');
+        this._bossThreatVisible = false;
       }
       this._lastThreatPct = -1;
       return;
     }
 
-    this.bossThreatBar.classList.remove('hidden');
+    if (!this._bossThreatVisible) {
+      this.bossThreatBar.classList.remove('hidden');
+      this._bossThreatVisible = true;
+    }
     const pct = Math.max(0, Math.min(100, (threat.health / threat.maxHealth) * 100));
 
     if (threat.name !== this._lastThreatName && this.bossThreatName) {
@@ -779,13 +815,17 @@ export class UIManager {
   updateHordeHUD(stateManager) {
     if (!stateManager) return;
 
-    // 0. Rumbo / Objetivo Activo del Nivel
+    // 0. Rumbo / Objetivo Activo del Nivel (con caché para evitar RegEx cada frame)
     const rawObjective = stateManager.get('level_objective') || 'Explora el Claro del Santuario';
     const isMobile = this._isMobileActive();
-    const objective = formatControlPrompts(rawObjective, isMobile);
-    if (objective !== this._lastObjectiveText && this.objectiveTextEl) {
-      this._lastObjectiveText = objective;
-      this.objectiveTextEl.textContent = objective;
+    if (rawObjective !== this._lastRawObjective || isMobile !== this._lastObjectiveMobile) {
+      this._lastRawObjective = rawObjective;
+      this._lastObjectiveMobile = isMobile;
+      const objective = formatControlPrompts(rawObjective, isMobile);
+      if (objective !== this._lastObjectiveText && this.objectiveTextEl) {
+        this._lastObjectiveText = objective;
+        this.objectiveTextEl.textContent = objective;
+      }
     }
 
     const waveNum = stateManager.get('horde_wave_number') || 0;
@@ -871,12 +911,41 @@ export class UIManager {
   }
 
   /**
+   * Hidrata perezosamente las texturas del Santuario únicamente al abrir el modal.
+   */
+  mountSanctuaryAssets() {
+    if (this.sanctuaryModal) {
+      this.sanctuaryModal.classList.add('sanctuary-assets-loaded');
+    }
+    if (this.stPreviewImg && this.stPreviewImg.dataset?.src && !this.stPreviewImg.getAttribute('src')) {
+      this.stPreviewImg.setAttribute('src', this.stPreviewImg.dataset.src);
+    }
+  }
+
+  /**
+   * Libera el DOM pesado y las texturas decodificadas del Santuario al cerrarlo
+   * para no mantener el menú precargado en RAM durante el combate.
+   */
+  unmountSanctuary() {
+    if (this.sanctuaryModal) {
+      this.sanctuaryModal.classList.remove('sanctuary-assets-loaded');
+    }
+    if (this.stPreviewImg && typeof this.stPreviewImg.removeAttribute === 'function') {
+      this.stPreviewImg.removeAttribute('src');
+    }
+    if (this.skillTreeList) this.skillTreeList.innerHTML = '';
+    if (this.arsenalContainer) this.arsenalContainer.innerHTML = '';
+    if (this.codexContainer) this.codexContainer.innerHTML = '';
+  }
+
+  /**
    * Activa una pestaña específica del Hub Unificado del Santuario ('skills' | 'arsenal' | 'codex' | 'system')
    * y refresca su contenido dinámico.
    * @param {string} tabName
    * @param {Object} deps
    */
   setSanctuaryTab(tabName, deps = {}) {
+    this.mountSanctuaryAssets();
     const validTab = this.tabOrder.includes(tabName) ? tabName : 'skills';
     this.activeSanctuaryTab = validTab;
 
@@ -1007,6 +1076,12 @@ export class UIManager {
       `;
     }).join('');
 
+    const isMobile = this._isMobileActive();
+    const switchHint = formatControlPrompts(
+      'Alterna rápidamente en combate con las teclas [1], [2], [3], la rueda del ratón o manteniendo [Tab].',
+      isMobile
+    );
+
     this.arsenalContainer.innerHTML = `
       <div class="st-pane-section">
         <div class="st-card-header-eyebrow">ARMAMENTO FORJADO</div>
@@ -1020,7 +1095,7 @@ export class UIManager {
       <div class="st-pane-section">
         <div class="st-card-header-eyebrow">RELIQUIA DE TARAK</div>
         <h3 class="st-pane-heading">ENGARCES ELEMENTALES</h3>
-        <p class="st-pane-sub">Alterna rápidamente en combate con las teclas [1], [2], [3], la rueda del ratón o manteniendo [Tab].</p>
+        <p class="st-pane-sub">${switchHint}</p>
         <div class="st-equip-cards-list">
           ${conduitCardsHtml}
         </div>
@@ -1109,11 +1184,25 @@ export class UIManager {
       `;
     }).join('');
 
+    const isMobile = this._isMobileActive();
+    const codexObjective = formatControlPrompts(
+      stateManager?.get('level_objective') || 'Sigue el sendero exterior hacia el Claro del Santuario.',
+      isMobile
+    );
+    const artilleryHint = formatControlPrompts(
+      'Mantiene distancia y dispara orbes tóxicos. Alza la Égida con [Shift] justo antes del impacto para devolverle su propio proyectil.',
+      isMobile
+    );
+    const tankHint = formatControlPrompts(
+      'Bloquea cortes frontales de acero. Destroza e incinera su pavés de madera con una Bola de Fuego o flanquéalo con [Espacio].',
+      isMobile
+    );
+
     this.codexContainer.innerHTML = `
       <div class="st-pane-section">
         <div class="st-card-header-eyebrow">${currentWorldInfo?.subtitle?.toUpperCase() || 'CAPÍTULO I · NIVEL INTRODUCTORIO'}</div>
         <h3 class="st-pane-heading">${currentWorldInfo?.name?.toUpperCase() || 'UMBRAL DE LA CUEVA HENDIDA'}</h3>
-        <p class="st-pane-sub">${stateManager?.get('level_objective') || 'Sigue el sendero exterior hacia el Claro del Santuario.'}</p>
+        <p class="st-pane-sub">${codexObjective}</p>
         <div class="st-milestone-list">
           ${milestonesHtml}
         </div>
@@ -1146,11 +1235,11 @@ export class UIManager {
           </div>
           <div class="st-bestiary-card">
             <h4>Escupidor de Esporas (Artillería)</h4>
-            <p>Mantiene distancia y dispara orbes tóxicos. Alza la Égida con [Shift] justo antes del impacto para devolverle su propio proyectil.</p>
+            <p>${artilleryHint}</p>
           </div>
           <div class="st-bestiary-card">
             <h4>Centinela con Pavés de Roble (Tanque)</h4>
-            <p>Bloquea cortes frontales de acero. Destroza e incinera su pavés de madera con una Bola de Fuego o flanquéalo con [Espacio].</p>
+            <p>${tankHint}</p>
           </div>
           <div class="st-bestiary-card">
             <h4>Acechador de Sombra (Duelista)</h4>
@@ -1177,7 +1266,7 @@ export class UIManager {
         const targetWorld = btn.dataset.travelWorld;
         if (!targetWorld || typeof travelHook !== 'function') return;
         travelHook(targetWorld);
-        const closeBtn = document.getElementById('btn-close-sanctuary-modal');
+        const closeBtn = document.getElementById('btn-close-talents') || document.getElementById('btn-close-talents-x');
         if (closeBtn) closeBtn.click();
       });
     });

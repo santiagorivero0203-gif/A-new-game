@@ -18,47 +18,42 @@
  * @type {Array<{regex: RegExp, replace: string}>}
  */
 const MOBILE_PROMPT_REPLACEMENTS = [
-  // 1. Ataque principal con espada
-  { regex: /\[\s*(?:Clic\s*Izq(?:\s*\/\s*J)?|J)\s*\]/gi, replace: '(botón ESPADA)' },
-  { regex: /Pulsa\s*\[\s*(?:Clic\s*Izq(?:\s*\/\s*J)?|J)\s*\]/gi, replace: 'Toca ESPADA' },
+  // 1. Ataque principal con espada (frases con verbo primero para evitar "Pulsa (botón ...)")
   { regex: /haz\s*clic\s*izquierdo\s*o\s*pulsa\s*J/gi, replace: 'toca el botón ESPADA' },
+  { regex: /Pulsa\s*\[\s*(?:Clic\s*Izq(?:\s*\/\s*J)?|J)\s*\]/gi, replace: 'Toca ESPADA' },
+  { regex: /\[\s*(?:Clic\s*Izq(?:\s*\/\s*J)?|J)\s*\]/gi, replace: '(botón ESPADA)' },
 
   // 2. Habilidad elemental (Fuego / Reliquia)
-  { regex: /\[\s*(?:Clic\s*Der(?:\s*\/\s*K)?|K)\s*\]/gi, replace: '(botón FUEGO)' },
-  { regex: /Pulsa\s*\[\s*(?:Clic\s*Der(?:\s*\/\s*K)?|K)\s*\]/gi, replace: 'Toca FUEGO' },
-  { regex: /haz\s*clic\s*derecho\s*o\s*pulsa\s*K/gi, replace: 'toca el botón FUEGO' },
+  { regex: /haz\s*clic\s*derecho\s*o\s*pulsa\s*K/gi, replace: 'toca el botón elemental' },
+  { regex: /Pulsa\s*\[\s*(?:Clic\s*Der(?:\s*\/\s*K)?|K)\s*\]/gi, replace: 'Toca el botón elemental' },
+  { regex: /\[\s*(?:Clic\s*Der(?:\s*\/\s*K)?|K)\s*\]/gi, replace: '(botón elemental)' },
 
   // 3. Interacción / Usar / Empuñar
+  { regex: /Pulsa\s*\[\s*E(?:\s*\/\s*Clic\s*Izq)?\s*\]/gi, replace: 'Toca USAR' },
+  { regex: /presiona\s*\[\s*E(?:\s*\/\s*Clic\s*Izq)?\s*\]/gi, replace: 'toca USAR' },
   { regex: /\[\s*E\s*(?:\/\s*Clic\s*Izq)?\s*\]/gi, replace: '(botón USAR)' },
-  { regex: /Pulsa\s*\[\s*E\s*\]/gi, replace: 'Toca USAR' },
-  { regex: /presiona\s*\[\s*E\s*\]/gi, replace: 'toca USAR' },
-  { regex: /\[\s*E\s*\]/gi, replace: '(botón USAR)' },
 
   // 4. Dash / Esquiva
-  { regex: /\[\s*Espacio\s*\]/gi, replace: '(botón DASH)' },
   { regex: /Pulsa\s*\[\s*Espacio\s*\]/gi, replace: 'Toca DASH' },
+  { regex: /\[\s*Espacio\s*\]/gi, replace: '(botón DASH)' },
 
-  // 5. Guardia / Escudo / Parry
+  // 5. Guardia / Escudo / Parry (Shift y Q)
+  { regex: /Pulsa\s*\[\s*Shift\s*\]/gi, replace: 'Toca GUARDIA' },
+  { regex: /\[\s*Shift\s*\]/gi, replace: '(botón GUARDIA)' },
   { regex: /\[\s*Q(?:\s*\/\s*Clic\s*Der)?\s*\]/gi, replace: '(botón GUARDIA)' },
-  { regex: /\[\s*Q\s*\]/gi, replace: '(botón GUARDIA)' },
 
-  // 6. Sprint / Correr
+  // 6. Selección múltiple de poderes y cambio de elemento
+  { regex: /con\s*las\s*teclas\s*\[\s*1\s*\],\s*\[\s*2\s*\],\s*\[\s*3\s*\],\s*la\s*rueda\s*del\s*ratón\s*o\s*manteniendo\s*\[\s*Tab\s*\]/gi, replace: 'deslizando el botón elemental o tocando el botón de cambio' },
+  { regex: /Pulsa\s*\[\s*1\s*\]\s*\[\s*2\s*\]\s*\[\s*3\s*\]\s*o\s*\[\s*R\s*\]/gi, replace: 'Desliza el botón elemental o toca cambio rápido' },
+  { regex: /\[\s*1\s*\]\s*(?:,\s*)?\[\s*2\s*\]\s*(?:,\s*)?\[\s*3\s*\]/gi, replace: '(deslizar botón elemental)' },
+  { regex: /\[\s*(?:R|Tab)\s*\]/gi, replace: '(botón cambio elemental)' },
+
+  // 7. Sprint / Correr, Sigilo, Curación, Ataque fuerte y Santuario
   { regex: /\[\s*F\s*\]/gi, replace: '(botón CORRER)' },
-
-  // 7. Sigilo / Agacharse en hierba
   { regex: /\[\s*C\s*\]/gi, replace: '(botón SIGILO)' },
-
-  // 8. Curación
   { regex: /\[\s*H\s*\]/gi, replace: '(botón CURAR)' },
-
-  // 9. Ataque fuerte
   { regex: /\[\s*L\s*\]/gi, replace: '(botón FUERTE)' },
-
-  // 10. Cambiar elemento
-  { regex: /\[\s*(?:R|Tab)\s*\]/gi, replace: '(botón FUE)' },
-
-  // 11. Santuario / Menú
-  { regex: /\[\s*U\s*\]/gi, replace: '(botón SANTUARIO)' }
+  { regex: /\[\s*U\s*\]/gi, replace: '(botón superior de Esencia)' }
 ];
 
 /**
@@ -72,6 +67,9 @@ const MOBILE_PROMPT_REPLACEMENTS = [
 export function formatControlPrompts(text, isMobile = false) {
   if (!text || typeof text !== 'string') return text || '';
   if (!isMobile) return text;
+  if (text.indexOf('[') === -1 && text.indexOf('clic') === -1 && text.indexOf('Clic') === -1) {
+    return text;
+  }
 
   let formatted = text;
   for (let i = 0; i < MOBILE_PROMPT_REPLACEMENTS.length; i++) {

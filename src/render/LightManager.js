@@ -47,6 +47,11 @@ export class LightManager {
     /** @type {Array<{x: number, y: number, radius: number, color?: string, intensity?: number, flickerSpeed?: number, _currentRadius?: number, _phase?: number}>} */
     this.lights = [];
     this._isCanvasCleared = false;
+    this._renderCooldown = 0;
+    this._dirty = true;
+    this._lastCamX = NaN;
+    this._lastCamY = NaN;
+    this._lastZoom = NaN;
 
     // Cachés Zero-GC para consultas de sombra direccional y proyección de cámara
     this._nearestCache = { found: false, distSq: Infinity, dx: 0, dy: 0, light: null };
@@ -103,16 +108,17 @@ export class LightManager {
       this.ctx.imageSmoothingEnabled = false;
     }
     this._isCanvasCleared = false;
+    this._dirty = true;
   }
 
   /**
-   * Mantiene visible el lienzo de iluminación atmosférica (`#light-canvas`) tanto en
-   * interiores como en exteriores (renderizado ligero a resolución 0.25x).
+   * Mantiene oculto en el DOM el lienzo de iluminación porque se composta directamente
+   * sobre el canvas principal (`compositeTo`) en una sola capa GPU para 60/120 FPS estables.
    * @private
    */
   _syncCanvasVisibility() {
     if (this.canvas) {
-      this.canvas.style.display = 'block';
+      this.canvas.style.display = 'none';
     }
   }
 
@@ -126,6 +132,7 @@ export class LightManager {
       ? 'rgba(8, 10, 24, 0.86)'
       : (BIOME_AMBIENT_TINTS[this.biomeKey] || BIOME_AMBIENT_TINTS.cave_exit_intro);
     this._isCanvasCleared = false;
+    this._dirty = true;
     this._syncCanvasVisibility();
   }
 
@@ -140,6 +147,7 @@ export class LightManager {
       this.ambientLight = customAmbient || BIOME_AMBIENT_TINTS[this.biomeKey] || BIOME_AMBIENT_TINTS.cave_exit_intro;
     }
     this._isCanvasCleared = false;
+    this._dirty = true;
     this._syncCanvasVisibility();
   }
 
@@ -219,6 +227,9 @@ export class LightManager {
    */
   update(deltaTime) {
     const dt = deltaTime || 0.016;
+    if (this._renderCooldown > 0) {
+      this._renderCooldown -= dt;
+    }
     for (let i = 0; i < this.lights.length; i++) {
       const l = this.lights[i];
       l._phase += dt * (l.flickerSpeed || 1.5);
@@ -229,6 +240,8 @@ export class LightManager {
 
   /**
    * Dibuja el manto atmosférico, recorta halos de visibilidad y proyecta brillo cromático suave.
+   * Re-hornea a ~30 Hz salvo desplazamiento de cámara significativo o cambio atmosférico,
+   * reduciendo a la mitad las reconstrucciones de `#light-canvas` en pantallas de 60/120 Hz.
    * @param {import('./Camera.js').Camera} camera
    */
   render(camera) {
@@ -236,6 +249,24 @@ export class LightManager {
     const w = this.canvas.width;
     const h = this.canvas.height;
     if (w <= 0 || h <= 0) return;
+
+    const camX = camera && camera.position ? camera.position.x : 0;
+    const camY = camera && camera.position ? camera.position.y : 0;
+    const zoom = (camera && camera.zoom) ? camera.zoom : 1;
+    const cameraMoved =
+      Math.abs(camX - this._lastCamX) >= 1.5 ||
+      Math.abs(camY - this._lastCamY) >= 1.5 ||
+      zoom !== this._lastZoom;
+
+    if (!this._dirty && !cameraMoved && this._renderCooldown > 0) {
+      return;
+    }
+
+    this._dirty = false;
+    this._renderCooldown = 0.033;
+    this._lastCamX = camX;
+    this._lastCamY = camY;
+    this._lastZoom = zoom;
 
     const ctx = this.ctx;
     this._isCanvasCleared = false;
@@ -246,7 +277,6 @@ export class LightManager {
     ctx.fillStyle = this.ambientLight;
     ctx.fillRect(0, 0, w, h);
 
-    const zoom = (camera && camera.zoom) ? camera.zoom : 1;
     const scaleX = (camera && camera.viewportWidth > 0) ? (w / camera.viewportWidth) : 1;
     const scaleY = (camera && camera.viewportHeight > 0) ? (h / camera.viewportHeight) : 1;
 
@@ -291,5 +321,20 @@ export class LightManager {
     }
 
     ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /**
+   * Compone el mapa de iluminación ya horneado sobre el canvas principal en una sola copia GPU,
+   * eliminando la necesidad de mantener un segundo `<canvas>` superpuesto en el DOM.
+   * @param {CanvasRenderingContext2D} targetCtx
+   * @param {number} targetWidth
+   * @param {number} targetHeight
+   */
+  compositeTo(targetCtx, targetWidth, targetHeight) {
+    if (!targetCtx || !this.canvas || targetWidth <= 0 || targetHeight <= 0) return;
+    const prevSmooth = targetCtx.imageSmoothingEnabled;
+    targetCtx.imageSmoothingEnabled = true;
+    targetCtx.drawImage(this.canvas, 0, 0, targetWidth, targetHeight);
+    targetCtx.imageSmoothingEnabled = prevSmooth;
   }
 }

@@ -12,7 +12,7 @@ export class Renderer {
    */
   constructor(canvas) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d', { alpha: false });
     this.ctx.imageSmoothingEnabled = false;
   }
 
@@ -24,11 +24,11 @@ export class Renderer {
   }
 
   /**
-   * Limpia el canvas principal antes de iniciar el nuevo fotograma.
-   * Utiliza las dimensiones reales del canvas.
+   * Limpia el canvas principal antes de iniciar el nuevo fotograma con relleno opaco rápido.
    */
   clear() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillStyle = '#050811';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
   /**
@@ -51,15 +51,13 @@ export class Renderer {
   }
 
   /**
-   * Renderiza los conos de visión y telégrafos terrestres de enemigos visibles en la capa de suelo,
-   * ANTES de dibujar cuerpos Y-Sort, asegurando que queden bajo arbustos, props y personajes.
+   * Renderiza los conos de visión únicamente cuando StealthSystem está activado.
+   * Cuando está archivado/inactivo retorna de inmediato en O(1).
    * @param {Array<Object>} entities
-   * @param {import('./Camera.js').Camera|null} [camera=null]
+   * @param {import('../systems/StealthSystem.js').StealthSystem|null} [stealthSystem=null]
    */
-  drawEnemyGroundDecals(entities, camera = null) {
-    const bounds = (camera && typeof camera.getVisibleWorldBounds === 'function')
-      ? camera.getVisibleWorldBounds(240)
-      : null;
+  drawEnemyGroundDecals(entities, stealthSystem = null) {
+    if (!stealthSystem || !stealthSystem.enabled) return;
 
     const ctx = this.ctx;
     for (let i = 0; i < entities.length; i++) {
@@ -67,29 +65,18 @@ export class Renderer {
       if (!ent || ent.active === false || ent.isDead || typeof ent.drawVisionCone !== 'function') {
         continue;
       }
-      if (bounds) {
-        if (
-          ent.pos.x + ent.width < bounds.minX ||
-          ent.pos.x > bounds.maxX ||
-          ent.pos.y + ent.height < bounds.minY ||
-          ent.pos.y > bounds.maxY
-        ) {
-          continue;
-        }
-      }
-      ent.drawVisionCone(ctx);
+      ent.drawVisionCone(ctx, stealthSystem);
     }
   }
 
   /**
-   * Renderiza entidades ordenadas por Y aplicando Frustum Culling de cámara.
-   * Cada entidad dibuja su propia sombra a medida, eliminando sombras genéricas duplicadas.
+   * Renderiza entidades pre-filtradas por Frustum y ordenadas por Y-Sort.
    * @param {Array<Object>} entities
+   * @param {boolean} [alreadyCulled=false]
    * @param {import('./Camera.js').Camera|null} [camera=null]
-   * @param {import('./LightManager.js').LightManager|null} [lightManager=null]
    */
-  drawEntities(entities, camera = null, lightManager = null) {
-    const bounds = (camera && typeof camera.getVisibleWorldBounds === 'function')
+  drawEntities(entities, camera = null, alreadyCulled = false) {
+    const bounds = (!alreadyCulled && camera && typeof camera.getVisibleWorldBounds === 'function')
       ? camera.getVisibleWorldBounds(112)
       : null;
 
@@ -115,11 +102,14 @@ export class Renderer {
 
   /**
    * Proyecta sombras pixel-art suaves de dosel vegetal en dos tonos bajo cada árbol visible.
-   * @param {Array<Object>} entities
+   * Recibe directamente la cubeta pre-indexada de árboles en O(1).
+   * @param {Array<Object>} treeEntities
    * @param {import('./Camera.js').Camera|null} [camera=null]
    * @param {number} [time=0] - Reloj continuo en segundos.
    */
-  drawCanopyShadows(entities, camera = null, time = 0) {
+  drawCanopyShadows(treeEntities, camera = null, time = 0) {
+    if (!treeEntities || treeEntities.length === 0) return;
+
     const bounds = (camera && typeof camera.getVisibleWorldBounds === 'function')
       ? camera.getVisibleWorldBounds(140)
       : null;
@@ -127,17 +117,9 @@ export class Renderer {
     const ctx = this.ctx;
     const sway = Math.round(Math.sin(time * 0.75) * 2);
 
-    for (let i = 0; i < entities.length; i++) {
-      const ent = entities[i];
-      if (!ent || !ent.tags) continue;
-      let isTree = false;
-      for (let t = 0; t < ent.tags.length; t++) {
-        if (ent.tags[t] === 'tree') {
-          isTree = true;
-          break;
-        }
-      }
-      if (!isTree) continue;
+    for (let i = 0; i < treeEntities.length; i++) {
+      const ent = treeEntities[i];
+      if (!ent) continue;
 
       if (bounds) {
         if (

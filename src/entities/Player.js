@@ -31,7 +31,7 @@ export class Player extends Entity {
     this.tags.push('player');
 
     /** @type {number} Velocidad base de desplazamiento en píxeles por segundo */
-    this.speed = PLAYER_STATS.speed || 155;
+    this.speed = PLAYER_STATS.speed || 190;
 
     /** @type {Vector2} Vector de velocidad del fotograma actual */
     this.velocity = new Vector2(0, 0);
@@ -367,7 +367,7 @@ export class Player extends Entity {
       this.applyEffect('iframe', 0.55);
       this._haloCooldown = 18.0;
       if (context.skillTreeManager && context.skillTreeManager.hasSkill('relic_aegis_halo')) {
-        this.energy = Math.min(this.max_energy, this.energy + 8);
+        this.energy = Math.min(this.max_energy, this.energy + 20);
       }
       if (context.audioManager) context.audioManager.playHeal();
       if (context.vfxRenderer) {
@@ -602,7 +602,7 @@ export class Player extends Entity {
           originX: cxDash,
           originY: cyDash,
           knockbackForce: baseKnockback * (1.2 + overdriveRank * 0.12),
-          update: function() {
+          update: function () {
             this.facing = self.facing;
             this.aimAngle = self.aimAngle;
             this.aimDir.x = self.aimDir.x;
@@ -747,7 +747,7 @@ export class Player extends Entity {
         originX: cx,
         originY: cy,
         knockbackForce: knockback,
-        update: function() {
+        update: function () {
           this.facing = self.facing;
           this.aimAngle = self.aimAngle;
           this.aimDir.x = self.aimDir.x;
@@ -807,7 +807,7 @@ export class Player extends Entity {
             hitEntities: new Set(),
             destroyOnHit: false,
             hitbox: { x: startX - 16, y: startY - 16, width: 32, height: 32 },
-            update: function(dt) {
+            update: function (dt) {
               this.x += this.dx * this.speed * dt;
               this.y += this.dy * this.speed * dt;
               this.hitbox.x = this.x - 16;
@@ -978,11 +978,11 @@ export class Player extends Entity {
     let moveY = 0;
 
     if (input) {
-      // 1. Vector de Movimiento (Teclado + Joystick Táctil)
-      const isUp = KEYBINDINGS.UP.some(k => input.isKeyPressed(k));
-      const isDown = KEYBINDINGS.DOWN.some(k => input.isKeyPressed(k));
-      const isLeft = KEYBINDINGS.LEFT.some(k => input.isKeyPressed(k));
-      const isRight = KEYBINDINGS.RIGHT.some(k => input.isKeyPressed(k));
+      // 1. Vector de Movimiento (Teclado Zero-Closures + Joystick Táctil)
+      const isUp = typeof input.isActionPressed === 'function' ? input.isActionPressed('UP') : KEYBINDINGS.UP.some(k => input.isKeyPressed(k));
+      const isDown = typeof input.isActionPressed === 'function' ? input.isActionPressed('DOWN') : KEYBINDINGS.DOWN.some(k => input.isKeyPressed(k));
+      const isLeft = typeof input.isActionPressed === 'function' ? input.isActionPressed('LEFT') : KEYBINDINGS.LEFT.some(k => input.isKeyPressed(k));
+      const isRight = typeof input.isActionPressed === 'function' ? input.isActionPressed('RIGHT') : KEYBINDINGS.RIGHT.some(k => input.isKeyPressed(k));
 
       if (isUp) moveY -= 1;
       if (isDown) moveY += 1;
@@ -999,20 +999,21 @@ export class Player extends Entity {
         this._syncFacingFromVector(moveX, moveY);
       }
 
-      // 1.5 Alternar Sigilo / Cuerpo a Tierra (Prone) y Gestión de Sprint con Resistencia
-      if (input.isStealthPressed) {
-        this.isProne = !this.isProne;
-        // Sincronizar sigilo en el mismo fotograma para respuesta inmediata de HUD e IA
-        this.isStealthHidden = Boolean(this.inTallGrass && this.isProne);
-        if (isContext && contextOrDt.state) {
-          contextOrDt.state.set('player_is_prone', this.isProne);
-          contextOrDt.state.set('player_is_stealth', this.isStealthHidden);
-          contextOrDt.state.set('player_stealth_hidden', this.isStealthHidden);
+      // 1.5 Sigilo activable solo cuando StealthSystem esté habilitado + Sprint con Resistencia
+      const stealthAllowed = Boolean(context && context.stealthSystem && context.stealthSystem.enabled);
+      if (!stealthAllowed) {
+        this.isProne = false;
+        this.isStealthHidden = false;
+        if (input.isStealthPressed && typeof input.consumeStealth === 'function') {
+          input.consumeStealth();
         }
+      } else if (input.isStealthPressed) {
+        this.isProne = !this.isProne;
+        this.isStealthHidden = Boolean(this.inTallGrass && this.isProne);
         if (typeof input.consumeStealth === 'function') input.consumeStealth();
       }
 
-      const wantsSprint = (input.isSprintPressed || (input.isKeyPressed && (input.isKeyPressed('KeyF') || input.isKeyPressed('KeyV')))) && !this.isProne;
+      const wantsSprint = (input.isSprintPressed || input.isKeyPressed('KeyF') || input.isKeyPressed('KeyV')) && !this.isProne;
       const isMoving = (moveX !== 0 || moveY !== 0);
 
       if (wantsSprint && isMoving && !this.staminaExhausted && this.stamina > 0) {
@@ -1026,7 +1027,7 @@ export class Player extends Entity {
         this.isSprinting = false;
         const staminaRank = skillTree ? skillTree.getSkillRank('stamina_mastery') : 0;
         this.max_stamina = 100 + staminaRank * 25;
-        const regenRate = 14 * (1 + staminaRank * 0.20);
+        const regenRate = 28 * (1 + staminaRank * 0.20);
         this.stamina = Math.min(this.max_stamina, this.stamina + regenRate * deltaTime);
         if (this.stamina >= 20) {
           this.staminaExhausted = false;
@@ -1137,7 +1138,7 @@ export class Player extends Entity {
                 width: 44,
                 height: 44
               },
-              update: function() {
+              update: function () {
                 this.hitbox.x = self.pos.x - 6;
                 this.hitbox.y = self.pos.y - 6;
               }
@@ -1165,7 +1166,7 @@ export class Player extends Entity {
               hitEntities: new Set(),
               hitbox: null,
               _activeBox: { x: decoyX - 58, y: decoyY - 58, width: 116, height: 116 },
-              update: function(dt) {
+              update: function (dt) {
                 if (!this._detonated) {
                   this._delayTimer -= dt;
                   if (this._delayTimer <= 0) {
@@ -1256,8 +1257,8 @@ export class Player extends Entity {
         if (!this.hasSword) {
           const entitiesList = context.entityManager
             ? (typeof context.entityManager.getByTag === 'function'
-                ? context.entityManager.getByTag('interactable')
-                : context.entityManager.entities)
+              ? context.entityManager.getByTag('interactable')
+              : context.entityManager.entities)
             : null;
           let nearbySwordProp = null;
           if (Array.isArray(entitiesList)) {
@@ -1397,9 +1398,9 @@ export class Player extends Entity {
       if (this.velocity.lengthSquared() > 1) {
         this.velocity.normalize();
       }
-      // Ajuste dinámico de velocidad: Estilo S/A (+6%), Sprint (+36%) y Sigilo/Prone (-48%)
-      let speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.06 : 1.0;
-      if (this.isSprinting) speedMult *= 1.36;
+      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Sprint (+62%) y Sigilo/Prone (-48%)
+      let speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.08 : 1.0;
+      if (this.isSprinting) speedMult *= 1.62;
       else if (this.isProne) speedMult *= 0.52;
       this.velocity.multiplyScalar(this.speed * speedMult * deltaTime);
       nextX = this.pos.x + this.velocity.x;
@@ -1407,12 +1408,19 @@ export class Player extends Entity {
     }
 
     if (context && context.state) {
-      context.state.set('player_stamina', this.stamina);
-      context.state.set('player_max_stamina', this.max_stamina);
-      context.state.set('player_is_stealth', this.isStealthHidden);
-      context.state.set('player_stealth_hidden', this.isStealthHidden);
-      context.state.set('player_is_prone', this.isProne);
-      context.state.set('player_is_sprinting', this.isSprinting);
+      const st = context.state;
+      if (this._lastSyncStamina !== this.stamina) {
+        this._lastSyncStamina = this.stamina;
+        st.set('player_stamina', this.stamina);
+      }
+      if (this._lastSyncMaxStamina !== this.max_stamina) {
+        this._lastSyncMaxStamina = this.max_stamina;
+        st.set('player_max_stamina', this.max_stamina);
+      }
+      if (this._lastSyncSprint !== this.isSprinting) {
+        this._lastSyncSprint = this.isSprinting;
+        st.set('player_is_sprinting', this.isSprinting);
+      }
     }
 
     if (physics) {

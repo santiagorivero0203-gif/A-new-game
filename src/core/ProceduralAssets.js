@@ -15,6 +15,9 @@
 const INK = '#050811';
 
 export class ProceduralAssets {
+  /** @type {Map<string, HTMLCanvasElement>} Caché Flyweight compartida de texturas procedurales */
+  static _sharedCanvasCache = new Map();
+
   /** @type {Record<string, {width: number, height: number}>} Dimensiones base por clave */
   static DEFAULT_SIZES = {
     tree_sprite: { width: 84, height: 98 },
@@ -142,14 +145,22 @@ export class ProceduralAssets {
   }
 
   /**
-   * Genera un asset gráfico en formato Data URI PNG Pixel-Art listo para `HTMLImageElement`.
+   * Obtiene o construye una única textura Flyweight (`HTMLCanvasElement`) compartida por todas
+   * las instancias repetidas del mapa (árboles, casas, arbustos y losetas base), evitando
+   * serializar Data URIs o duplicar bitmaps decodificados en RAM.
    * @param {string} key - Clave del asset (`grass_tile`, `dirt_tile`, `tree_sprite`, `house_sprite`, `bush_sprite`).
    * @param {number} [tileSize=32] - Tamaño de referencia para losetas de terreno.
-   * @returns {string} Data URL (`image/png`).
+   * @returns {HTMLCanvasElement|null} Lienzo Flyweight único reutilizable.
    */
-  static generate(key, tileSize = 32) {
-    const defaults = ProceduralAssets.DEFAULT_SIZES[key] || { width: 32, height: 32 };
+  static getSharedCanvas(key, tileSize = 32) {
+    if (typeof document === 'undefined') return null;
+
     const isTile = key === 'grass_tile' || key === 'dirt_tile';
+    const cacheKey = isTile ? `${key}_${tileSize}` : key;
+    const cached = ProceduralAssets._sharedCanvasCache.get(cacheKey);
+    if (cached) return cached;
+
+    const defaults = ProceduralAssets.DEFAULT_SIZES[key] || { width: 32, height: 32 };
     const w = isTile ? tileSize : defaults.width;
     const h = isTile ? tileSize : defaults.height;
 
@@ -157,32 +168,64 @@ export class ProceduralAssets {
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-
-    switch (key) {
-      case 'grass_tile':
-        ProceduralAssets._drawGrassTile(ctx, w, h);
-        break;
-      case 'dirt_tile':
-        ProceduralAssets._drawDirtTile(ctx, w, h);
-        break;
-      case 'tree_sprite':
-        ProceduralAssets._drawTreeSprite(ctx, w, h);
-        break;
-      case 'house_sprite':
-        ProceduralAssets._drawHouseSprite(ctx, w, h);
-        break;
-      case 'bush_sprite':
-        ProceduralAssets._drawBushSprite(ctx, w, h);
-        break;
-      default:
-        ctx.fillStyle = '#4da33b';
-        ctx.fillRect(0, 0, w, h);
-        break;
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+      switch (key) {
+        case 'grass_tile':
+          ProceduralAssets._drawGrassTile(ctx, w, h);
+          break;
+        case 'dirt_tile':
+          ProceduralAssets._drawDirtTile(ctx, w, h);
+          break;
+        case 'tree_sprite':
+          ProceduralAssets._drawTreeSprite(ctx, w, h);
+          break;
+        case 'house_sprite':
+          ProceduralAssets._drawHouseSprite(ctx, w, h);
+          break;
+        case 'bush_sprite':
+          ProceduralAssets._drawBushSprite(ctx, w, h);
+          break;
+        default:
+          ctx.fillStyle = '#4da33b';
+          ctx.fillRect(0, 0, w, h);
+          break;
+      }
+      ProceduralAssets._crispenCanvas(canvas);
     }
 
-    ProceduralAssets._crispenCanvas(canvas);
-    return canvas.toDataURL('image/png');
+    ProceduralAssets._sharedCanvasCache.set(cacheKey, canvas);
+    return canvas;
+  }
+
+  /**
+   * Libera texturas procedurales cacheadas no requeridas actualmente para comprimir RAM.
+   * @param {Array<string>} [keepKeys=[]]
+   */
+  static releaseUnused(keepKeys = []) {
+    const keep = new Set(keepKeys);
+    for (const [k, canvas] of ProceduralAssets._sharedCanvasCache.entries()) {
+      if (!keep.has(k)) {
+        if (canvas) {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+        ProceduralAssets._sharedCanvasCache.delete(k);
+      }
+    }
+  }
+
+  /**
+   * Genera un asset gráfico en formato Data URI PNG Pixel-Art (compatibilidad heredada).
+   * @param {string} key - Clave del asset.
+   * @param {number} [tileSize=32] - Tamaño de referencia para losetas de terreno.
+   * @returns {string} Data URL (`image/png`).
+   */
+  static generate(key, tileSize = 32) {
+    const canvas = ProceduralAssets.getSharedCanvas(key, tileSize);
+    return canvas && typeof canvas.toDataURL === 'function'
+      ? canvas.toDataURL('image/png')
+      : '';
   }
 
   /**

@@ -9,8 +9,8 @@ export const ENEMY_ARCHETYPES = {
   hound: {
     maxHealth: 75,
     speed: 112,
-    aggroRange: 220,
-    attackRange: 105,
+    aggroRange: 136,
+    attackRange: 88,
     telegraphTime: 0.40,
     attackDuration: 0.24,
     cooldownTime: 1.35,
@@ -21,9 +21,9 @@ export const ENEMY_ARCHETYPES = {
   artillery: {
     maxHealth: 70,
     speed: 86,
-    aggroRange: 265,
-    preferredMinDist: 110,
-    attackRange: 250,
+    aggroRange: 164,
+    preferredMinDist: 88,
+    attackRange: 168,
     telegraphTime: 0.48,
     attackDuration: 0.18,
     cooldownTime: 1.85,
@@ -34,8 +34,8 @@ export const ENEMY_ARCHETYPES = {
   tank: {
     maxHealth: 135,
     speed: 62,
-    aggroRange: 210,
-    attackRange: 56,
+    aggroRange: 128,
+    attackRange: 52,
     telegraphTime: 0.56,
     attackDuration: 0.26,
     cooldownTime: 1.75,
@@ -47,8 +47,8 @@ export const ENEMY_ARCHETYPES = {
   duelist: {
     maxHealth: 110,
     speed: 104,
-    aggroRange: 240,
-    attackRange: 128,
+    aggroRange: 148,
+    attackRange: 112,
     telegraphTime: 0.42,
     attackDuration: 0.22,
     cooldownTime: 1.45,
@@ -59,8 +59,8 @@ export const ENEMY_ARCHETYPES = {
   slime: {
     maxHealth: 80,
     speed: 82,
-    aggroRange: 195,
-    attackRange: 85,
+    aggroRange: 120,
+    attackRange: 76,
     telegraphTime: 0.45,
     attackDuration: 0.24,
     cooldownTime: 1.60,
@@ -139,10 +139,10 @@ export class Enemy extends Entity {
     this.respawnTimer = 0;
     this.isDead = false;
 
-    // --- Sistema de Cono de Visión y Escáner (extraído de The-last-endo) ---
-    this.visionRange = this.config.visionRange || Math.max(190, (this.config.aggroRange || 170) * 1.15);
-    this.visionAngle = this.config.visionAngle || (Math.PI / 4); // 45° semi-ángulo (cono 90° FOV)
-    this.scannerSweep = 0;
+    // --- Escáner de Sigilo Opcional (archivado e inactivo salvo que StealthSystem esté habilitado) ---
+    this.stealthVisionRange = this.config.stealthVisionRange || 112;
+    this.stealthHalfAngle = this.config.stealthHalfAngle || (Math.PI / 6);
+    this._stealthScanTimer = Math.random() * 0.12;
     this.isAlerted = false;
     this.loseAggroTimer = 0;
 
@@ -414,76 +414,98 @@ export class Enemy extends Entity {
   }
 
   /**
-   * Evalúa la detección del jugador mediante Cono de Visión, Escáner, Línea de Visión y Sigilo.
-   * Considera contacto físico, ruido de sprint, caminata erguida, ocultamiento en hierba alta y FOV 90°.
+   * Evalúa la detección del jugador de forma ultra ligera (O(1)).
+   * Cuando `stealthSystem` está desactivado (comportamiento estándar), usa aggro directo por radio
+   * sin lanzar rayos ni evaluar conos de visión cada fotograma.
+   * Si `stealthSystem.enabled === true`, delega al módulo compacto de detección y sigilo.
    * @param {Object} player
-   * @param {number} distToPlayer
+   * @param {number} distSq - Distancia al cuadrado entre enemigo y jugador
    * @param {number} toPlayerX
    * @param {number} toPlayerY
    * @param {Object} physics
+   * @param {import('../systems/StealthSystem.js').StealthSystem|null} [stealthSystem=null]
+   * @param {number} [dt=0.016]
    * @returns {boolean}
    */
-  checkPlayerDetection(player, distToPlayer, toPlayerX, toPlayerY, physics) {
+  checkPlayerDetection(player, distSq, toPlayerX, toPlayerY, physics, stealthSystem = null, dt = 0.016) {
     if (!player || player.health <= 0 || player.isDead) return false;
 
-    // 1. Proximidad física inmediata (<= 24 px) siempre alerta al enemigo por contacto
-    if (distToPlayer <= 24) return true;
-
-    // 2. Sigilo en Grama Alta: cuerpo a tierra oculta al héroe del cono óptico y percepción periférica
-    if (player.isStealthHidden) {
-      return false;
+    if (stealthSystem && stealthSystem.enabled) {
+      return stealthSystem.checkEnemyDetection(this, player, distSq, toPlayerX, toPlayerY, physics, dt);
     }
 
-    // 3. Línea de Visión (muros, casas, pilares y acantilados bloquean detección)
-    const myCx = this.pos.x + this.width * 0.5;
-    const myCy = this.pos.y + this.height * 0.5;
-    const plCx = player.pos.x + (player.width || 32) * 0.5;
-    const plCy = player.pos.y + (player.height || 32) * 0.5;
-    const hasLOS = !physics || typeof physics.hasLineOfSight !== 'function'
-      || physics.hasLineOfSight(myCx, myCy, plCx, plCy);
-    if (!hasLOS) {
-      return false;
+    const aggroRange = (this.config && this.config.aggroRange) ? this.config.aggroRange : 136;
+    const effectiveRange = this.hasTag('wave_enemy') ? Math.max(aggroRange * 1.45, 215) : aggroRange;
+    return distSq <= effectiveRange * effectiveRange;
+  }
+
+  /**
+   * Captura un registro compacto del estado persistente de este enemigo al descargar su chunk.
+   * @param {number} [clockSec=0]
+   * @returns {Object}
+   */
+  serializeChunkState(clockSec = 0) {
+    return {
+      isDead: Boolean(this.isDead),
+      health: this.health,
+      hasWoodenShield: Boolean(this.hasWoodenShield),
+      grantedKillEssence: Boolean(this._hasGrantedKillEssence),
+      parryEssenceGranted: Boolean(this._parryEssenceGranted),
+      respawnRemaining: this.isDead ? Math.max(0, this.respawnTimer || 0) : 0,
+      unloadedAtSec: clockSec,
+      x: this.isDead ? this.initialX : Math.round(this.pos.x),
+      y: this.isDead ? this.initialY : Math.round(this.pos.y)
+    };
+  }
+
+  /**
+   * Restaura el estado recordado del enemigo al recargar su chunk, descontando tiempo transcurrido.
+   * @param {Object} state
+   * @param {number} [clockSec=0]
+   */
+  restoreChunkState(state, clockSec = 0) {
+    if (!state) return;
+    this._hasGrantedKillEssence = Boolean(state.grantedKillEssence);
+    this._parryEssenceGranted = Boolean(state.parryEssenceGranted);
+
+    if (typeof state.hasWoodenShield === 'boolean' && state.hasWoodenShield !== this.hasWoodenShield) {
+      this.hasWoodenShield = state.hasWoodenShield;
+      if (!this.hasWoodenShield) {
+        this.tags = this.tags.filter((t) => t !== 'wooden_shield');
+      }
     }
 
-    // 4. Enemigos de horda activa detectan en 360° dentro de rango extendido de arena
-    const aggroRange = (this.config && this.config.aggroRange) ? this.config.aggroRange : 170;
-    if (this.hasTag('wave_enemy') && distToPlayer <= aggroRange * 1.5) {
-      return true;
+    if (state.isDead) {
+      if (this.noRespawn || this.hasTag('no_respawn')) {
+        this.isDead = true;
+        this.health = 0;
+        this.respawnTimer = 999999;
+        this.tags = this.tags.filter((t) => t !== 'solid');
+        return;
+      }
+
+      const elapsed = Math.max(0, clockSec - (state.unloadedAtSec || 0));
+      const remaining = (state.respawnRemaining || 0) - elapsed;
+      if (remaining > 0) {
+        this.isDead = true;
+        this.health = 0;
+        this.respawnTimer = remaining;
+        this.tags = this.tags.filter((t) => t !== 'solid');
+      } else {
+        this.isDead = false;
+        this.health = this.max_health;
+        this.respawnTimer = 0;
+        this.pos.set(this.initialX, this.initialY);
+      }
+      return;
     }
 
-    // 5. Ruido de pasos al correr/esprintar con [F]/[V]
-    if (player.isSprinting && distToPlayer <= Math.min(aggroRange * 1.15, 130)) {
-      return true;
+    if (typeof state.health === 'number') {
+      this.health = Math.max(1, Math.min(this.max_health, state.health));
     }
-
-    // 6. Percepción cercana de pasos si el jugador camina erguido (!isProne)
-    if (!player.isProne && distToPlayer <= 76) {
-      return true;
+    if (typeof state.x === 'number' && typeof state.y === 'number') {
+      this.pos.set(state.x, state.y);
     }
-
-    // 7. Cono de Visión Óptica Direccional con Escáner (cuerpo a tierra reduce silueta al 72%)
-    const baseVisionRange = this.visionRange || 200;
-    const effectiveRange = player.isProne ? baseVisionRange * 0.72 : baseVisionRange;
-    if (distToPlayer > effectiveRange) return false;
-
-    const baseAngle = Math.atan2(this.aimDir.y, this.aimDir.x);
-    const scanClock = this.animClock || 0;
-    const sweep = (this.aiState === 'PATROL' || this.aiState === 'IDLE')
-      ? Math.sin(scanClock * 2.4) * 0.32
-      : 0;
-    const scannerAngle = baseAngle + sweep;
-
-    const angleToPlayer = Math.atan2(toPlayerY, toPlayerX);
-    let diff = angleToPlayer - scannerAngle;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-
-    const halfAngle = this.visionAngle || (Math.PI / 4);
-    if (Math.abs(diff) <= halfAngle) {
-      return true;
-    }
-
-    return false;
   }
 
   /**
@@ -575,22 +597,32 @@ export class Enemy extends Entity {
 
     if (!player) return;
 
-    const myX = this.pos.x + this.width / 2;
-    const myY = this.pos.y + this.height / 2;
-    const plX = player.pos.x + player.width / 2;
-    const plY = player.pos.y + player.height / 2;
+    const stealthSystem = context.stealthSystem || null;
+    const myX = this.pos.x + this.width * 0.5;
+    const myY = this.pos.y + this.height * 0.5;
+    const plX = player.pos.x + player.width * 0.5;
+    const plY = player.pos.y + player.height * 0.5;
     const toPlayerX = plX - myX;
     const toPlayerY = plY - myY;
-    const distToPlayer = Math.hypot(toPlayerX, toPlayerY);
-    const distFromHome = Math.hypot(myX - this.initialX, myY - this.initialY);
+    const distSq = toPlayerX * toPlayerX + toPlayerY * toPlayerY;
+
+    // Ahorro de CPU: enemigos lejanos en reposo/patrulla (> 340 px) no procesan IA fuera de escena
+    if (distSq > 115600 && (this.aiState === 'IDLE' || this.aiState === 'PATROL') && !this.hasTag('wave_enemy')) {
+      return;
+    }
+
+    const distToPlayer = Math.sqrt(distSq);
+    const homeDx = myX - this.initialX;
+    const homeDy = myY - this.initialY;
+    const distFromHomeSq = homeDx * homeDx + homeDy * homeDy;
 
     // 4. Máquina de Estados Táctica por Arquetipo
     switch (this.aiState) {
       case 'IDLE': {
         this.aiTimer -= dt;
-        if (this.checkPlayerDetection(player, distToPlayer, toPlayerX, toPlayerY, physics)) {
+        if (this.checkPlayerDetection(player, distSq, toPlayerX, toPlayerY, physics, stealthSystem, dt)) {
           this.aiState = 'CHASE';
-          this.loseAggroTimer = 3.5;
+          this.loseAggroTimer = 2.0;
           if (!this.isAlerted) {
             this.isAlerted = true;
             if (context.uiManager && context.camera) {
@@ -610,9 +642,9 @@ export class Enemy extends Entity {
       }
 
       case 'PATROL': {
-        if (this.checkPlayerDetection(player, distToPlayer, toPlayerX, toPlayerY, physics)) {
+        if (this.checkPlayerDetection(player, distSq, toPlayerX, toPlayerY, physics, stealthSystem, dt)) {
           this.aiState = 'CHASE';
-          this.loseAggroTimer = 3.5;
+          this.loseAggroTimer = 2.0;
           if (!this.isAlerted) {
             this.isAlerted = true;
             if (context.uiManager && context.camera) {
@@ -624,11 +656,12 @@ export class Enemy extends Entity {
         this.aiTimer -= dt;
         const dx = this.patrolTarget.x - this.pos.x;
         const dy = this.patrolTarget.y - this.pos.y;
-        const d = Math.hypot(dx, dy);
-        if (d < 8 || this.aiTimer <= 0) {
+        const dSq = dx * dx + dy * dy;
+        if (dSq < 64 || this.aiTimer <= 0) {
           this.aiState = 'IDLE';
           this.aiTimer = 1.0 + Math.random() * 1.2;
         } else {
+          const d = Math.sqrt(dSq);
           this._faceVector(dx, dy, 0.25);
           this._moveSafe((dx / d) * this.config.speed * 0.45, (dy / d) * this.config.speed * 0.45, dt, physics);
         }
@@ -636,8 +669,9 @@ export class Enemy extends Entity {
       }
 
       case 'CHASE': {
-        // Pérdida de agresividad si el jugador se esconde en sigilo o se aleja demasiado
-        if (player.isStealthHidden || distToPlayer > this.config.aggroRange * 1.55) {
+        const stealthActive = Boolean(stealthSystem && stealthSystem.enabled);
+        // Pérdida de agresividad si el sigilo está activo y se oculta o si se aleja demasiado
+        if ((stealthActive && player.isStealthHidden) || (!this.hasTag('wave_enemy') && distToPlayer > this.config.aggroRange * 1.4)) {
           this.loseAggroTimer -= dt;
           if (this.loseAggroTimer <= 0) {
             this.aiState = 'PATROL';
@@ -647,11 +681,11 @@ export class Enemy extends Entity {
             break;
           }
         } else {
-          this.loseAggroTimer = 3.5;
+          this.loseAggroTimer = 2.0;
         }
 
-        // Correa territorial (Leash) para no perseguir infinitamente fuera de su zona
-        if (distToPlayer > this.config.aggroRange * 1.45 && distFromHome > 260) {
+        // Correa territorial (Leash) para no perseguir infinitamente fuera de su zona (> 200 px)
+        if (!this.hasTag('wave_enemy') && distToPlayer > this.config.aggroRange * 1.25 && distFromHomeSq > 40000) {
           this.patrolTarget.set(this.initialX, this.initialY);
           this.aiState = 'PATROL';
           this.isAlerted = false;
@@ -863,50 +897,13 @@ export class Enemy extends Entity {
   }
 
   /**
-   * Renderiza el Cono de Visión y Escáner en el suelo con pulso dinámico (estilo The-last-endo).
+   * Renderiza el cono de visión compacto únicamente cuando StealthSystem está activado.
    * @param {CanvasRenderingContext2D} ctx
+   * @param {import('../systems/StealthSystem.js').StealthSystem|null} [stealthSystem=null]
    */
-  drawVisionCone(ctx) {
-    if (this.isDead || this.health <= 0) return;
-    if (this.aiState !== 'IDLE' && this.aiState !== 'PATROL' && this.aiState !== 'CHASE') return;
-
-    const cx = Math.round(this.pos.x + this.width / 2);
-    const cy = Math.round(this.pos.y + this.height / 2);
-    const baseAngle = Math.atan2(this.aimDir.y, this.aimDir.x);
-    const scanClock = this.animClock || 0;
-    const sweep = (this.aiState === 'PATROL' || this.aiState === 'IDLE')
-      ? Math.sin(scanClock * 2.4) * 0.32
-      : 0;
-    const angle = baseAngle + sweep;
-    const halfAngle = this.visionAngle || (Math.PI / 4);
-    const range = this.aiState === 'CHASE' ? Math.min(220, this.visionRange * 1.1) : this.visionRange;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, range, angle - halfAngle, angle + halfAngle);
-    ctx.closePath();
-
-    if (this.aiState === 'CHASE') {
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.32)';
-    } else {
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.06)';
-      ctx.strokeStyle = 'rgba(250, 204, 21, 0.18)';
-    }
-    ctx.fill();
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    // Línea de escaneo móvil
-    const scanDist = ((scanClock * 130) % range);
-    ctx.beginPath();
-    ctx.arc(cx, cy, scanDist, angle - halfAngle, angle + halfAngle);
-    ctx.strokeStyle = this.aiState === 'CHASE' ? 'rgba(248, 113, 113, 0.28)' : 'rgba(253, 224, 71, 0.22)';
-    ctx.lineWidth = 1.0;
-    ctx.stroke();
-
-    ctx.restore();
+  drawVisionCone(ctx, stealthSystem = null) {
+    if (!stealthSystem || !stealthSystem.enabled) return;
+    stealthSystem.drawCompactVisionCone(ctx, this);
   }
 
   /**

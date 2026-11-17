@@ -178,8 +178,10 @@ export class WaveManager {
     this.isStarted = true;
     this.currentWaveIndex = 0;
 
-    // Limpiar enemigos residuales marcándolos como despawneados (no derrotados) para no disparar Karma falso
-    if (this.entityManager) {
+    // Limpiar enemigos residuales marcándolos como despawneados (no derrotados) y suprimir reaparición por chunk
+    if (context && context.chunkManager && typeof context.chunkManager.setFieldEnemiesSuppressed === 'function') {
+      context.chunkManager.setFieldEnemiesSuppressed(true);
+    } else if (this.entityManager) {
       const existingEnemies = this.entityManager.getByTag('enemy');
       existingEnemies.forEach(e => {
         e._despawnedForHorde = true;

@@ -97,8 +97,11 @@ export class CinematicManager {
     this.isPlaying = false;
     this.onCompleteCallback = null;
     this.isTyping = false;
+    this._transitionPending = false;
+    /** @type {Function|null} Callback opcional para despertar el bucle de Engine al interactuar */
+    this.onWake = null;
 
-    /** @type {Map<string, HTMLImageElement>} Caché de imágenes decodificadas */
+    /** @type {Map<string, HTMLImageElement>} Caché acotada (solo diapositiva actual + siguiente) */
     this.imageCache = new Map();
 
     // Typewriter basado en deltaTime (sincronizado con el Game Loop)
@@ -115,38 +118,52 @@ export class CinematicManager {
   }
 
   /**
-   * Pre-carga de forma asíncrona todas las imágenes de una secuencia cinemática.
-   * Evita pausas, tartamudeos o pantallas negras prolongadas durante la reproducción.
+   * Pre-carga de forma progresiva una escena puntual o las primeras escenas del prólogo
+   * para evitar decodificar decenas de megabytes simultáneos durante el arranque.
    * @param {Object} sequence - Secuencia narrativa guiada por datos
+   * @param {number} [maxSlides=2] - Cantidad inicial de diapositivas a decodificar en arranque
    * @returns {Promise<void>}
    */
-  async preloadSequence(sequence) {
+  async preloadSequence(sequence, maxSlides = 2) {
     if (!sequence || !sequence.slides) return;
-    const loadPromises = sequence.slides.map((slide) => {
-      return new Promise((resolve) => {
-        if (!slide.imagen_bg) return resolve();
-        if (this.imageCache.has(slide.imagen_bg)) return resolve();
+    const count = Math.min(sequence.slides.length, maxSlides);
+    const tasks = [];
+    for (let i = 0; i < count; i++) {
+      tasks.push(this._preloadSlideUrl(sequence.slides[i]?.imagen_bg));
+    }
+    await Promise.all(tasks);
+  }
 
-        const img = new Image();
-        img.src = slide.imagen_bg;
-        img.onload = () => {
-          this.imageCache.set(slide.imagen_bg, img);
-          if ('decode' in img) {
-            img.decode().then(resolve).catch(resolve);
-          } else {
-            resolve();
-          }
-        };
-        img.onerror = () => {
-          console.warn(`[CinematicManager] No se pudo pre-cargar: ${slide.imagen_bg}`);
-          resolve();
-        };
-      });
+  /**
+   * Pre-carga una única imagen cinemática sin bloquear el hilo principal.
+   * @private
+   */
+  _preloadSlideUrl(url) {
+    return new Promise((resolve) => {
+      if (!url) return resolve();
+      if (this.imageCache.has(url)) return resolve();
+
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = url;
+      img.onload = () => {
+        this.imageCache.set(url, img);
+        resolve();
+      };
+      img.onerror = () => {
+        console.warn(`[CinematicManager] No se pudo pre-cargar: ${url}`);
+        resolve();
+      };
     });
+  }
 
-    await Promise.all(loadPromises);
-    if (typeof window !== 'undefined' && window.DEBUG_MODE) {
-      console.log(`[CinematicManager] Pre-cargadas ${this.imageCache.size} escenas cinemáticas.`);
+  /**
+   * Libera las imágenes de alta resolución del prólogo de memoria gráfica tras iniciar gameplay.
+   */
+  releaseCache() {
+    this.imageCache.clear();
+    if (this.imageLayer) {
+      this.imageLayer.style.backgroundImage = 'none';
     }
   }
 
@@ -216,6 +233,7 @@ export class CinematicManager {
       this.transitionLayer.className = 'cinematic-transition-layer transition-clear';
     }
 
+    if (typeof this.onWake === 'function') this.onWake();
     this._renderSlide(this.currentSlideIndex);
   }
 
@@ -224,6 +242,16 @@ export class CinematicManager {
     if (!slide) return;
 
     this.currentDialogueIndex = 0;
+
+    // Mantener en RAM únicamente la escena actual y la inmediatamente siguiente
+    const nextSlide = this.currentSequence?.slides?.[index + 1];
+    const keepUrlA = slide.imagen_bg || '';
+    const keepUrlB = nextSlide?.imagen_bg || '';
+    for (const cachedUrl of this.imageCache.keys()) {
+      if (cachedUrl !== keepUrlA && cachedUrl !== keepUrlB) {
+        this.imageCache.delete(cachedUrl);
+      }
+    }
 
     // --- Manejo de la Cámara y Background ---
     if (this.imageLayer) {
@@ -234,6 +262,11 @@ export class CinematicManager {
 
       const camClass = this._getCameraClass(slide.movimiento_camara);
       if (camClass) this.imageLayer.classList.add(camClass);
+    }
+
+    // Pre-cargar bajo demanda únicamente la siguiente escena mientras el usuario lee
+    if (nextSlide?.imagen_bg) {
+      this._preloadSlideUrl(nextSlide.imagen_bg);
     }
 
     // --- Manejo de la Transición de Entrada ---
@@ -320,6 +353,7 @@ export class CinematicManager {
    */
   advance() {
     if (!this.isPlaying || !this.currentSequence) return;
+    if (typeof this.onWake === 'function') this.onWake();
 
     const slide = this.currentSequence.slides[this.currentSlideIndex];
     if (!slide) return;
@@ -349,11 +383,13 @@ export class CinematicManager {
 
   skip() {
     if (!this.isPlaying) return;
+    if (typeof this.onWake === 'function') this.onWake();
     // Salto inmediato sin pantalla negra residual de 3 segundos
     this.end();
   }
 
   _triggerEndSequence() {
+    this._transitionPending = true;
     // Fade a Negro rápido y cinematográfico (450ms) al culminar
     if (this.transitionLayer) {
       this.transitionLayer.style.transition = 'opacity 0.45s ease';
@@ -361,12 +397,15 @@ export class CinematicManager {
     }
     
     setTimeout(() => {
+      this._transitionPending = false;
       this.end();
     }, 450);
   }
 
   end() {
     this.isPlaying = false;
+    this.isTyping = false;
+    this._transitionPending = false;
     this.currentSequence = null;
 
     if (this.overlay) {

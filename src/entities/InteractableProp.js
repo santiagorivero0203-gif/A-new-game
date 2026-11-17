@@ -66,6 +66,49 @@ export class InteractableProp extends Entity {
   }
 
   /**
+   * Serializa de forma compacta el estado persistente del prop al descargar su chunk
+   * (zarzas quemadas, roca destruida, espada recogida, obelisco activado).
+   * @returns {Object}
+   */
+  serializeChunkState() {
+    return {
+      isConsumed: Boolean(this.isConsumed),
+      isActivated: Boolean(this.isActivated),
+      isDead: Boolean(this.isDead),
+      health: this.health,
+      isBurning: Boolean(this.isBurning),
+      burnProgress: this.burnProgress
+    };
+  }
+
+  /**
+   * Restaura el estado recordado del prop al recargar su chunk.
+   * @param {Object} state
+   */
+  restoreChunkState(state) {
+    if (!state) return;
+    this.isConsumed = Boolean(state.isConsumed);
+    this.isActivated = Boolean(state.isActivated);
+    this.isDead = Boolean(state.isDead);
+    this.isBurning = Boolean(state.isBurning);
+    this.burnProgress = state.burnProgress || 0;
+    if (typeof state.health === 'number') {
+      this.health = state.health;
+    }
+
+    // Si el obstáculo ya fue destruido/consumido, garantizar que no vuelva a bloquear paso ni interacciones
+    if (this.isConsumed || this.isDead) {
+      if (this.propType === 'cracked_rock' || this.propType === 'burnable_vines') {
+        this.isDead = true;
+        this.active = false;
+        this.tags = this.tags.filter((t) => t !== 'solid' && t !== 'destructible_prop');
+      } else if (this.propType === 'starter_sword' || this.propType === 'relic_pedestal' || this.propType === 'broken_statue' || this.propType === 'rusted_greatsword') {
+        this.tags = this.tags.filter((t) => t !== 'interactable');
+      }
+    }
+  }
+
+  /**
    * Normaliza alias históricos de `propType` usados en archivos JSON de niveles.
    * @private
    * @param {string} propType
@@ -466,11 +509,15 @@ export class InteractableProp extends Entity {
     }
 
     if (this.propType === 'sanctuary_altar') {
+      const isMobile = context?.inputManager?.shouldShowTouchControls || (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active'));
       if (stateManager) {
         const prevTier = stateManager.get('gauntlet_tier') || 0;
         stateManager.set('gauntlet_tier', 3);
         stateManager.set('intro_stage', 4);
-        stateManager.set('level_objective', 'Santuario Armonizado • Mejora tus talentos [U] o activa la Estela de Hordas');
+        stateManager.set(
+          'level_objective',
+          formatControlPrompts('Santuario Armonizado • Mejora tus talentos [U] o activa la Estela de Hordas', isMobile)
+        );
         if (player) {
           player.unlockAllElements();
           player.spawnX = Math.round(this.pos.x);
@@ -483,7 +530,7 @@ export class InteractableProp extends Entity {
         if (prevTier < 3) {
           stateManager.set('horde_victory_announcement', {
             title: 'RESONANCIA ANCESTRAL COMPLETA',
-            rewardText: 'Fuego, Embestida Cinética y Raíces desbloqueados • Pulsa [1][2][3] o [R] para alternar'
+            rewardText: formatControlPrompts('Fuego, Embestida Cinética y Raíces desbloqueados • Pulsa [1][2][3] o [R] para alternar', isMobile)
           });
         }
         // Solicitar apertura limpia del Santuario de Habilidades si se invocó con [E]
@@ -866,19 +913,22 @@ export class InteractableProp extends Entity {
   }
 
   /**
-   * Dibuja una insignia flotante limpia indicando "[E]" sobre objetos interactivos cercanos.
+   * Dibuja una insignia flotante limpia indicando "[E]" en PC o "USAR" en móvil.
    * @private
    */
   _drawPromptBadge(ctx, cx, topY) {
-    let label = '[E] EXAMINAR';
-    if (this.propType === 'relic_pedestal') label = '[E] NÚCLEO';
-    else if (this.propType === 'starter_sword') label = '[E] EMPUÑAR ESPADA';
-    else if (this.propType === 'sanctuary_altar') label = '[E] ALTAR';
-    else if (this.propType === 'horde_totem') label = '[E] HORDAS';
-    else if (this.propType === 'broken_statue') label = '[E] ESTATUA';
-    else if (this.propType === 'rusted_greatsword') label = '[E] ESPADÓN';
-    else if (this.propType === 'runic_obelisk') label = '[E] OBELISCO';
-    else if (this.propType === 'world_portal') label = `[E] ${this.worldLabel.toUpperCase()}`;
+    const isTouch = typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active');
+    const prefix = isTouch ? 'USAR ·' : '[E]';
+    let action = 'EXAMINAR';
+    if (this.propType === 'relic_pedestal') action = 'NÚCLEO';
+    else if (this.propType === 'starter_sword') action = 'EMPUÑAR ESPADA';
+    else if (this.propType === 'sanctuary_altar') action = 'ALTAR';
+    else if (this.propType === 'horde_totem') action = 'HORDAS';
+    else if (this.propType === 'broken_statue') action = 'ESTATUA';
+    else if (this.propType === 'rusted_greatsword') action = 'ESPADÓN';
+    else if (this.propType === 'runic_obelisk') action = 'OBELISCO';
+    else if (this.propType === 'world_portal') action = this.worldLabel.toUpperCase();
+    const label = `${prefix} ${action}`;
     ctx.save();
     ctx.font = '800 9px Outfit, sans-serif';
     const w = Math.max(48, ctx.measureText(label).width + 14);

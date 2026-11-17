@@ -48,9 +48,14 @@
   pointer-events: none;
 }
 
-/* Utilidad global estricta para impedir cualquier solapamiento accidental */
+/* Utilidad global estricta para impedir solapamientos y pausar animaciones cuando está oculto */
 .hidden {
   display: none !important;
+}
+
+.hidden,
+.hidden * {
+  animation-play-state: paused !important;
 }
 
 #ui-overlay {
@@ -468,8 +473,8 @@
 }
 
 @keyframes bar-critical-flash {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.35); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
 }
 
 .hud-energy-fill.energy-dormant {
@@ -1129,14 +1134,26 @@ body.touch-controls-active .dialogue-card {
 
 .dash-btn { right: 88px; bottom: 4px; width: 56px; height: 56px; color: #7dd3fc; }
 .defend-btn { right: 82px; bottom: 68px; width: 56px; height: 56px; color: #93c5fd; }
-.skill-btn { right: 8px; bottom: 88px; width: 60px; height: 60px; color: var(--cel-gold); }
+.skill-btn {
+  right: 4px;
+  bottom: 88px;
+  width: 68px;
+  height: 68px;
+  color: var(--cel-gold);
+  gap: 1px;
+  padding: 8px;
+}
+.skill-btn > svg { font-size: 16px; margin-top: 2px; }
+.skill-btn .btn-subtext { font-size: 7px; line-height: 1; margin-bottom: 6px; }
 .skill-strong-btn { right: 144px; bottom: 44px; width: 52px; height: 52px; color: var(--cel-amber); }
 
 .heal-btn { right: 146px; bottom: 106px; width: 44px; height: 44px; color: var(--cel-emerald); }
 .switch-btn { right: 92px; bottom: 132px; width: 44px; height: 44px; color: var(--cel-gold); }
-.interact-btn { right: 32px; bottom: 152px; width: 44px; height: 44px; color: #fde047; }
-.sprint-btn { right: 202px; bottom: 44px; width: 44px; height: 44px; color: #38bdf8; }
-.stealth-btn { right: 204px; bottom: 104px; width: 44px; height: 44px; color: #34d399; }
+.interact-btn { right: 32px; bottom: 158px; width: 44px; height: 44px; color: #fde047; }
+.sprint-btn { right: 198px; bottom: 46px; width: 44px; height: 44px; color: #38bdf8; }
+/* Botón de sigilo oculto salvo que StealthSystem habilite una sección específica */
+.stealth-btn { display: none; right: 198px; bottom: 104px; width: 44px; height: 44px; color: #34d399; }
+body.stealth-mode-active .stealth-btn { display: flex; }
 
 .btn-subtext,
 .touch-sub-label {
@@ -1148,14 +1165,15 @@ body.touch-controls-active .dialogue-card {
 
 .swipe-hint {
   position: absolute;
-  font-size: 9px;
+  font-size: 7.5px;
+  line-height: 1;
   pointer-events: none;
-  opacity: 0.85;
+  opacity: 0.72;
 }
-.hint-n { top: 2px; color: #fb923c; }
-.hint-e { right: 2px; color: #38bdf8; }
-.hint-s { bottom: 2px; color: #4ade80; }
-.hint-w { left: 2px; color: #94a3b8; }
+.hint-n { top: 3px; color: #fb923c; }
+.hint-e { right: 3px; color: #38bdf8; }
+.hint-s { bottom: 2.5px; color: #4ade80; }
+.hint-w { left: 3px; color: #94a3b8; }
 
 /* ============================================================================
    2. HUB UNIFICADO DEL SANTUARIO (4 Pestañas + Fondo 2D Nano Banana Cel-Shaded)
@@ -1180,8 +1198,7 @@ body.touch-controls-active .dialogue-card {
   flex-direction: column;
   background-color: #0b1324;
   background-image:
-    linear-gradient(135deg, rgba(8, 13, 25, 0.90) 0%, rgba(13, 22, 40, 0.82) 50%, rgba(8, 13, 25, 0.93) 100%),
-    url('/assets/ui/menu_sanctuary_bg.jpg');
+    linear-gradient(135deg, rgba(8, 13, 25, 0.90) 0%, rgba(13, 22, 40, 0.82) 50%, rgba(8, 13, 25, 0.93) 100%);
   background-size: cover;
   background-position: center;
   border: 3px solid var(--ink-black);
@@ -1191,6 +1208,13 @@ body.touch-controls-active .dialogue-card {
     0 10px 0 var(--ink-black),
     inset 0 0 0 2px rgba(250, 204, 21, 0.35);
   overflow: hidden;
+}
+
+/* Textura del Santuario cargada únicamente mientras el modal está abierto */
+#skill-tree-modal.sanctuary-assets-loaded .st-sanctuary-window {
+  background-image:
+    linear-gradient(135deg, rgba(8, 13, 25, 0.90) 0%, rgba(13, 22, 40, 0.82) 50%, rgba(8, 13, 25, 0.93) 100%),
+    url('/assets/ui/menu_sanctuary_bg.jpg');
 }
 
 /* Top-Bar de Navegación por Pestañas */
@@ -2198,12 +2222,17 @@ kbd {
   padding: clamp(24px, 5vh, 48px) var(--safe-right) clamp(24px, 5vh, 48px) var(--safe-left);
   background-color: #060a14;
   background-image:
-    linear-gradient(180deg, rgba(5, 8, 17, 0.45) 0%, rgba(5, 8, 17, 0.2) 40%, rgba(5, 8, 17, 0.85) 100%),
-    url('/assets/images/cover.jpg');
+    linear-gradient(180deg, rgba(5, 8, 17, 0.45) 0%, rgba(5, 8, 17, 0.2) 40%, rgba(5, 8, 17, 0.85) 100%);
   background-size: cover;
   background-position: center;
   pointer-events: auto;
   cursor: pointer;
+}
+
+.overlay-menu.menu-cover-active {
+  background-image:
+    linear-gradient(180deg, rgba(5, 8, 17, 0.45) 0%, rgba(5, 8, 17, 0.2) 40%, rgba(5, 8, 17, 0.85) 100%),
+    url('/assets/images/cover.jpg');
 }
 
 .title-container {
@@ -2260,9 +2289,7 @@ kbd {
   align-items: center;
   text-align: center;
   padding: clamp(22px, 3vh, 32px) clamp(24px, 4vw, 44px);
-  background: rgba(10, 6, 18, 0.86);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: rgba(10, 6, 18, 0.92);
   border: 1.5px solid rgba(168, 85, 247, 0.45);
   border-radius: 24px;
   box-shadow:
@@ -2739,6 +2766,12 @@ body.touch-controls-active .horde-banner-title {
 
 body.touch-controls-active .horde-banner-sub {
   font-size: 10px;
+}
+
+/* Ocultar etiquetas de atajos de teclado ([U], [Q]/[E]) cuando los controles móviles están activos */
+body.touch-controls-active .essence-hotkey,
+body.touch-controls-active .st-nav-key {
+  display: none !important;
 }
 
 @media (max-height: 540px) {

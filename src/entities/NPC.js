@@ -37,6 +37,7 @@ export class NPC extends Entity {
     this.isUnderThreat = false;
     this.hadAmbushers = false;
     this.rescueCompleted = false;
+    this._defeatedAnyAmbusher = false;
     this.animClock = Math.random() * Math.PI * 2;
 
     // Hitbox precisa en la base de los pies (Y-Sorting perfecto con Santi)
@@ -48,6 +49,34 @@ export class NPC extends Entity {
     };
     this._hitboxCache.width = this.hitbox.width;
     this._hitboxCache.height = this.hitbox.height;
+  }
+
+  /**
+   * Serializa el estado narrativo/karma del NPC al descargar su chunk.
+   * @returns {Object}
+   */
+  serializeChunkState() {
+    return {
+      interacted: Boolean(this.interacted),
+      hadAmbushers: Boolean(this.hadAmbushers),
+      defeatedAnyAmbusher: Boolean(this._defeatedAnyAmbusher),
+      rescueCompleted: Boolean(this.rescueCompleted)
+    };
+  }
+
+  /**
+   * Restaura el estado recordado del NPC al volver a entrar en su chunk.
+   * @param {Object} state
+   */
+  restoreChunkState(state) {
+    if (!state) return;
+    this.interacted = Boolean(state.interacted);
+    this.hadAmbushers = Boolean(state.hadAmbushers);
+    this._defeatedAnyAmbusher = Boolean(state.defeatedAnyAmbusher);
+    this.rescueCompleted = Boolean(state.rescueCompleted);
+    if (this.rescueCompleted) {
+      this.isUnderThreat = false;
+    }
   }
 
   /**
@@ -73,14 +102,14 @@ export class NPC extends Entity {
       this.playerNearby = false;
     }
 
-    // Evaluar emboscada activa sobre Valerio sin instanciar arreglos por fotograma (Cero GC)
+    // Evaluar emboscada activa sobre Valerio iterando solo la cubeta de enemigos (cero árboles/props)
     if (this.rescueTag && contextOrDt.entityManager && !this.rescueCompleted) {
-      const raw = contextOrDt.entityManager.rawEntities || contextOrDt.entityManager.entities;
+      const enemies = contextOrDt.entityManager.getByTag('enemy');
       let aliveCount = 0;
       let defeatedCount = 0;
-      for (let i = 0; i < raw.length; i++) {
-        const e = raw[i];
-        if (!e.hasTag(this.rescueTag)) continue;
+      for (let i = 0; i < enemies.length; i++) {
+        const e = enemies[i];
+        if (!e || !e.hasTag(this.rescueTag)) continue;
         if (!e.isDead && e.health > 0) {
           aliveCount++;
         } else if (e.isDead && !e._despawnedForHorde) {
@@ -89,7 +118,7 @@ export class NPC extends Entity {
       }
       if (aliveCount > 0) {
         this.hadAmbushers = true;
-      } else if (defeatedCount > 0) {
+      } else if (defeatedCount > 0 || (contextOrDt.chunkManager && contextOrDt.chunkManager.hasRememberedDefeatWithTag(this.rescueTag))) {
         this._defeatedAnyAmbusher = true;
       }
       this.isUnderThreat = aliveCount > 0;
@@ -168,11 +197,12 @@ export class NPC extends Entity {
       ctx.drawImage(npcSpr, Math.round(x - 4 + panicOffsetX), y - 9 + bobY);
     }
 
-    // 3. Insignia flotante contextual: alerta si está en peligro o '[E] HABLAR' al acercarse
+    // 3. Insignia flotante contextual: alerta si está en peligro o '[E] HABLAR' / 'USAR · HABLAR' en móvil
     if (this.isUnderThreat) {
       this._drawBadge(ctx, x + 16, y - 12, '¡AUXILIO!', '#ef4444', '#fef2f2');
     } else if (this.playerNearby) {
-      this._drawBadge(ctx, x + 16, y - 12, '[E] HABLAR', '#facc15', '#fef08a');
+      const isTouch = typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active');
+      this._drawBadge(ctx, x + 16, y - 12, isTouch ? 'USAR · HABLAR' : '[E] HABLAR', '#facc15', '#fef08a');
     }
   }
 

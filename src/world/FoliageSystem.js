@@ -193,6 +193,8 @@ export class FoliageSystem {
     this.entityManager = entityManager;
     /** @type {Array<FoliageProp>} */
     this.foliageList = [];
+    /** @type {HTMLImageElement|HTMLCanvasElement|null} Textura Flyweight única para arbustos montados por chunks */
+    this._sharedSprite = null;
   }
 
   /**
@@ -203,52 +205,83 @@ export class FoliageSystem {
    * @returns {FoliageProp}
    */
   addFoliage(x, y, sprite = null) {
-    const prop = new FoliageProp(x, y, sprite);
+    const prop = new FoliageProp(x, y, sprite || this._sharedSprite);
     this.foliageList.push(prop);
     this.entityManager.addEntity(prop);
     return prop;
   }
 
   /**
-   * Evalúa la interacción y el choque con el jugador para aplicar físicas elásticas.
-   * @param {import('../entities/Player.js').Player} player
+   * Desmonta un arbusto específico al descargar su chunk del mundo activo.
+   * @param {FoliageProp} prop
    */
-  updateInteraction(player) {
+  removeFoliage(prop) {
+    if (!prop) return;
+    const idx = this.foliageList.indexOf(prop);
+    if (idx > -1) {
+      const last = this.foliageList.length - 1;
+      if (idx !== last) this.foliageList[idx] = this.foliageList[last];
+      this.foliageList.pop();
+    }
+    this.entityManager.removeEntity(prop);
+  }
+
+  /**
+   * Evalúa la interacción elástica al rozar arbustos y, solo si el sigilo está activo,
+   * actualiza la ocultación en grama alta.
+   * Utiliza rechazo rápido AABB para descartar arbustos lejanos sin alocar ni leer hitboxes.
+   * @param {import('../entities/Player.js').Player} player
+   * @param {boolean} [stealthEnabled=false] - Solo evalúa sigilo cuando la mecánica está habilitada
+   */
+  updateInteraction(player, stealthEnabled = false) {
     if (!player) return;
 
     const playerHitbox = player.getHitbox();
-    const playerCenterX = playerHitbox.x + playerHitbox.width / 2;
-    const playerCenterY = playerHitbox.y + playerHitbox.height / 2;
+    const playerCenterX = playerHitbox.x + playerHitbox.width * 0.5;
+    const playerCenterY = playerHitbox.y + playerHitbox.height * 0.5;
 
     const contactRadius = 34;
+    const contactRadiusSq = contactRadius * contactRadius;
     let inGrass = false;
+
     for (let i = 0; i < this.foliageList.length; i++) {
       const foliage = this.foliageList[i];
+      const fx = foliage.pos.x + foliage.width * 0.5;
+      const fy = foliage.pos.y + foliage.height * 0.5;
+      const dx = fx - playerCenterX;
+      if (dx > 52 || dx < -52) continue;
+      const dy = fy - playerCenterY;
+      if (dy > 52 || dy < -52) continue;
+
       const foliageHitbox = foliage.getHitbox();
-      const foliageCenterX = foliageHitbox.x + foliageHitbox.width / 2;
-      const foliageCenterY = foliageHitbox.y + foliageHitbox.height / 2;
+      const foliageCenterX = foliageHitbox.x + foliageHitbox.width * 0.5;
+      const foliageCenterY = foliageHitbox.y + foliageHitbox.height * 0.5;
+      const hdx = foliageCenterX - playerCenterX;
+      const hdy = foliageCenterY - playerCenterY;
 
-      const dx = foliageCenterX - playerCenterX;
-      const dy = foliageCenterY - playerCenterY;
-      const distSq = dx * dx + dy * dy;
-
-      if (distSq < contactRadius * contactRadius) {
+      if (hdx * hdx + hdy * hdy < contactRadiusSq) {
         inGrass = true;
-        const pushX = (player.velocity.x !== 0) ? player.velocity.x : (dx !== 0 ? Math.sign(dx) * 20 : 0);
+        const pushX = (player.velocity.x !== 0) ? player.velocity.x : (hdx !== 0 ? Math.sign(hdx) * 20 : 0);
         const pushY = (player.velocity.y !== 0) ? player.velocity.y : 0;
         foliage.applyPush(pushX, pushY);
       }
     }
 
-    player.inTallGrass = inGrass;
-    player.isStealthHidden = inGrass && !!player.isProne;
+    if (stealthEnabled) {
+      player.inTallGrass = inGrass;
+      player.isStealthHidden = inGrass && !!player.isProne;
+    } else {
+      player.inTallGrass = false;
+      player.isStealthHidden = false;
+    }
   }
 
   /**
-   * Asigna texturas masivamente una vez cargadas.
+   * Asigna una textura Flyweight única a todos los arbustos presentes y futuros.
    * @param {HTMLImageElement|HTMLCanvasElement} sprite
    */
   setGlobalSprite(sprite) {
+    this._sharedSprite = sprite;
     for (let i = 0; i < this.foliageList.length; i++) {
       this.foliageList[i].setSprite(sprite);
     }

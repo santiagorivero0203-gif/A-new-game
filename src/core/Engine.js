@@ -32,38 +32,67 @@ export class Engine {
     /** @type {number} Cooldown mínimo entre HitStops para impedir tirones encadenados al golpear grupos */
     this.hitStopCooldown = 0;
 
+    /** @type {number|null} Identificador del rAF programado para evitar bucles duplicados o en reposo */
+    this._rafId = null;
+
     // BUG-02 FIX: Pre-cachear el bind para no crear un closure nuevo cada frame
     this._boundLoop = this.loop.bind(this);
   }
 
-  /** Inicia el bucle de juego */
+  /** Inicia el bucle de juego si no estaba ya activo */
   start() {
     this.isRunning = true;
     this.lastTime = performance.now();
-    requestAnimationFrame(this._boundLoop);
+    if (!this.isPaused && this._rafId === null) {
+      this._rafId = requestAnimationFrame(this._boundLoop);
+    }
   }
 
-  /** Detiene por completo el bucle de juego */
+  /** Detiene por completo el bucle de juego y cancela cualquier refresco pendiente */
   stop() {
     this.isRunning = false;
+    if (this._rafId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this._rafId);
+    }
+    this._rafId = null;
   }
 
   /**
-   * Pausa la actualización lógica del juego.
-   * El renderizado continúa para permitir efectos visuales en menús o pausas.
+   * Pausa el bucle lógico y detiene el refresco continuo de `requestAnimationFrame`
+   * para ahorrar 100% de CPU/GPU en menús y pausas.
+   * @param {boolean} [drawFinalFrame=false] - Si true, dibuja un último frame estático al pausar
    */
-  pause() {
+  pause(drawFinalFrame = false) {
     this.isPaused = true;
     this.deltaTime = 0;
+    if (this._rafId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this._rafId);
+    }
+    this._rafId = null;
+    if (drawFinalFrame && this.renderFn) {
+      this.renderFn(0);
+    }
   }
 
   /**
-   * Reanuda la lógica del juego.
+   * Dibuja un único fotograma estático bajo demanda mientras el motor está en pausa (ej. al redimensionar).
+   */
+  renderOnce() {
+    if (this.isPaused && this.renderFn) {
+      this.renderFn(0);
+    }
+  }
+
+  /**
+   * Reanuda la lógica y reactiva el bucle `requestAnimationFrame`.
    * Reinicia lastTime para evitar picos abruptos de deltaTime tras la pausa.
    */
   resume() {
     this.isPaused = false;
     this.lastTime = performance.now();
+    if (this.isRunning && this._rafId === null) {
+      this._rafId = requestAnimationFrame(this._boundLoop);
+    }
   }
 
   /**
@@ -74,7 +103,7 @@ export class Engine {
     if (this.isPaused) {
       this.resume();
     } else {
-      this.pause();
+      this.pause(true);
     }
     return this.isPaused;
   }
@@ -94,11 +123,12 @@ export class Engine {
   }
 
   /**
-   * Ciclo principal. Se ejecuta una vez por frame.
+   * Ciclo principal. Se ejecuta una vez por frame únicamente mientras el motor está activo y sin pausa.
    * @param {DOMHighResTimeStamp} currentTime - Timestamp del frame actual
    */
   loop(currentTime) {
-    if (!this.isRunning) return;
+    this._rafId = null;
+    if (!this.isRunning || this.isPaused) return;
 
     let dt = (currentTime - this.lastTime) / 1000;
     if (dt < 0) dt = 0;
@@ -108,15 +138,11 @@ export class Engine {
     this.deltaTime = dt;
     this.lastTime = currentTime;
 
-    if (this.hitStopCooldown > 0 && !this.isPaused) {
+    if (this.hitStopCooldown > 0) {
       this.hitStopCooldown = Math.max(0, this.hitStopCooldown - dt);
     }
 
-    if (this.isPaused) {
-      // En pausa no se actualiza la física ni el estado de las entidades,
-      // pero se renderiza el último fotograma con dt = 0.
-      this.renderFn(0);
-    } else if (this.hitStopTimer > 0) {
+    if (this.hitStopTimer > 0) {
       // HitStop activo: resta tiempo usando el reloj monotónico de rAF sin desincronizar lastTime
       this.hitStopTimer -= dt;
       if (this.hitStopTimer <= 0) {
@@ -129,6 +155,8 @@ export class Engine {
       this.renderFn(this.deltaTime);
     }
 
-    requestAnimationFrame(this._boundLoop);
+    if (this.isRunning && !this.isPaused && this._rafId === null) {
+      this._rafId = requestAnimationFrame(this._boundLoop);
+    }
   }
 }

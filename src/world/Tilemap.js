@@ -144,8 +144,21 @@ export class Tilemap {
 
     /** @type {number[][]} Matriz 2D [row][col] de IDs de terreno (0..5) */
     this.grid = [];
-    /** @type {HTMLCanvasElement|null} Lienzo pre-horneado del nivel completo */
-    this.offscreenCanvas = null;
+
+    /** @type {number} Tamaño espacial de cada chunk lógico en losetas (8x8 = 256x256 px) */
+    this.chunkTiles = 8;
+    this.chunkPx = this.chunkTiles * this.tileSize;
+    this.chunkCols = Math.ceil(this.cols / this.chunkTiles);
+    this.chunkRows = Math.ceil(this.rows / this.chunkTiles);
+
+    /** @type {Map<string, HTMLCanvasElement>} Paleta Flyweight de variantes únicas de loseta (compartidas por todo el bioma) */
+    this._tileStamps = new Map();
+    /** @type {Map<string, HTMLCanvasElement>} Caché LRU de chunks visibles renderizados bajo demanda */
+    this._chunkCache = new Map();
+    /** @type {number} Tope de chunks de terreno cacheados simultáneamente en RAM */
+    this.maxCachedChunks = 18;
+    /** @type {string|null} Bioma asociado actualmente a la paleta Flyweight horneada */
+    this._stampsBiomeKey = null;
 
     if (Array.isArray(customGrid) && customGrid.length === rows) {
       this.grid = customGrid.map(row => row.slice());
@@ -170,6 +183,9 @@ export class Tilemap {
       : 'cave_exit_intro';
     this.width = this.cols * this.tileSize;
     this.height = this.rows * this.tileSize;
+    this.chunkPx = this.chunkTiles * this.tileSize;
+    this.chunkCols = Math.ceil(this.cols / this.chunkTiles);
+    this.chunkRows = Math.ceil(this.rows / this.chunkTiles);
 
     if (Array.isArray(levelData.terrainGrid) && levelData.terrainGrid.length === this.rows) {
       this.grid = levelData.terrainGrid.map(row => row.slice());
@@ -439,57 +455,178 @@ export class Tilemap {
   }
 
   /**
-   * Pre-hornea todo el terreno sobre `this.offscreenCanvas` ejecutando:
-   * - Pasada 1: Base por celda (o tiles PNG procedurales en el claro clásico).
-   * - Pasada 2: **Sistema Dual-Grid** desplazado `-tileSize / 2` (-16 px) para curvas orgánicas.
-   * - Pasada 3: **Proyección de Gabinete** en frentes de acantilado (`tile === 2`).
-   * @param {import('../core/ResourceManager.js').ResourceManager|null} [resourceManager=null]
+   * Libera todos los chunks cacheados en memoria gráfica y limpia sus buffers `<canvas>`.
    */
-  build(resourceManager = null) {
-    this.offscreenCanvas = document.createElement('canvas');
-    this.offscreenCanvas.width = this.width;
-    this.offscreenCanvas.height = this.height;
-    const ctx = this.offscreenCanvas.getContext('2d');
+  clearChunks() {
+    for (const c of this._chunkCache.values()) {
+      if (c) {
+        c.width = 0;
+        c.height = 0;
+      }
+    }
+    this._chunkCache.clear();
+  }
+
+  /**
+   * Libera la paleta Flyweight de variantes de losetas del bioma anterior.
+   */
+  clearTileStamps() {
+    for (const c of this._tileStamps.values()) {
+      if (c) {
+        c.width = 0;
+        c.height = 0;
+      }
+    }
+    this._tileStamps.clear();
+    this._stampsBiomeKey = null;
+  }
+
+  /**
+   * Prepara la paleta Flyweight de texturas únicas repetibles del bioma activo
+   * (4 variantes de hierba, 4 tierra, 4 agua, 2 roca y 2 losa = ~16 mini-canvases de 32x32)
+   * y purga los chunks viejos para que los nuevos se horneen bajo demanda en `render()`.
+   * @param {import('../core/ResourceManager.js').ResourceManager|null} [_resourceManager=null]
+   */
+  build(_resourceManager = null) {
+    this.clearChunks();
+    this._ensureBiomeTileStamps();
+  }
+
+  /**
+   * Construye una única vez por bioma los sellos Flyweight reutilizables de cada loseta.
+   * Una textura repetida 1,000 veces ocupa exactamente 1 objeto en RAM.
+   * @private
+   */
+  _ensureBiomeTileStamps() {
+    if (typeof document === 'undefined') return;
+    if (this._stampsBiomeKey === this.biomeKey && this._tileStamps.size > 0) return;
+
+    this.clearTileStamps();
+    this._stampsBiomeKey = this.biomeKey;
+
+    const pal = BIOME_PALETTES[this.biomeKey] || BIOME_PALETTES.cave_exit_intro;
+    const ts = this.tileSize;
+
+    const bakeVariant = (stampKey, seedX, seedY, drawFn) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = ts;
+      canvas.height = ts;
+      const sctx = canvas.getContext('2d');
+      if (sctx) {
+        sctx.imageSmoothingEnabled = false;
+        drawFn.call(this, sctx, 0, 0, seedX, seedY, pal);
+      }
+      this._tileStamps.set(stampKey, canvas);
+    };
+
+    for (let v = 0; v < 4; v++) {
+      bakeVariant(`turf_${v}`, v * 3 + 1, v * 5 + 2, this._drawBiomeTurf);
+      bakeVariant(`dirt_${v}`, v * 7 + 3, v * 11 + 1, this._drawBiomeDirt);
+      bakeVariant(`water_${v}`, v * 5 + 2, v * 9 + 4, this._drawBiomeWater);
+    }
+    for (let v = 0; v < 2; v++) {
+      bakeVariant(`cliff_${v}`, v * 2 + 1, v * 3 + 1, this._drawBiomeCliffTop);
+      bakeVariant(`plaza_${v}`, v * 2, v * 2, this._drawBiomePlaza);
+    }
+  }
+
+  /**
+   * Obtiene o hornea bajo demanda el chunk de terreno `(cx, cy)` combinando:
+   * 1. Estampado O(1) de texturas Flyweight compartidas.
+   * 2. Autotiling Dual-Grid solo dentro de las celdas del chunk.
+   * 3. Proyección de Gabinete de acantilados con solapamiento limpio de 1 fila superior.
+   * @private
+   * @param {number} cx
+   * @param {number} cy
+   * @returns {HTMLCanvasElement|null}
+   */
+  _getOrBakeChunk(cx, cy) {
+    if (typeof document === 'undefined') return null;
+    if (cx < 0 || cy < 0 || cx >= this.chunkCols || cy >= this.chunkRows) return null;
+
+    this._ensureBiomeTileStamps();
+
+    const key = `${cx}_${cy}`;
+    const cached = this._chunkCache.get(key);
+    if (cached) {
+      this._chunkCache.delete(key);
+      this._chunkCache.set(key, cached);
+      return cached;
+    }
+
+    const ts = this.tileSize;
+    const startCol = cx * this.chunkTiles;
+    const endCol = Math.min(this.cols, startCol + this.chunkTiles);
+    const startRow = cy * this.chunkTiles;
+    const endRow = Math.min(this.rows, startRow + this.chunkTiles);
+    const w = (endCol - startCol) * ts;
+    const h = (endRow - startRow) * ts;
+    if (w <= 0 || h <= 0) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
     ctx.imageSmoothingEnabled = false;
 
     const pal = BIOME_PALETTES[this.biomeKey] || BIOME_PALETTES.cave_exit_intro;
+    const originX = startCol * ts;
+    const originY = startRow * ts;
 
-    // -----------------------------------------------------------------------
-    // PASADA 1: Malla lógica de losetas base con variación procedural orgánica
-    // (sin repetir texturas estáticas en cuadrícula)
-    // -----------------------------------------------------------------------
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
+    // Pasada 1: Estampado con sellos Flyweight compartidos (y puentes dinámicos por vecinos)
+    for (let y = startRow; y < endRow; y++) {
+      const py = y * ts - originY;
+      for (let x = startCol; x < endCol; x++) {
         const tileId = this.grid[y][x];
-        const px = x * this.tileSize;
-        const py = y * this.tileSize;
+        const px = x * ts - originX;
+        const variantHash = this._hash2D(x, y, tileId + 1);
 
-        if (tileId === 0) {
-          this._drawBiomeTurf(ctx, px, py, x, y, pal);
-        } else if (tileId === 1) {
-          this._drawBiomeDirt(ctx, px, py, x, y, pal);
-        } else if (tileId === 2) {
-          this._drawBiomeCliffTop(ctx, px, py, x, y, pal);
-        } else if (tileId === 3) {
-          this._drawBiomeWater(ctx, px, py, x, y, pal);
-        } else if (tileId === 4) {
+        if (tileId === 4) {
           this._drawBiomeBridge(ctx, px, py, x, y, pal);
-        } else if (tileId === 5) {
-          this._drawBiomePlaza(ctx, px, py, x, y, pal);
+        } else {
+          let stampName = null;
+          if (tileId === 0) stampName = `turf_${variantHash & 3}`;
+          else if (tileId === 1) stampName = `dirt_${variantHash & 3}`;
+          else if (tileId === 2) stampName = `cliff_${variantHash & 1}`;
+          else if (tileId === 3) stampName = `water_${variantHash & 3}`;
+          else if (tileId === 5) stampName = `plaza_${variantHash & 1}`;
+
+          const stamp = stampName ? this._tileStamps.get(stampName) : null;
+          if (stamp) {
+            ctx.drawImage(stamp, px, py);
+          }
         }
       }
     }
 
-    // -----------------------------------------------------------------------
-    // PASADA 2: Autotiling pixel-art de bordes con rectángulos enteros
-    // (cubre riberas, voladizos de hierba sobre caminos y bordes de plazas)
-    // -----------------------------------------------------------------------
-    this._renderDualGridPass(ctx, pal);
+    // Pasada 2: Autotiling de bordes en el rango del chunk
+    this._renderDualGridPass(ctx, pal, startCol, endCol, startRow, endRow, originX, originY);
 
-    // -----------------------------------------------------------------------
-    // PASADA 3: Proyección de Gabinete (Muros frontales de acantilados)
-    // -----------------------------------------------------------------------
-    this._renderCabinetCliffs(ctx, pal);
+    // Pasada 3: Acantilados de Gabinete (incluyendo fila superior inmediata por voladizo de pared)
+    this._renderCabinetCliffs(
+      ctx,
+      pal,
+      startCol,
+      endCol,
+      Math.max(0, startRow - 1),
+      Math.min(this.rows - 1, endRow),
+      originX,
+      originY
+    );
+
+    this._chunkCache.set(key, canvas);
+    while (this._chunkCache.size > this.maxCachedChunks) {
+      const oldestKey = this._chunkCache.keys().next().value;
+      const oldCanvas = this._chunkCache.get(oldestKey);
+      if (oldCanvas) {
+        oldCanvas.width = 0;
+        oldCanvas.height = 0;
+      }
+      this._chunkCache.delete(oldestKey);
+    }
+
+    return canvas;
   }
 
   /**
@@ -508,21 +645,27 @@ export class Tilemap {
 
   /**
    * Dibuja transiciones orgánicas pixel-art en bordes usando exclusivamente `fillRect` enteros.
-   * Elimina cualquier artefacto de círculos flotantes y limpia el encuentro entre agua, puente,
-   * senderos y plazas talladas.
+   * Opera sobre un sub-rectángulo de chunk para evitar recorrer mapas enteros.
    * @private
-   * @param {CanvasRenderingContext2D} ctx
-   * @param {Object} pal
    */
-  _renderDualGridPass(ctx, pal) {
+  _renderDualGridPass(
+    ctx,
+    pal,
+    startCol = 0,
+    endCol = this.cols,
+    startRow = 0,
+    endRow = this.rows,
+    originX = 0,
+    originY = 0
+  ) {
     const ts = this.tileSize;
     const isLand = (id) => id === 0 || id === 1 || id === 5;
 
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
+    for (let y = startRow; y < endRow; y++) {
+      for (let x = startCol; x < endCol; x++) {
         const tileId = this.grid[y][x];
-        const px = x * ts;
-        const py = y * ts;
+        const px = x * ts - originX;
+        const py = y * ts - originY;
         const top = y > 0 ? this.grid[y - 1][x] : tileId;
         const bot = y < this.rows - 1 ? this.grid[y + 1][x] : tileId;
         const left = x > 0 ? this.grid[y][x - 1] : tileId;
@@ -713,18 +856,26 @@ export class Tilemap {
 
   /**
    * Dibuja frentes de acantilado con Proyección de Gabinete donde una celda de meseta (`2`)
-   * linda por debajo con terreno más bajo (`!= 2`).
+   * linda por debajo con terreno más bajo (`!= 2`), acotado al chunk activo.
    * @private
-   * @param {CanvasRenderingContext2D} ctx
-   * @param {Object} pal
    */
-  _renderCabinetCliffs(ctx, pal) {
+  _renderCabinetCliffs(
+    ctx,
+    pal,
+    startCol = 0,
+    endCol = this.cols,
+    startRow = 0,
+    endRow = this.rows - 1,
+    originX = 0,
+    originY = 0
+  ) {
     const ts = this.tileSize;
-    for (let y = 0; y < this.rows - 1; y++) {
-      for (let x = 0; x < this.cols; x++) {
+    const maxY = Math.min(this.rows - 1, endRow);
+    for (let y = startRow; y < maxY; y++) {
+      for (let x = startCol; x < endCol; x++) {
         if (this.grid[y][x] === 2 && this.grid[y + 1][x] !== 2) {
-          const px = x * ts;
-          const faceTop = (y + 1) * ts - 12;
+          const px = x * ts - originX;
+          const faceTop = (y + 1) * ts - 12 - originY;
           const wallHeight = 20;
 
           // Sombra índigo proyectada sobre la loseta inferior
@@ -1010,25 +1161,27 @@ export class Tilemap {
   }
 
   /**
-   * Renderiza exclusivamente el rectángulo visible del mapa mediante recorte directo O(1).
+   * Renderiza exclusivamente los chunks de terreno visibles dentro de cámara bajo demanda.
    * @param {CanvasRenderingContext2D} ctx
    * @param {import('../render/Camera.js').Camera} camera
    */
   render(ctx, camera) {
-    if (!this.offscreenCanvas) return;
+    if (!ctx || !camera) return;
 
-    const bounds = camera.getVisibleWorldBounds(this.tileSize * 2);
-    const sx = Math.max(0, Math.floor(bounds.minX));
-    const sy = Math.max(0, Math.floor(bounds.minY));
-    const maxW = Math.min(this.width, Math.ceil(bounds.maxX)) - sx;
-    const maxH = Math.min(this.height, Math.ceil(bounds.maxY)) - sy;
+    const bounds = camera.getVisibleWorldBounds(this.tileSize);
+    const minCx = Math.max(0, Math.floor(bounds.minX / this.chunkPx));
+    const maxCx = Math.min(this.chunkCols - 1, Math.floor(bounds.maxX / this.chunkPx));
+    const minCy = Math.max(0, Math.floor(bounds.minY / this.chunkPx));
+    const maxCy = Math.min(this.chunkRows - 1, Math.floor(bounds.maxY / this.chunkPx));
 
-    if (maxW <= 0 || maxH <= 0) return;
-
-    ctx.drawImage(
-      this.offscreenCanvas,
-      sx, sy, maxW, maxH,
-      sx, sy, maxW, maxH
-    );
+    for (let cy = minCy; cy <= maxCy; cy++) {
+      const worldY = cy * this.chunkPx;
+      for (let cx = minCx; cx <= maxCx; cx++) {
+        const chunkCanvas = this._getOrBakeChunk(cx, cy);
+        if (chunkCanvas) {
+          ctx.drawImage(chunkCanvas, cx * this.chunkPx, worldY);
+        }
+      }
+    }
   }
 }

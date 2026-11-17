@@ -61,11 +61,15 @@ const ELEMENT_PALETTES = {
 };
 
 export class CelSpriteAtlas {
-  /** @type {Map<string, HTMLCanvasElement>} Caché global de sprites horneados */
+  /** @type {Map<string, HTMLCanvasElement>} Caché Flyweight global con orden LRU */
   static _cache = new Map();
+
+  /** @type {number} Tope de sprites únicos en caché simultáneamente para comprimir RAM */
+  static MAX_CACHED_SPRITES = 56;
 
   /**
    * Obtiene un sprite horneado desde caché o ejecuta la función constructora una sola vez.
+   * Mantiene política LRU (evicta variantes antiguas no usadas al superar `MAX_CACHED_SPRITES`).
    * @param {string} key - Clave única de caché.
    * @param {number} width - Ancho del lienzo fuera de pantalla.
    * @param {number} height - Alto del lienzo fuera de pantalla.
@@ -73,18 +77,48 @@ export class CelSpriteAtlas {
    * @returns {HTMLCanvasElement} Lienzo horneado reutilizable.
    */
   static getOrBake(key, width, height, drawFn) {
-    if (CelSpriteAtlas._cache.has(key)) {
-      return CelSpriteAtlas._cache.get(key);
+    const existing = CelSpriteAtlas._cache.get(key);
+    if (existing) {
+      // Mover al final para política LRU en O(1)
+      CelSpriteAtlas._cache.delete(key);
+      CelSpriteAtlas._cache.set(key, existing);
+      return existing;
     }
+
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    drawFn(ctx, width, height);
-    CelSpriteAtlas._crispenAndOutline(ctx, width, height);
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+      drawFn(ctx, width, height);
+      CelSpriteAtlas._crispenAndOutline(ctx, width, height);
+    }
+
     CelSpriteAtlas._cache.set(key, canvas);
+    while (CelSpriteAtlas._cache.size > CelSpriteAtlas.MAX_CACHED_SPRITES) {
+      const oldestKey = CelSpriteAtlas._cache.keys().next().value;
+      const oldestCanvas = CelSpriteAtlas._cache.get(oldestKey);
+      if (oldestCanvas) {
+        oldestCanvas.width = 0;
+        oldestCanvas.height = 0;
+      }
+      CelSpriteAtlas._cache.delete(oldestKey);
+    }
     return canvas;
+  }
+
+  /**
+   * Libera todos los sprites horneados de RAM (útil al cambiar de mundo o regresar al menú).
+   */
+  static clear() {
+    for (const canvas of CelSpriteAtlas._cache.values()) {
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+    }
+    CelSpriteAtlas._cache.clear();
   }
 
   /**
@@ -1262,56 +1296,14 @@ export class CelSpriteAtlas {
   }
 
   /**
-   * Pre-hornea en caché todas las variantes críticas de Santi, NPCs, los 5 arquetipos
-   * de enemigos y props durante la pantalla de carga para evitar micro-tirones al jugar.
+   * Pre-hornea únicamente los 4 fotogramas base de Santi al iniciar la aventura;
+   * el resto de enemigos, props y variantes se generan perezosamente bajo demanda (Flyweight LRU).
    */
   static prewarm() {
     if (typeof document === 'undefined') return;
     const dirs = ['down', 'up', 'left', 'right'];
-    const gemColors = ['#64748b', '#fb923c', '#22c55e', '#38bdf8'];
     for (const dir of dirs) {
-      for (let step = 0; step < 4; step++) {
-        for (const col of gemColors) {
-          CelSpriteAtlas.getSantiSprite(dir, step, col, false);
-          CelSpriteAtlas.getSantiSprite(dir, step, col, true);
-        }
-      }
+      CelSpriteAtlas.getSantiSprite(dir, 0, '#64748b', false);
     }
-    CelSpriteAtlas.getNPCSprite('tarak');
-    CelSpriteAtlas.getNPCSprite('valerio');
-
-    const archetypes = ['hound', 'artillery', 'tank', 'duelist', 'slime'];
-    const elements = ['plantas', 'fuego', 'kinetic', 'astral'];
-    for (const arch of archetypes) {
-      for (const elem of elements) {
-        CelSpriteAtlas.getEnemySprite(arch, elem, false);
-        CelSpriteAtlas.getEnemySprite(arch, elem, true);
-      }
-    }
-
-    CelSpriteAtlas.getCaveMouthSprite();
-    CelSpriteAtlas.getCliffRockSprite(false);
-    CelSpriteAtlas.getCliffRockSprite(true);
-    CelSpriteAtlas.getRustedGreatswordSprite();
-
-    const biomes = ['forest', 'marsh', 'ash', 'astral'];
-    for (const biome of biomes) {
-      CelSpriteAtlas.getBrokenStatueSprite(biome);
-    }
-
-    const worldColors = ['#38bdf8', '#fb923c', '#22c55e', '#c084fc'];
-    for (const wc of worldColors) {
-      CelSpriteAtlas.getRunicObeliskSprite(false, wc);
-      CelSpriteAtlas.getRunicObeliskSprite(true, wc);
-      CelSpriteAtlas.getWorldPortalSprite(wc);
-    }
-
-    CelSpriteAtlas.getCrackedRockSprite(false);
-    CelSpriteAtlas.getCrackedRockSprite(true);
-    CelSpriteAtlas.getBurnableVinesSprite('idle');
-    CelSpriteAtlas.getBurnableVinesSprite('hit');
-    CelSpriteAtlas.getBurnableVinesSprite('burn');
-    CelSpriteAtlas.getStarterSwordPedestalSprite(false);
-    CelSpriteAtlas.getStarterSwordPedestalSprite(true);
   }
 }

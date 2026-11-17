@@ -109,7 +109,12 @@ export class PhysicsSystem {
 
     const tileSize = hasTilemap ? (this.tilemap.tileSize || 32) : 32;
 
-    // Muestreo continuo con paso de 16 px para no atravesar pilares o muros delgados
+    // Muestreo continuo con paso de 16 px y rechazo espacial rápido de sólidos fuera del segmento
+    const minSegX = Math.min(x1, x2) - 8;
+    const maxSegX = Math.max(x1, x2) + 8;
+    const minSegY = Math.min(y1, y2) - 8;
+    const maxSegY = Math.max(y1, y2) + 8;
+
     const steps = Math.ceil(dist / 16);
     const stepX = dx / steps;
     const stepY = dy / steps;
@@ -131,6 +136,9 @@ export class PhysicsSystem {
         for (let s = 0; s < solids.length; s++) {
           const b = solids[s];
           if (!b || b.isDead || b.isConsumed) continue;
+          if (b.pos && (b.pos.x + b.width < minSegX || b.pos.x > maxSegX || b.pos.y + b.height < minSegY || b.pos.y > maxSegY)) {
+            continue;
+          }
           if (typeof b.hasTag === 'function' && (b.hasTag('enemy') || b.hasTag('player'))) {
             continue;
           }
@@ -146,6 +154,7 @@ export class PhysicsSystem {
 
   /**
    * Resuelve el movimiento de una entidad permitiendo deslizarse contra muros.
+   * Incluye broadphase espacial por proximidad AABB para descartar obstáculos lejanos en O(1).
    * Evalúa el eje X primero; si colisiona, cancela solo el movimiento en X.
    * Luego evalúa el eje Y; si colisiona, cancela solo el movimiento en Y.
    * @param {import('../entities/Entity.js').Entity} entity - Entidad que se desplaza
@@ -175,14 +184,30 @@ export class PhysicsSystem {
       if (finalY > maxY) finalY = maxY;
     }
 
+    // Límites amplios del desplazamiento actual para descarte ultrarrápido de sólidos lejanos
+    const curHbX = entity.pos.x + entity.hitbox.offsetX;
+    const curHbY = entity.pos.y + entity.hitbox.offsetY;
+    const minSweepX = (finalX + entity.hitbox.offsetX < curHbX ? finalX + entity.hitbox.offsetX : curHbX) - 4;
+    const maxSweepX = (finalX + entity.hitbox.offsetX > curHbX ? finalX + entity.hitbox.offsetX : curHbX) + originalHitbox.width + 4;
+    const minSweepY = (finalY + entity.hitbox.offsetY < curHbY ? finalY + entity.hitbox.offsetY : curHbY) - 4;
+    const maxSweepY = (finalY + entity.hitbox.offsetY > curHbY ? finalY + entity.hitbox.offsetY : curHbY) + originalHitbox.height + 4;
+
     // 1. Probar colisión en el eje X
     testBox.x = finalX + entity.hitbox.offsetX;
-    testBox.y = entity.pos.y + entity.hitbox.offsetY;
+    testBox.y = curHbY;
 
     let collidedX = false;
     for (let i = 0; i < solids.length; i++) {
       const solid = solids[i];
       if (solid === entity) continue;
+      if (
+        solid.pos.x + solid.width < minSweepX ||
+        solid.pos.x > maxSweepX ||
+        solid.pos.y + solid.height < minSweepY ||
+        solid.pos.y > maxSweepY
+      ) {
+        continue;
+      }
 
       if (this.checkCollision(testBox, solid.getHitbox())) {
         collidedX = true;
@@ -206,6 +231,14 @@ export class PhysicsSystem {
     for (let i = 0; i < solids.length; i++) {
       const solid = solids[i];
       if (solid === entity) continue;
+      if (
+        solid.pos.x + solid.width < minSweepX ||
+        solid.pos.x > maxSweepX ||
+        solid.pos.y + solid.height < minSweepY ||
+        solid.pos.y > maxSweepY
+      ) {
+        continue;
+      }
 
       if (this.checkCollision(testBox, solid.getHitbox())) {
         collidedY = true;

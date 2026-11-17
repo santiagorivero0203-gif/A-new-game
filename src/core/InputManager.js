@@ -124,11 +124,18 @@ export class InputManager {
     this._prevMouseX = 0;
     this._prevMouseY = 0;
 
+    /** @type {boolean} Indica si la mecánica de sigilo está habilitada en la escena actual */
+    this.stealthEnabled = false;
+
+    /** @private Caché del rectángulo del joystick táctil para evitar reflows en touchmove */
+    this._joyRectCache = null;
+    this._joyThumbEl = null;
+
     /** @private Caché del rectángulo del canvas principal para evitar reflows en cada mousemove */
     this._cachedRect = null;
     if (typeof window !== 'undefined') {
-      window.addEventListener('resize', () => { this._cachedRect = null; }, { passive: true });
-      window.addEventListener('orientationchange', () => { this._cachedRect = null; }, { passive: true });
+      window.addEventListener('resize', () => { this._cachedRect = null; this._joyRectCache = null; }, { passive: true });
+      window.addEventListener('orientationchange', () => { this._cachedRect = null; this._joyRectCache = null; }, { passive: true });
     }
 
     // Callbacks
@@ -318,13 +325,13 @@ export class InputManager {
       this.lastActionSource = 'keyboard';
       this.isMouseAiming = false;
 
-      // Actualizar inmediatamente la última dirección deseada si se pulsa WASD o Flechas
+      // Actualizar inmediatamente la última dirección deseada si se pulsa WASD o Flechas (cero closures)
       let dirX = 0;
       let dirY = 0;
-      if (KEYBINDINGS.UP.some(k => this.keys[k])) dirY -= 1;
-      if (KEYBINDINGS.DOWN.some(k => this.keys[k])) dirY += 1;
-      if (KEYBINDINGS.LEFT.some(k => this.keys[k])) dirX -= 1;
-      if (KEYBINDINGS.RIGHT.some(k => this.keys[k])) dirX += 1;
+      if (this.isActionPressed('UP')) dirY -= 1;
+      if (this.isActionPressed('DOWN')) dirY += 1;
+      if (this.isActionPressed('LEFT')) dirX -= 1;
+      if (this.isActionPressed('RIGHT')) dirX += 1;
       if (dirX !== 0 || dirY !== 0) {
         const len = Math.hypot(dirX, dirY) || 1;
         this.lastMoveDir.set(dirX / len, dirY / len);
@@ -342,7 +349,9 @@ export class InputManager {
       }
       if (KEYBINDINGS.HEAL.includes(e.code)) this.triggerAction('heal', 200);
       if (KEYBINDINGS.DASH.includes(e.code)) this.triggerAction('dash', 200);
-      if (KEYBINDINGS.STEALTH.includes(e.code) && !e.repeat) this.triggerAction('stealth', 200);
+      if (this.stealthEnabled && KEYBINDINGS.STEALTH.includes(e.code) && !e.repeat) {
+        this.triggerAction('stealth', 200);
+      }
 
       // Acciones continuas sin buffer
       if (KEYBINDINGS.DEFEND.includes(e.code)) {
@@ -561,8 +570,12 @@ export class InputManager {
     // 3.7 Botón de Sprint / Carrera con Resistencia (acción continua mientras se mantiene pulsado)
     bindBtn('touch-btn-sprint', () => { this.isSprintPressed = true; }, () => { this.isSprintPressed = false; });
 
-    // 3.8 Botón de Sigilo / Agacharse en Grama Alta
-    bindBtn('touch-btn-stealth', () => { this.isStealthPressed = true; }, () => { this.isStealthPressed = false; }, 'stealth');
+    // 3.8 Botón de Sigilo / Agacharse en Grama Alta (solo responde si el modo sigilo está habilitado)
+    bindBtn('touch-btn-stealth', () => {
+      if (this.stealthEnabled) this.isStealthPressed = true;
+    }, () => {
+      this.isStealthPressed = false;
+    }, 'stealth');
 
     // 3.9 Selector Rápido de Elemento (Cicla entre Fuego, Embestida y Raíces)
     const btnSwitch = document.getElementById('touch-btn-switch');
@@ -577,29 +590,31 @@ export class InputManager {
       btnSwitch.addEventListener('click', handleSwitch);
     }
 
-    // 4. Joystick Táctil en DOM
+    // 4. Joystick Táctil en DOM (caché de rectángulo y nodo para cero reflows durante touchmove)
     const joyZone = document.getElementById('touch-joystick-zone');
     const joyBase = document.getElementById('touch-joystick-base');
+    this._joyThumbEl = document.getElementById('touch-joystick-thumb');
     if (joyZone && joyBase) {
       let activeTouchId = null;
 
       const handleJoy = (clientX, clientY) => {
-        const rect = joyBase.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
+        const rect = this._joyRectCache || joyBase.getBoundingClientRect();
+        if (!this._joyRectCache && rect.width > 0) this._joyRectCache = rect;
+        const centerX = rect.left + rect.width * 0.5;
+        const centerY = rect.top + rect.height * 0.5;
         const dx = clientX - centerX;
         const dy = clientY - centerY;
-        const dist = Math.hypot(dx, dy);
-        const maxDist = rect.width / 2;
+        const distSq = dx * dx + dy * dy;
+        const maxDist = rect.width * 0.5;
 
-        if (dist === 0) {
+        if (distSq === 0 || maxDist <= 0) {
           this.joystickVector.set(0, 0);
-          const thumb = document.getElementById('touch-joystick-thumb');
-          if (thumb) thumb.style.transform = 'translate(0px, 0px)';
+          if (this._joyThumbEl) this._joyThumbEl.style.transform = 'translate(0px, 0px)';
           return;
         }
 
-        const clamped = Math.min(dist, maxDist);
+        const dist = Math.sqrt(distSq);
+        const clamped = dist < maxDist ? dist : maxDist;
         const normX = dx / dist;
         const normY = dy / dist;
         this.joystickVector.set(normX * (clamped / maxDist), normY * (clamped / maxDist));
@@ -607,9 +622,8 @@ export class InputManager {
           this.lastMoveDir.set(normX, normY);
         }
 
-        const thumb = document.getElementById('touch-joystick-thumb');
-        if (thumb) {
-          thumb.style.transform = `translate(${normX * clamped}px, ${normY * clamped}px)`;
+        if (this._joyThumbEl) {
+          this._joyThumbEl.style.transform = `translate(${Math.round(normX * clamped)}px, ${Math.round(normY * clamped)}px)`;
         }
       };
 
@@ -619,6 +633,7 @@ export class InputManager {
         this.isTouchDevice = true;
         this.lastActionSource = 'touch';
         this.isMouseAiming = false;
+        this._joyRectCache = joyBase.getBoundingClientRect();
         const touch = e.touches ? e.touches[0] : e;
         activeTouchId = e.touches ? touch.identifier : 'mouse';
         handleJoy(touch.clientX, touch.clientY);
@@ -657,9 +672,8 @@ export class InputManager {
         }
         activeTouchId = null;
         this.joystickVector.set(0, 0);
-        const thumb = document.getElementById('touch-joystick-thumb');
-        if (thumb) {
-          thumb.style.transform = 'translate(0px, 0px)';
+        if (this._joyThumbEl) {
+          this._joyThumbEl.style.transform = 'translate(0px, 0px)';
         }
       };
 
@@ -716,10 +730,9 @@ export class InputManager {
         e.stopPropagation();
         isSwiping = false;
         
-        // Si no hubo swipe direccional, fue un tap -> Disparar la habilidad elemental equipada
+        // Si no hubo swipe direccional, fue un tap -> Disparar con latching seguro la habilidad equipada
         if (!this.hoveredSwipePower) {
-          this.isAbilityPressed = true;
-          setTimeout(() => { this.isAbilityPressed = false; }, 80);
+          this.triggerAction('ability', 180);
         } else if (this.hoveredSwipePower !== null) {
           this.setPower(this.hoveredSwipePower);
         }
@@ -830,6 +843,31 @@ export class InputManager {
    */
   isKeyPressed(code) {
     return !!this.keys[code];
+  }
+
+  /**
+   * Evalúa sin crear closures si alguna tecla asignada a la acción está activa.
+   * @param {keyof typeof KEYBINDINGS} actionName
+   * @returns {boolean}
+   */
+  isActionPressed(actionName) {
+    const codes = KEYBINDINGS[actionName];
+    if (!codes) return false;
+    for (let i = 0; i < codes.length; i++) {
+      if (this.keys[codes[i]]) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Habilita o deshabilita el comando de sigilo según la escena actual.
+   * @param {boolean} enabled
+   */
+  setStealthEnabled(enabled) {
+    this.stealthEnabled = Boolean(enabled);
+    if (!this.stealthEnabled) {
+      this.consumeStealth();
+    }
   }
 
   /**

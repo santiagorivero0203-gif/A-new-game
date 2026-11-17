@@ -118,6 +118,22 @@ export class Camera {
     this.zoom = Math.max(2, Math.round(minViewportAxis / baseMinAxis));
     this.logicalWidth = Math.ceil((this.viewportWidth || 960) / this.zoom);
     this.logicalHeight = Math.ceil((this.viewportHeight || 540) / this.zoom);
+    // Escala interna entera del canvas: usa 1x (nativa pixel-art ultra rápida ~230k px) o 2x solo en viewports pequeños
+    const twoXArea = (this.logicalWidth * 2) * (this.logicalHeight * 2);
+    this.canvasScale = (twoXArea <= 420000 && this.zoom >= 2) ? 2 : 1;
+  }
+
+  /**
+   * Retorna las dimensiones óptimas para `#main-canvas` manteniendo píxeles enteros y relleno GPU mínimo.
+   * @returns {{width: number, height: number, scale: number}}
+   */
+  getOptimalCanvasSize() {
+    const s = this.canvasScale || 1;
+    return {
+      width: Math.max(240, Math.round(this.logicalWidth * s)),
+      height: Math.max(135, Math.round(this.logicalHeight * s)),
+      scale: s
+    };
   }
 
   /**
@@ -306,18 +322,21 @@ export class Camera {
   }
 
   /**
-   * Aplica traslación alineada a píxeles reales del viewport más escalado Pixel-Art entero.
-   * Mantiene movimiento sedoso en pantalla y píxeles perfectamente nítidos sin borrosidad.
+   * Aplica traslación alineada a píxeles reales del lienzo optimizado (`canvasScale` entero).
+   * Evita multiplicación excesiva de píxeles en GPU conservando nitidez pixel-art y 60/120 FPS estables.
    * @param {CanvasRenderingContext2D} ctx
    */
   applyTransform(ctx) {
     ctx.save();
-    const cw = (ctx.canvas && ctx.canvas.width) ? ctx.canvas.width : this.viewportWidth;
-    const ch = (ctx.canvas && ctx.canvas.height) ? ctx.canvas.height : this.viewportHeight;
-    const tx = Math.round(cw * 0.5 - (this.pos.x + this.shakeOffset.x) * this.zoom);
-    const ty = Math.round(ch * 0.5 - (this.pos.y + this.shakeOffset.y) * this.zoom);
+    const cw = (ctx.canvas && ctx.canvas.width) ? ctx.canvas.width : this.logicalWidth;
+    const ch = (ctx.canvas && ctx.canvas.height) ? ctx.canvas.height : this.logicalHeight;
+    const scale = this.canvasScale || 1;
+    const tx = Math.round(cw * 0.5 - (this.pos.x + this.shakeOffset.x) * scale);
+    const ty = Math.round(ch * 0.5 - (this.pos.y + this.shakeOffset.y) * scale);
     ctx.translate(tx, ty);
-    ctx.scale(this.zoom, this.zoom);
+    if (scale !== 1) {
+      ctx.scale(scale, scale);
+    }
   }
 
   /**

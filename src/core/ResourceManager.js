@@ -34,14 +34,19 @@ export class ResourceManager {
         return resolve(this.images.get(key));
       }
 
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-
-      // Interceptar protocolo procedural:// (Nano Banana pipeline)
+      // Protocolo procedural:// usa un único Canvas Flyweight en memoria (cero base64/PNG extra)
       if (src.startsWith('procedural://')) {
         const procKey = src.replace('procedural://', '');
+        const sharedCanvas = ProceduralAssets.getSharedCanvas(procKey, tileSize);
+        if (sharedCanvas) {
+          this.images.set(key, sharedCanvas);
+          return resolve(sharedCanvas);
+        }
         src = ProceduralAssets.generate(procKey, tileSize);
       }
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
 
       img.onload = () => {
         this.images.set(key, img);
@@ -126,6 +131,23 @@ export class ResourceManager {
    */
   getImage(key) {
     return this.images.get(key);
+  }
+
+  /**
+   * Libera de RAM todas las imágenes cacheadas salvo las claves explícitamente conservadas.
+   * @param {Array<string>} [keepKeys=[]]
+   */
+  releaseUnusedImages(keepKeys = []) {
+    const keep = new Set(keepKeys);
+    for (const [key, res] of this.images.entries()) {
+      if (!keep.has(key)) {
+        if (res && typeof res.getContext === 'function') {
+          res.width = 0;
+          res.height = 0;
+        }
+        this.images.delete(key);
+      }
+    }
   }
 
   /**

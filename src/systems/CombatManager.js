@@ -150,7 +150,10 @@ export class CombatManager {
   update(context) {
     const dt = context.deltaTime || 0;
     const player = context.player || (context.state && typeof context.state.get === 'function' ? context.state.get('player') : null);
-    const entities = context.entityManager ? context.entityManager.entities : [];
+    // Iterar solo entidades dinámicas/props destructibles omitiendo árboles, casas y barreras
+    const entities = context.entityManager
+      ? (context.entityManager._dynamicEntities || context.entityManager.entities)
+      : [];
 
     // 1. Regeneración pasiva de postura fuera de guardia
     if (player && player.fsmState !== 'STATE_DEFEND' && player.fsmState !== 'STATE_GUARD_BREAK') {

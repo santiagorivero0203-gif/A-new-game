@@ -25,6 +25,7 @@ import { InteractionSystem } from './systems/InteractionSystem.js';
 import { CombatManager } from './systems/CombatManager.js';
 import { EquipmentManager } from './systems/EquipmentManager.js';
 import { SkillTreeManager } from './systems/SkillTreeManager.js';
+import { StealthSystem } from './systems/StealthSystem.js';
 import { Renderer } from './render/Renderer.js';
 import { LightManager } from './render/LightManager.js';
 import { Camera } from './render/Camera.js';
@@ -35,6 +36,7 @@ import { CinematicManager, PROLOGUE_CUTSCENE } from './cinematics/CinematicManag
 import { VFXRenderer } from './render/VFXRenderer.js';
 import { WaveManager } from './systems/WaveManager.js';
 import { LevelLoader } from './world/LevelLoader.js';
+import { ChunkManager } from './world/ChunkManager.js';
 import { CelSpriteAtlas } from './render/CelSpriteAtlas.js';
 import { WORLDS_CATALOG } from './data/worlds.js';
 import assetsManifest from './data/assets.json';
@@ -76,6 +78,8 @@ const equipmentManager = new EquipmentManager();
 const combatManager = new CombatManager(equipmentManager);
 const skillTreeManager = new SkillTreeManager(stateManager);
 const waveManager = new WaveManager(entityManager, stateManager);
+// Mecánica modular de detección/sigilo guardada e inactiva por defecto salvo secciones específicas
+const stealthSystem = new StealthSystem({ enabled: false });
 
 const renderer = new Renderer(mainCanvas);
 const vfxRenderer = new VFXRenderer();
@@ -84,11 +88,23 @@ const uiManager = new UIManager();
 const cinematicManager = new CinematicManager(stateManager);
 const camera = new Camera(mainCanvas.width, mainCanvas.height);
 const foliageSystem = new FoliageSystem(entityManager);
+const chunkManager = new ChunkManager({
+  entityManager,
+  foliageSystem,
+  resourceManager,
+  chunkSize: 256
+});
+let engine = null;
 
-// 2. Carga Data-Driven Multi-Mundo e Iluminación Atmosférica
+// 2. Estado Lazy del Mundo (no se instancian chunks, mapas ni sprites hasta comenzar la partida)
 let currentWorldKey = 'cave_exit_intro';
 let currentWorldMeta = WORLDS_CATALOG[currentWorldKey];
 let currentLevelData = currentWorldMeta.data;
+let worldInitialized = false;
+let assetsInitialized = false;
+let levelInfo = null;
+let tilemap = null;
+let player = null;
 
 /** Fuente luminosa dinámica adherida al portador de la Reliquia */
 const playerLight = {
@@ -134,102 +150,113 @@ function syncWorldLights(levelData, biomeKey) {
 }
 
 /**
- * Vincula las texturas horneadas o cargadas a los árboles, casas y arbustos actuales del mundo.
+ * Carga las texturas Flyweight compartidas una sola vez cuando arranca el juego.
+ * @returns {Promise<void>}
  */
-function syncSpritesToWorldEntities() {
-  const treeImg = resourceManager.getImage('tree_sprite');
-  if (treeImg) {
-    entityManager.getByTag('tree').forEach((t) => {
-      if (typeof t.setSprite === 'function') t.setSprite(treeImg);
-    });
-  }
-
-  const houseImg = resourceManager.getImage('house_sprite');
-  if (houseImg) {
-    entityManager.getByTag('house').forEach((h) => {
-      if (typeof h.setSprite === 'function') h.setSprite(houseImg);
-    });
-  }
-
-  const bushImg = resourceManager.getImage('bush_sprite');
-  if (bushImg) {
-    foliageSystem.setGlobalSprite(bushImg);
-  }
+function ensureSharedWorldAssets() {
+  if (assetsInitialized) return Promise.resolve();
+  assetsInitialized = true;
+  return resourceManager.loadBatch(assetsManifest).then(() => {
+    chunkManager.syncFlyweightSprites();
+  });
 }
-
-let levelInfo = LevelLoader.loadLevel(currentLevelData, {
-  entityManager,
-  foliageSystem,
-  camera,
-  physicsSystem
-});
-
-// Pre-hornear todos los sprites Cel-Shaded al arrancar para 0 tirones de frames durante el combate
-CelSpriteAtlas.prewarm();
-
-if (levelInfo.arenaCenter) {
-  waveManager.setArenaCenter(levelInfo.arenaCenter.x, levelInfo.arenaCenter.y);
-}
-
-const initialMapCfg = currentLevelData.map || currentLevelData;
-const tilemap = new Tilemap(
-  initialMapCfg.cols || 56,
-  initialMapCfg.rows || 38,
-  initialMapCfg.tileSize || 32,
-  currentLevelData.layoutPreset || currentWorldKey
-);
-physicsSystem.setTilemap(tilemap);
-
-// 3. Instanciación de Santi en la boca de la cueva de cristales
-const player = new Player(levelInfo.playerSpawn.x, levelInfo.playerSpawn.y);
-if (levelInfo.startDormant) {
-  player.configureDormantStart();
-  stateManager.set('gauntlet_tier', 0);
-} else {
-  stateManager.set('gauntlet_tier', 1);
-}
-
-// Sincronizar Vitalidad máxima por rangos invertidos en el Santuario
-const initialMaxHp = 3 + skillTreeManager.getSkillRank('max_health_up');
-player.max_health = initialMaxHp;
-player.health = initialMaxHp;
-
-playerLight.x = player.pos.x + player.width / 2;
-playerLight.y = player.pos.y + player.height / 2;
-syncWorldLights(currentLevelData, currentWorldMeta.biome);
-
-entityManager.addEntity(player);
-stateManager.set('player', player);
-stateManager.set('player_health', player.health);
-stateManager.set('player_max_health', player.max_health);
-stateManager.set('player_energy', player.energy);
-stateManager.set('player_posture', 100);
-stateManager.set('player_stamina', player.stamina || 100);
-stateManager.set('player_max_stamina', player.max_stamina || 100);
-stateManager.set('player_stamina_exhausted', false);
-stateManager.set('threat_level', 'calm');
-stateManager.set('intro_stage', 0);
-stateManager.set('current_world', currentWorldKey);
-stateManager.set(
-  'level_objective',
-  levelInfo.initialObjective || 'Sal de la cueva de cristales y rompe el derrumbe con tu espada'
-);
 
 /**
- * Viaja de forma instantánea y limpia entre los 4 Mundos del Atlas de la Reliquia.
+ * Inicializa el mundo, chunks iniciales, tilemap y jugador de forma perezosa
+ * únicamente cuando el usuario inicia partida (cero pre-carga innecesaria en pantalla de título).
+ */
+function ensureWorldInitialized() {
+  if (worldInitialized) return;
+  worldInitialized = true;
+
+  const initialMapCfg = currentLevelData.map || currentLevelData;
+  tilemap = new Tilemap(
+    initialMapCfg.cols || 56,
+    initialMapCfg.rows || 38,
+    initialMapCfg.tileSize || 32,
+    currentLevelData.layoutPreset || currentWorldKey
+  );
+  tilemap.build(resourceManager);
+  physicsSystem.setTilemap(tilemap);
+
+  const spawnRef = currentLevelData.playerSpawn || { x: 224, y: 218 };
+  player = new Player(spawnRef.x, spawnRef.y);
+
+  // Encuadrar cámara antes de cargar chunks iniciales para activar únicamente el sector visible
+  camera.setRoomBounds({ x: 0, y: 0, width: tilemap.width, height: tilemap.height });
+  camera.snapTo({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 });
+
+  levelInfo = LevelLoader.loadLevel(currentLevelData, {
+    entityManager,
+    foliageSystem,
+    camera,
+    physicsSystem,
+    chunkManager
+  });
+
+  if (levelInfo.arenaCenter) {
+    waveManager.setArenaCenter(levelInfo.arenaCenter.x, levelInfo.arenaCenter.y);
+  }
+
+  if (levelInfo.startDormant) {
+    player.configureDormantStart();
+    stateManager.set('gauntlet_tier', 0);
+  } else {
+    stateManager.set('gauntlet_tier', 1);
+  }
+
+  const initialMaxHp = 3 + skillTreeManager.getSkillRank('max_health_up');
+  player.max_health = initialMaxHp;
+  player.health = initialMaxHp;
+
+  playerLight.x = player.pos.x + player.width / 2;
+  playerLight.y = player.pos.y + player.height / 2;
+  syncWorldLights(currentLevelData, currentWorldMeta.biome);
+
+  entityManager.addEntity(player);
+  stateManager.set('player', player);
+  stateManager.set('player_health', player.health);
+  stateManager.set('player_max_health', player.max_health);
+  stateManager.set('player_energy', player.energy);
+  stateManager.set('player_posture', 100);
+  stateManager.set('player_stamina', player.stamina || 100);
+  stateManager.set('player_max_stamina', player.max_stamina || 100);
+  stateManager.set('player_stamina_exhausted', false);
+  stateManager.set('threat_level', 'calm');
+  stateManager.set('intro_stage', 0);
+  stateManager.set('current_world', currentWorldKey);
+  stealthSystem.setEnabled(Boolean(currentLevelData.enableStealth), stateManager, player);
+  inputManager.setStealthEnabled(stealthSystem.enabled);
+  stateManager.set(
+    'level_objective',
+    levelInfo.initialObjective || 'Sal de la cueva de cristales y rompe el derrumbe con tu espada'
+  );
+
+  // Cargar sprites Flyweight compartidos (árboles, casas, arbustos) y sincronizar con los chunks montados
+  ensureSharedWorldAssets();
+  chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
+  camera.snapTo({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 });
+}
+
+/**
+ * Viaja de forma instantánea y limpia entre los 4 Mundos del Atlas de la Reliquia,
+ * liberando texturas/sprites del bioma anterior y montando solo los chunks iniciales del nuevo.
  * @param {string} worldKey
  */
 function loadWorld(worldKey) {
   const worldMeta = WORLDS_CATALOG[worldKey];
   if (!worldMeta || !worldMeta.data) return;
+  if (!worldInitialized) ensureWorldInitialized();
 
   currentWorldKey = worldKey;
   currentWorldMeta = worldMeta;
   currentLevelData = worldMeta.data;
 
   combatManager.clearAllCombatState();
+  chunkManager.clearAll();
   foliageSystem.clear();
   entityManager.clearExceptPlayer(player);
+  CelSpriteAtlas.clear();
   introSequenceState.active = false;
   vfxRenderer.setIntroOrbs([]);
   camera.cinematicTarget = null;
@@ -238,12 +265,14 @@ function loadWorld(worldKey) {
     entityManager,
     foliageSystem,
     camera,
-    physicsSystem
+    physicsSystem,
+    chunkManager
   });
 
-  syncSpritesToWorldEntities();
   tilemap.reconfigureFromLevel(currentLevelData, resourceManager);
   waveManager.resetForWorld(levelInfo.arenaCenter || null);
+  stealthSystem.setEnabled(Boolean(currentLevelData.enableStealth), stateManager, player);
+  inputManager.setStealthEnabled(stealthSystem.enabled);
 
   player.pos.set(levelInfo.playerSpawn.x, levelInfo.playerSpawn.y);
   player.velocity.set(0, 0);
@@ -278,44 +307,36 @@ function loadWorld(worldKey) {
   });
 
   camera.snapTo(_playerCenterCache);
+  chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
+  chunkManager.syncFlyweightSprites();
 }
 
 stateManager.set('load_world_hook', (targetWorld) => loadWorld(targetWorld));
 
-// 4. Redimensionado Full-Screen Responsivo (16:9 <-> 9:16)
+// 4. Redimensionado Full-Screen Responsivo Optimizado (Pixel-Art nativo y Compositor Único)
 function resizeCanvases() {
-  // Resolución 1x de viewport físico en #main-canvas con Cámara Pixel-Art entera:
-  // Evita saltos de píxel de 3px al caminar y conserva 60/120 FPS suaves.
   const width = window.innerWidth;
   const height = window.innerHeight;
 
   camera.setViewportSize(width, height, 1);
+  const canvasSize = camera.getOptimalCanvasSize();
 
-  mainCanvas.width = width;
-  mainCanvas.height = height;
+  mainCanvas.width = canvasSize.width;
+  mainCanvas.height = canvasSize.height;
 
-  // Lienzo de iluminación atmosférica a 0.25x
-  lightCanvas.width = Math.max(160, Math.round(width * 0.25));
-  lightCanvas.height = Math.max(90, Math.round(height * 0.25));
+  // Lienzo auxiliar de iluminación de baja resolución (compuesto internamente sobre #main-canvas)
+  lightCanvas.width = Math.max(160, Math.min(320, Math.round(canvasSize.width * 0.4)));
+  lightCanvas.height = Math.max(90, Math.min(180, Math.round(canvasSize.height * 0.4)));
 
   renderer.resize();
   lightManager.resize();
+  if (typeof engine !== 'undefined' && engine && engine.isPaused && stateManager.get('game_state') === 'STATE_PAUSED') {
+    engine.renderOnce();
+  }
 }
 window.addEventListener('resize', resizeCanvases);
 window.addEventListener('orientationchange', resizeCanvases);
 resizeCanvases();
-
-// Encuadrar inicialmente la cámara sobre la salida de la cueva
-camera.snapTo({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 });
-
-// 5. Carga Asíncrona de Sprites Cel-Shaded del Entorno
-async function initAssets() {
-  await resourceManager.loadBatch(assetsManifest);
-  syncSpritesToWorldEntities();
-  tilemap.build(resourceManager);
-}
-tilemap.build(null);
-initAssets();
 
 /** Objeto de contexto reutilizable Zero-GC para sistemas, entidades e interacciones */
 const _gameContext = {
@@ -323,13 +344,15 @@ const _gameContext = {
   input: inputManager,
   state: stateManager,
   physics: physicsSystem,
-  player,
+  player: null,
   camera,
   entityManager,
+  chunkManager,
   combatManager,
   equipmentManager,
   skillTreeManager,
   waveManager,
+  stealthSystem,
   audioManager,
   vfxRenderer,
   uiManager,
@@ -345,6 +368,7 @@ const _gameContext = {
  */
 function buildGameContext(deltaTime = 0.016) {
   _gameContext.deltaTime = deltaTime;
+  _gameContext.player = player;
   _gameContext.engine = engine || null;
   _gameContext.tilemap = tilemap || null;
   _gameContext.time = engine ? engine.lastTime : 0;
@@ -356,36 +380,44 @@ let simClockSec = 0;
 
 // 6. Ciclo de Actualización (Update)
 function update(deltaTime) {
-  inputManager.update();
-
   const gameState = stateManager.get('game_state');
   if (gameState === 'STATE_CINEMATIC') {
     cinematicManager.update(deltaTime);
+    // Evitar refrescos rAF constantes mientras el usuario lee el cuadro ya escrito
+    if (!cinematicManager.isTyping && !cinematicManager._transitionPending) {
+      engine.pause(false);
+    }
     return;
   }
-  if (gameState !== 'STATE_PLAYING') {
+  if (gameState !== 'STATE_PLAYING' || !worldInitialized || !player) {
     return;
   }
 
+  inputManager.update();
   simClockSec += deltaTime;
   const gameContext = buildGameContext(deltaTime);
 
-  // Sincronización reactiva de Vitalidad máxima con rangos de 'max_health_up'
+  // Sincronización reactiva de Vitalidad máxima con rangos de 'max_health_up' sin emitir si no cambió
   const targetMaxHp = 3 + skillTreeManager.getSkillRank('max_health_up');
   if (player.max_health !== targetMaxHp) {
     const gain = targetMaxHp - player.max_health;
     player.max_health = targetMaxHp;
     player.health = Math.min(targetMaxHp, gain > 0 ? player.health + gain : player.health);
     stateManager.set('player_health', player.health);
+    stateManager.set('player_max_health', player.max_health);
   }
-  stateManager.set('player_max_health', player.max_health);
 
-  // Evaluar interacción con hierba alta antes de actualizar enemigos para evitar retraso de 1 frame en sigilo
-  if (foliageSystem && player && !player.isDead) {
-    foliageSystem.updateInteraction(player);
+  // Ocultación de sigilo solo evaluada si StealthSystem está activo; arbustos conservan su física reactiva ligera
+  if (player && !player.isDead) {
+    if (stealthSystem.enabled) {
+      stealthSystem.syncPlayerConcealment(player, foliageSystem, stateManager);
+    } else if (foliageSystem) {
+      foliageSystem.updateInteraction(player, false);
+    }
   }
 
   combatManager.update(gameContext);
+  chunkManager.update(camera.getVisibleWorldBounds(64), deltaTime);
   entityManager.update(gameContext);
   waveManager.update(gameContext);
   interactionSystem.update(deltaTime, gameContext);
@@ -400,9 +432,9 @@ function update(deltaTime) {
   const equippedPower = stateManager.get('equipped_power') || 'Fuego';
   playerLight.color = POWER_LIGHT_COLORS[equippedPower] || '#38bdf8';
 
-  // Foco táctico de cámara y evaluación de amenaza ambiental (Zero-GC)
+  // Foco táctico de cámara iterando únicamente cubeta O(1) de enemigos
   let combatFocus = null;
-  const rawEntities = entityManager.rawEntities;
+  const enemies = entityManager.getByTag('enemy');
   let focusX = 0;
   let focusY = 0;
   let enemyCount = 0;
@@ -411,11 +443,11 @@ function update(deltaTime) {
   const focusRangeSq = 340 * 340;
   const alertRangeSq = 270 * 270;
 
-  for (let i = 0; i < rawEntities.length; i++) {
-    const ent = rawEntities[i];
-    if (!ent || ent.active === false || ent.isDead || !ent.hasTag('enemy')) continue;
-    const ex = ent.pos.x + ent.width / 2;
-    const ey = ent.pos.y + ent.height / 2;
+  for (let i = 0; i < enemies.length; i++) {
+    const ent = enemies[i];
+    if (!ent || ent.active === false || ent.isDead) continue;
+    const ex = ent.pos.x + ent.width * 0.5;
+    const ey = ent.pos.y + ent.height * 0.5;
     const dx = ex - _playerCenterCache.x;
     const dy = ey - _playerCenterCache.y;
     const distSq = dx * dx + dy * dy;
@@ -426,10 +458,12 @@ function update(deltaTime) {
       enemyCount++;
     }
 
-    if (ent.aiState === 'CHASE' || ent.aiState === 'TELEGRAPH' || ent.aiState === 'ATTACK') {
-      hasAggroEnemy = true;
-    } else if (distSq <= alertRangeSq) {
-      hasAlertEnemy = true;
+    if (stealthSystem.enabled) {
+      if (ent.aiState === 'CHASE' || ent.aiState === 'TELEGRAPH' || ent.aiState === 'ATTACK') {
+        hasAggroEnemy = true;
+      } else if (distSq <= alertRangeSq) {
+        hasAlertEnemy = true;
+      }
     }
   }
 
@@ -439,21 +473,19 @@ function update(deltaTime) {
     combatFocus = _combatFocusCache;
   }
 
-  // Sincronización del nivel de amenaza táctica e indicadores de esquinas
-  let currentThreat = 'calm';
-  if ((waveManager && waveManager.isWaveActive) || hasAggroEnemy) {
-    currentThreat = 'danger';
-  } else if (hasAlertEnemy) {
-    currentThreat = 'alert';
-  } else if (player.isStealthHidden) {
-    currentThreat = 'stealth';
+  // Viñeta de amenaza solo activa cuando StealthSystem está habilitado
+  const currentThreat = stealthSystem.enabled
+    ? ((waveManager && waveManager.isWaveActive) || hasAggroEnemy
+        ? 'danger'
+        : hasAlertEnemy
+          ? 'alert'
+          : player.isStealthHidden
+            ? 'stealth'
+            : 'calm')
+    : 'calm';
+  if (stateManager.get('threat_level') !== currentThreat) {
+    stateManager.set('threat_level', currentThreat);
   }
-  stateManager.set('threat_level', currentThreat);
-  stateManager.set('player_stamina', player.stamina);
-  stateManager.set('player_max_stamina', player.max_stamina);
-  stateManager.set('player_stamina_exhausted', player.staminaExhausted);
-  stateManager.set('player_is_prone', player.isProne);
-  stateManager.set('player_stealth_hidden', player.isStealthHidden);
 
   camera.update(_playerCenterCache, deltaTime, player.aimDir, combatFocus);
 
@@ -463,21 +495,32 @@ function update(deltaTime) {
   audioManager.setCriticalAudioState(isCriticalAudio);
 }
 
-// 7. Ciclo de Dibujado (Render con Frustum Culling y capa de suelo previa al Y-Sort)
+// 7. Ciclo de Dibujado Unificado (Single-Canvas Opaque Buffer + Frustum Culling previo al Y-Sort)
 function render(deltaTime) {
+  const gameState = stateManager.get('game_state');
+  if (gameState !== 'STATE_PLAYING' && gameState !== 'STATE_PAUSED') {
+    return;
+  }
+  if (!worldInitialized || !tilemap || !player) {
+    return;
+  }
+
   renderer.begin(camera);
   tilemap.render(renderer.ctx, camera);
-  const sortedEntities = entityManager.getEntities();
-  renderer.drawEnemyGroundDecals(sortedEntities, camera);
-  renderer.drawCanopyShadows(sortedEntities, camera, simClockSec);
-  renderer.drawEntities(sortedEntities, camera, lightManager);
+
+  const visibleBounds = camera.getVisibleWorldBounds(128);
+  const visibleEntities = entityManager.getVisibleEntities(visibleBounds);
+
+  renderer.drawEnemyGroundDecals(visibleEntities, stealthSystem);
+  renderer.drawCanopyShadows(entityManager.getByTag('tree'), camera, simClockSec);
+  renderer.drawEntities(visibleEntities, camera, true);
   vfxRenderer.render(renderer.ctx, combatManager.activeAttacks, player);
   renderer.end(camera);
 
   lightManager.update(deltaTime);
   lightManager.render(camera);
+  lightManager.compositeTo(renderer.ctx, mainCanvas.width, mainCanvas.height);
 
-  const gameState = stateManager.get('game_state');
   if (gameState === 'STATE_PLAYING') {
     uiManager.render(inputManager, stateManager, deltaTime, camera);
   } else {
@@ -485,17 +528,28 @@ function render(deltaTime) {
   }
 }
 
-// 8. Inicialización del Motor en Pantalla de Título (STATE_MENU)
-const engine = new Engine(update, render);
+// 8. Inicialización del Motor en Pantalla de Título (STATE_MENU) con CERO bucles activos y CERO pre-carga
+engine = new Engine(update, render);
+cinematicManager.onWake = () => {
+  if (typeof engine !== 'undefined' && engine) engine.resume();
+};
 stateManager.set('game_state', 'STATE_MENU');
 stateManager.set('health_critical', false);
 uiManager.setGameState('STATE_MENU');
 engine.start();
-engine.pause();
+engine.pause(false);
 
-if (cinematicManager && PROLOGUE_CUTSCENE) {
-  cinematicManager.preloadSequence(PROLOGUE_CUTSCENE).catch((err) => {
-    console.warn('[Be a Legend] Aviso en pre-carga de cinemáticas:', err);
+if (typeof document !== 'undefined') {
+  let _wasPlayingOnHide = false;
+  document.addEventListener('visibilitychange', () => {
+    const st = stateManager.get('game_state');
+    if (document.hidden) {
+      _wasPlayingOnHide = (st === 'STATE_PLAYING' || st === 'STATE_CINEMATIC');
+      engine.pause(false);
+    } else if (_wasPlayingOnHide && (st === 'STATE_PLAYING' || st === 'STATE_CINEMATIC')) {
+      _wasPlayingOnHide = false;
+      engine.resume();
+    }
   });
 }
 
@@ -584,6 +638,7 @@ function updateCaveOrbIntroSequence(dt) {
 
   if (!introSequenceState.fireImpacted) {
     introSequenceState.fireImpacted = true;
+    chunkManager.update({ x: 464, y: 800 }, 0, true);
     vfxRenderer.setIntroOrbs([]);
     vfxRenderer.spawnImpact('fire_burst', 464, 868, { radius: 54, duration: 0.55, color: '#fb923c' });
     vfxRenderer.spawnImpact('wood_explosion', 464, 868, { radius: 44, duration: 0.45 });
@@ -640,14 +695,20 @@ function updateCaveOrbIntroSequence(dt) {
 }
 
 function enterCaveExitGameplay() {
+  ensureWorldInitialized();
+  CelSpriteAtlas.prewarm();
+
   stateManager.set('game_state', 'STATE_PLAYING');
   uiManager.setGameState('STATE_PLAYING');
+  cinematicManager.releaseCache();
+  if (mainMenuEl) mainMenuEl.classList.remove('menu-cover-active');
   engine.resume();
   audioManager.setBiomeAmbience(currentWorldMeta.biome);
 
   if (!hasShownCaveOpeningLine) {
     hasShownCaveOpeningLine = true;
     camera.snapTo({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 });
+    chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
     if (currentWorldKey === 'cave_exit_intro') {
       startCaveOrbIntroSequence();
     } else {
@@ -662,8 +723,12 @@ function enterCaveExitGameplay() {
 
 function startGame() {
   if (stateManager.get('game_state') !== 'STATE_MENU') return;
+  uiManager.unmountSanctuary();
   if (sanctuaryModalEl) sanctuaryModalEl.classList.add('hidden');
-  if (mainMenuEl) mainMenuEl.classList.add('hidden');
+  if (mainMenuEl) {
+    mainMenuEl.classList.add('hidden');
+    mainMenuEl.classList.remove('menu-cover-active');
+  }
 
   engine.resume();
   audioManager.setBiomeAmbience(currentWorldMeta.biome);
@@ -719,11 +784,12 @@ function getSanctuaryDeps() {
     player,
     onTriggerHorde: () => {
       closeSanctuary();
-      if (stateManager.get('game_state') === 'STATE_PLAYING') {
+      if (stateManager.get('game_state') === 'STATE_PLAYING' && player && levelInfo) {
         // Teletransportar suavemente a Santi a la plaza del Santuario si estaba lejos para probar la horda de inmediato
         if (levelInfo.arenaCenter && Math.hypot(player.pos.x - levelInfo.arenaCenter.x, player.pos.y - levelInfo.arenaCenter.y) > 420) {
           player.pos.set(levelInfo.arenaCenter.x - 40, levelInfo.arenaCenter.y);
           camera.snapTo({ x: player.pos.x + player.width * 0.5, y: player.pos.y + player.height * 0.5 });
+          chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
         }
         player.unlockAllElements();
         stateManager.set('gauntlet_tier', 3);
@@ -750,7 +816,7 @@ function openSanctuary(initialTab = 'skills') {
     if (current === 'STATE_PLAYING') {
       stateManager.set('game_state', 'STATE_PAUSED');
       uiManager.setGameState('STATE_PAUSED');
-      engine.pause();
+      engine.pause(true);
     } else if (current === 'STATE_MENU') {
       if (mainMenuEl) mainMenuEl.classList.add('hidden');
     }
@@ -775,11 +841,15 @@ function openSanctuary(initialTab = 'skills') {
 function closeSanctuary() {
   if (!isSanctuaryOpen()) return;
   sanctuaryModalEl.classList.add('hidden');
+  uiManager.unmountSanctuary();
 
   if (sanctuaryOriginState === 'STATE_MENU') {
     stateManager.set('game_state', 'STATE_MENU');
     uiManager.setGameState('STATE_MENU');
-    if (mainMenuEl) mainMenuEl.classList.remove('hidden');
+    if (mainMenuEl) {
+      mainMenuEl.classList.add('menu-cover-active');
+      mainMenuEl.classList.remove('hidden');
+    }
   } else {
     stateManager.set('game_state', 'STATE_PLAYING');
     uiManager.setGameState('STATE_PLAYING');
@@ -834,10 +904,16 @@ document.querySelectorAll('[data-sanctuary-tab]').forEach((tabBtn) => {
 
 addTouchClick(btnToMainMenu, () => {
   if (sanctuaryModalEl) sanctuaryModalEl.classList.add('hidden');
-  if (mainMenuEl) mainMenuEl.classList.remove('hidden');
+  uiManager.unmountSanctuary();
+  if (mainMenuEl) {
+    mainMenuEl.classList.add('menu-cover-active');
+    mainMenuEl.classList.remove('hidden');
+  }
   stateManager.set('game_state', 'STATE_MENU');
   uiManager.setGameState('STATE_MENU');
-  engine.pause();
+  if (tilemap) tilemap.clearChunks();
+  CelSpriteAtlas.clear();
+  engine.pause(false);
 });
 
 // Botón táctil móvil para interactuar con Pedestales, NPCs y Altares
@@ -895,6 +971,7 @@ inputManager.onPause(() => {
 });
 
 inputManager.onSkillEquipped((newPower) => {
+  if (!player) return;
   if (!player.hasElement(newPower)) {
     // Impedir disonancia ludonarrativa si el engarce aún no ha sido despertado y conservar el poder activo
     const fallbackPower = player.currentAbility || 'Fuego';

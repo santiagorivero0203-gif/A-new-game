@@ -33,12 +33,16 @@ class InvisibleBarrier extends Entity {
  */
 export class LevelLoader {
   /**
-   * Carga e instancia todas las entidades y configuraciones espaciales de un nivel.
+   * Carga e instancia o registra en chunks espaciales todas las entidades y configuraciones de un nivel.
+   * Cuando se provee `chunkManager`, registra planos ligeros en RAM y únicamente materializa
+   * el chunk inicial alrededor del jugador/cámara; en modo directo instancia todo el mapa.
    * @param {Object} levelData - Esquema JSON del nivel
    * @param {Object} deps - Contenedor de sistemas dependientes
    * @param {import('../entities/EntityManager.js').EntityManager} deps.entityManager
    * @param {import('./FoliageSystem.js').FoliageSystem} [deps.foliageSystem]
    * @param {import('../render/Camera.js').Camera} [deps.camera]
+   * @param {import('../systems/PhysicsSystem.js').PhysicsSystem} [deps.physicsSystem]
+   * @param {import('./ChunkManager.js').ChunkManager} [deps.chunkManager]
    * @returns {{
    *   mapWidth: number,
    *   mapHeight: number,
@@ -48,7 +52,7 @@ export class LevelLoader {
    *   initialObjective: string|null
    * }}
    */
-  static loadLevel(levelData, { entityManager, foliageSystem = null, camera = null, physicsSystem = null }) {
+  static loadLevel(levelData, { entityManager, foliageSystem = null, camera = null, physicsSystem = null, chunkManager = null }) {
     if (!levelData || !entityManager) {
       throw new Error('[LevelLoader] levelData y entityManager son requeridos.');
     }
@@ -59,6 +63,7 @@ export class LevelLoader {
     const tileSize = mapCfg.tileSize || levelData.tileSize || 32;
     const mapWidth = cols * tileSize;
     const mapHeight = rows * tileSize;
+    const playerSpawn = levelData.playerSpawn || { x: 224, y: 218 };
 
     // 1. Ajustar límites de cámara (Room Clamping) y límites físicos del mundo (Out-of-Bounds Clamping)
     const bounds = { x: 0, y: 0, width: mapWidth, height: mapHeight };
@@ -69,7 +74,11 @@ export class LevelLoader {
       physicsSystem.setWorldBounds(bounds);
     }
 
-    // 2. Instanciar Colisionadores Fluviales / Barrancos Invisibles
+    if (chunkManager) {
+      chunkManager.clearAll();
+    }
+
+    // 2. Instanciar Colisionadores Fluviales / Barrancos Invisibles (pocas franjas anchas compartidas)
     const solidColliders = Array.isArray(levelData.solidColliders)
       ? levelData.solidColliders
       : Array.isArray(levelData.colliders)
@@ -81,60 +90,112 @@ export class LevelLoader {
       }
     }
 
-    // 3. Instanciar Props Interactivos, Puertas Elementales y Arquitectura (Cueva, Rocas, Altares)
+    let uidCounter = 0;
+    const nextUid = (prefix) => `${prefix}_${uidCounter++}`;
+
+    // 3. Props Interactivos, Puertas Elementales y Arquitectura
     if (Array.isArray(levelData.props)) {
       for (const propCfg of levelData.props) {
-        entityManager.addEntity(new InteractableProp(propCfg));
-      }
-    }
-
-    // 4. Instanciar Entidades Principales (Casas, NPCs con variantes, Enemigos tácticos)
-    if (Array.isArray(levelData.entities)) {
-      for (const ent of levelData.entities) {
-        if (ent.type === 'house') {
-          entityManager.addEntity(new House(ent.x, ent.y));
-        } else if (ent.type === 'npc') {
-          entityManager.addEntity(new NPC(ent.x, ent.y, {
-            name: ent.name,
-            variant: ent.variant || 'tarak',
-            rescueTag: ent.rescueTag || null
-          }));
-        } else if (ent.type === 'enemy') {
-          const enemy = new Enemy(ent.x, ent.y, ent.element, ent.name, ent.archetype);
-          if (ent.hasWoodenShield) {
-            enemy.hasWoodenShield = true;
-            enemy._initialWoodenShield = true;
-            if (!enemy.tags.includes('wooden_shield')) enemy.tags.push('wooden_shield');
-          }
-          if (ent.noRespawn) {
-            enemy.noRespawn = true;
-            enemy.tags.push('no_respawn');
-          }
-          if (Array.isArray(ent.customTags)) {
-            for (const tag of ent.customTags) {
-              if (!enemy.tags.includes(tag)) enemy.tags.push(tag);
-            }
-          }
-          entityManager.addEntity(enemy);
+        if (chunkManager) {
+          chunkManager.registerBlueprint({
+            uid: propCfg.id || nextUid(`prop_${propCfg.propType}`),
+            kind: 'prop',
+            propType: InteractableProp._normalizePropType(propCfg.propType),
+            x: propCfg.x,
+            y: propCfg.y,
+            propConfig: propCfg
+          });
+        } else {
+          entityManager.addEntity(new InteractableProp(propCfg));
         }
       }
     }
 
-    // 5. Instanciar Vegetación y Arbustos Reactivos
-    if (foliageSystem && Array.isArray(levelData.foliage)) {
-      for (const fol of levelData.foliage) {
-        foliageSystem.addFoliage(fol.x, fol.y);
+    // 4. Entidades Principales (Casas, NPCs con variantes, Enemigos tácticos)
+    if (Array.isArray(levelData.entities)) {
+      for (const ent of levelData.entities) {
+        if (ent.type === 'house') {
+          if (chunkManager) {
+            chunkManager.registerBlueprint({ uid: nextUid('house'), kind: 'house', x: ent.x, y: ent.y });
+          } else {
+            entityManager.addEntity(new House(ent.x, ent.y));
+          }
+        } else if (ent.type === 'npc') {
+          const npcConfig = {
+            name: ent.name,
+            variant: ent.variant || 'tarak',
+            rescueTag: ent.rescueTag || null
+          };
+          if (chunkManager) {
+            chunkManager.registerBlueprint({
+              uid: nextUid(`npc_${npcConfig.variant}`),
+              kind: 'npc',
+              x: ent.x,
+              y: ent.y,
+              npcConfig
+            });
+          } else {
+            entityManager.addEntity(new NPC(ent.x, ent.y, npcConfig));
+          }
+        } else if (ent.type === 'enemy') {
+          if (chunkManager) {
+            chunkManager.registerBlueprint({
+              uid: ent.id || nextUid(`enemy_${ent.archetype || 'mob'}`),
+              kind: 'enemy',
+              x: ent.x,
+              y: ent.y,
+              element: ent.element,
+              name: ent.name,
+              archetype: ent.archetype,
+              hasWoodenShield: Boolean(ent.hasWoodenShield),
+              noRespawn: Boolean(ent.noRespawn),
+              customTags: ent.customTags || null
+            });
+          } else {
+            const enemy = new Enemy(ent.x, ent.y, ent.element, ent.name, ent.archetype);
+            if (ent.hasWoodenShield) {
+              enemy.hasWoodenShield = true;
+              enemy._initialWoodenShield = true;
+              if (!enemy.tags.includes('wooden_shield')) enemy.tags.push('wooden_shield');
+            }
+            if (ent.noRespawn) {
+              enemy.noRespawn = true;
+              enemy.tags.push('no_respawn');
+            }
+            if (Array.isArray(ent.customTags)) {
+              for (const tag of ent.customTags) {
+                if (!enemy.tags.includes(tag)) enemy.tags.push(tag);
+              }
+            }
+            entityManager.addEntity(enemy);
+          }
+        }
       }
     }
 
-    // 6. Instanciar Árboles Interiores de Composición
+    // 5. Vegetación y Arbustos Reactivos
+    if (Array.isArray(levelData.foliage)) {
+      for (const fol of levelData.foliage) {
+        if (chunkManager) {
+          chunkManager.registerBlueprint({ uid: nextUid('foliage'), kind: 'foliage', x: fol.x, y: fol.y });
+        } else if (foliageSystem) {
+          foliageSystem.addFoliage(fol.x, fol.y);
+        }
+      }
+    }
+
+    // 6. Árboles Interiores de Composición
     if (Array.isArray(levelData.clearingTrees)) {
       for (const t of levelData.clearingTrees) {
-        entityManager.addEntity(new Tree(t.x, t.y));
+        if (chunkManager) {
+          chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: t.x, y: t.y });
+        } else {
+          entityManager.addEntity(new Tree(t.x, t.y));
+        }
       }
     }
 
-    // 7. Generar Perímetro Optimizado de Bosque (fila única escalonada de alto rendimiento)
+    // 7. Perímetro Optimizado de Bosque
     if (levelData.perimeterConfig) {
       const step = Math.max(108, levelData.perimeterConfig.step || 108);
       const roadGap = levelData.perimeterConfig.roadGapY || [560, 700];
@@ -151,18 +212,26 @@ export class LevelLoader {
         );
       };
 
+      const addTreeAt = (tx, ty) => {
+        if (chunkManager) {
+          chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: tx, y: ty });
+        } else {
+          entityManager.addEntity(new Tree(tx, ty));
+        }
+      };
+
       // Linderos Norte y Sur
       let colIdx = 0;
       for (let x = 0; x < mapWidth - 40; x += step) {
         const staggerY = (colIdx % 2) * 24;
         colIdx++;
         if (streamGapX && x + 64 > streamGapX[0] && x < streamGapX[1]) {
-          continue; // No plantar árboles encima del cauce del río
+          continue;
         }
         if (!isInsideCaveSafeZone(x, staggerY)) {
-          entityManager.addEntity(new Tree(x, staggerY));
+          addTreeAt(x, staggerY);
         }
-        entityManager.addEntity(new Tree(x, mapHeight - 96 - staggerY));
+        addTreeAt(x, mapHeight - 96 - staggerY);
       }
 
       // Linderos Oeste y Este
@@ -174,16 +243,21 @@ export class LevelLoader {
           continue;
         }
         if (!isInsideCaveSafeZone(staggerX, y)) {
-          entityManager.addEntity(new Tree(staggerX, y));
+          addTreeAt(staggerX, y);
         }
-        entityManager.addEntity(new Tree(mapWidth - 96 - staggerX, y));
+        addTreeAt(mapWidth - 96 - staggerX, y);
       }
+    }
+
+    // Montar únicamente los chunks próximos al punto de inicio si hay ChunkManager
+    if (chunkManager) {
+      chunkManager.update(playerSpawn, 0, true);
     }
 
     return {
       mapWidth,
       mapHeight,
-      playerSpawn: levelData.playerSpawn || { x: 224, y: 218 },
+      playerSpawn,
       startDormant: !!levelData.startDormant,
       arenaCenter: levelData.arenaCenter || null,
       initialObjective: levelData.initialObjective || null
