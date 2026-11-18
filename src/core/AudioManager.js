@@ -46,6 +46,8 @@ export class AudioManager {
     this._ambienceNodes = [];
     /** @type {GainNode|null} */
     this._ambienceGain = null;
+    this._userGestureUnlocked = false;
+    this._maxFilterFreq = 20000;
 
     this._loadPreferences();
     this._bindUnlockEvents();
@@ -67,22 +69,33 @@ export class AudioManager {
   }
 
   /**
-   * Desbloquea el `AudioContext` al detectar la primera interacción del usuario.
+   * Desbloquea el `AudioContext` al detectar la primera interacción real (clic, toque o tecla)
+   * y reanuda la ambientación pendiente en cuanto Firefox/Chrome pase a estado `'running'`.
    * @private
    */
   _bindUnlockEvents() {
     if (typeof window === 'undefined') return;
     const unlock = () => {
+      this._userGestureUnlocked = true;
       if (!this.ctx) {
         this.init();
-      } else if (this.ctx.state === 'suspended') {
-        this.ctx.resume().catch(() => {});
       }
-      if (this.ctx && this._currentBiome && !this._ambienceGain) {
+      if (!this.ctx) return;
+
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume().then(() => {
+          if (this.ctx && this.ctx.state === 'running' && this._currentBiome && !this._ambienceGain && !this.muted) {
+            this.setBiomeAmbience(this._currentBiome);
+          }
+        }).catch(() => {});
+      } else if (this.ctx.state === 'running' && this._currentBiome && !this._ambienceGain && !this.muted) {
         this.setBiomeAmbience(this._currentBiome);
       }
     };
     window.addEventListener('pointerdown', unlock, { passive: true });
+    window.addEventListener('mousedown', unlock, { passive: true });
+    window.addEventListener('click', unlock, { passive: true });
+    window.addEventListener('touchend', unlock, { passive: true });
     window.addEventListener('keydown', unlock, { passive: true });
   }
 
@@ -95,6 +108,7 @@ export class AudioManager {
     if (!AudioCtx) return;
 
     this.ctx = new AudioCtx();
+    this._maxFilterFreq = Math.min(20000, Math.max(4000, (this.ctx.sampleRate || 44100) * 0.45));
 
     this.compressor = this.ctx.createDynamicsCompressor();
     this.compressor.threshold.setValueAtTime(-14, this.ctx.currentTime);
@@ -105,7 +119,7 @@ export class AudioManager {
 
     this.lowPassFilter = this.ctx.createBiquadFilter();
     this.lowPassFilter.type = 'lowpass';
-    this.lowPassFilter.frequency.setValueAtTime(this._isCriticalAudio ? 380 : 20000, this.ctx.currentTime);
+    this.lowPassFilter.frequency.setValueAtTime(this._isCriticalAudio ? 380 : this._maxFilterFreq, this.ctx.currentTime);
     this.lowPassFilter.Q.setValueAtTime(0.75, this.ctx.currentTime);
 
     this.masterGain = this.ctx.createGain();
@@ -124,7 +138,17 @@ export class AudioManager {
       data[i] = Math.random() * 2 - 1;
     }
 
-    if (this._currentBiome) {
+    if (typeof this.ctx.addEventListener === 'function') {
+      this.ctx.addEventListener('statechange', () => {
+        if (this.ctx && this.ctx.state === 'running' && this._currentBiome && !this._ambienceGain && !this.muted) {
+          this.setBiomeAmbience(this._currentBiome);
+        }
+      });
+    }
+
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    } else if (this._currentBiome && !this.muted) {
       this.setBiomeAmbience(this._currentBiome);
     }
   }
@@ -137,6 +161,9 @@ export class AudioManager {
     this.muted = !this.muted;
     if (this.ctx && this.masterGain) {
       this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.02);
+      if (!this.muted && this._currentBiome && !this._ambienceGain) {
+        this.setBiomeAmbience(this._currentBiome);
+      }
     }
     try {
       localStorage.setItem(this._storageKey, String(this.muted));
@@ -157,8 +184,8 @@ export class AudioManager {
     if (!this.ctx || !this.lowPassFilter) return;
     try {
       const now = this.ctx.currentTime;
-      const targetFreq = next ? 380 : 20000;
-      const currentVal = Math.max(120, this.lowPassFilter.frequency.value);
+      const targetFreq = next ? 380 : (this._maxFilterFreq || 20000);
+      const currentVal = Math.max(120, Math.min(this._maxFilterFreq || 20000, this.lowPassFilter.frequency.value));
       this.lowPassFilter.frequency.cancelScheduledValues(now);
       this.lowPassFilter.frequency.setValueAtTime(currentVal, now);
       this.lowPassFilter.frequency.exponentialRampToValueAtTime(targetFreq, now + 0.18);
@@ -168,10 +195,14 @@ export class AudioManager {
   /** @private */
   _canPlay() {
     if (this.muted) return false;
-    if (!this.ctx) this.init();
+    if (!this.ctx) {
+      if (!this._userGestureUnlocked) return false;
+      this.init();
+    }
     if (!this.ctx) return false;
     if (this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
+      return Boolean(this._userGestureUnlocked);
     }
     return this.ctx.state === 'running';
   }
@@ -529,7 +560,18 @@ export class AudioManager {
    */
   setBiomeAmbience(biomeKey = 'cave_exit_intro') {
     this._currentBiome = biomeKey || 'cave_exit_intro';
-    if (!this.ctx || !this.masterGain || this.ctx.state !== 'running') return;
+    if (!this.ctx || !this.masterGain || this.muted) return;
+    if (this.ctx.state !== 'running') {
+      if (this.ctx.state === 'suspended' && this._userGestureUnlocked) {
+        const targetBiome = this._currentBiome;
+        this.ctx.resume().then(() => {
+          if (this.ctx && this.ctx.state === 'running' && this._currentBiome === targetBiome && !this._ambienceGain && !this.muted) {
+            this.setBiomeAmbience(targetBiome);
+          }
+        }).catch(() => {});
+      }
+      return;
+    }
 
     this.stopBiomeAmbience();
 

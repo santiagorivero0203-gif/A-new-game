@@ -223,6 +223,14 @@
 
         <!-- ANCLA PERIFÉRICA TOP-RIGHT (Pivot: top right) -->
         <div class="hud-top-right-dock">
+          <!-- Botón de Retorno a la Forja de Niveles (Solo visible durante Playtest) -->
+          <button type="button" id="btn-editor-return" class="hud-btn-editor-return hidden" aria-label="Volver al Editor de Niveles" title="Finalizar Playtest y volver al Editor [F9]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="5" y="5" width="14" height="14" rx="2" />
+            </svg>
+            <span>VOLVER AL EDITOR</span>
+          </button>
+
           <button id="btn-quick-talents" class="essence-pill-btn" aria-label="Santuario de Habilidades (Tecla U)" title="Santuario de Habilidades [U]">
             <svg xmlns="http://www.w3.org/2000/svg" class="essence-star-svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
               <polygon points="12,2 14.9,9.1 22,12 14.9,14.9 12,22 9.1,14.9 2,12 9.1,9.1" />
@@ -377,12 +385,12 @@
               <span class="touch-sub-label">CORRER</span>
             </button>
 
-            <!-- Modo Sigilo / Agacharse en Grama Alta ([C]) -->
-            <button id="touch-btn-stealth" class="touch-mini-btn stealth-btn" aria-label="Sigilo" title="Agacharse / Sigilo [C]">
+            <!-- Postura Baja / Slide / Sigilo ([C]) -->
+            <button id="touch-btn-stealth" class="touch-mini-btn stealth-btn" aria-label="Agachar o Deslizar" title="Agachar / Deslizar / Plancha [C]">
               <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
                 <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
               </svg>
-              <span class="touch-sub-label">SIGILO</span>
+              <span class="touch-sub-label">BAJAR</span>
             </button>
 
             <!-- Habilidad Fuerte -->
@@ -717,6 +725,13 @@
            Ilustración Atmosférica de Portada (/assets/images/cover.jpg) + Tarjeta Glassmorphic
            ========================================================================= -->
       <div id="main-menu" class="overlay-menu menu-cover-active">
+        <button type="button" id="btn-level-editor" class="title-corner-editor-btn" aria-label="Forja de Niveles" title="Creador y Editor de Niveles">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+          </svg>
+          <span>FORJA DE NIVELES</span>
+        </button>
+
         <button type="button" id="btn-settings" class="title-corner-settings-btn" aria-label="Controles y Audio" title="Controles y Audio">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <circle cx="12" cy="12" r="3" />

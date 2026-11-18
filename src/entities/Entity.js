@@ -34,6 +34,11 @@ export class Entity {
     /** @type {Array<string>} Tags estáticos para identificación (ej: 'solid', 'player') */
     this.tags = [];
 
+    /** @type {Set<string>} Índice O(1) sincronizado automáticamente con `this.tags` */
+    this._tagSet = new Set();
+    this._syncedTagLen = 0;
+    this._syncedTagsRef = this.tags;
+
     /** @type {Map<string, number>} Efectos temporales (etiqueta -> tiempo restante) */
     this.activeEffects = new Map();
 
@@ -110,8 +115,44 @@ export class Entity {
     return this._hitboxCache;
   }
 
+  /**
+   * Añade una etiqueta sin duplicados manteniendo el índice O(1).
+   * @param {string} tag
+   */
+  addTag(tag) {
+    if (!this.hasTag(tag)) {
+      this.tags.push(tag);
+      this._tagSet.add(tag);
+      this._syncedTagLen = this.tags.length;
+      this._syncedTagsRef = this.tags;
+    }
+  }
+
+  /**
+   * Comprueba si la entidad posee una etiqueta estática o efecto temporal activo.
+   * Emplea escaneo lineal directo en colecciones pequeñas (`<= 8` etiquetas) y Set O(1) si crece.
+   * @param {string} tag
+   * @returns {boolean}
+   */
   hasTag(tag) {
-    return this.tags.includes(tag) || this.activeEffects.has(tag);
+    const tags = this.tags;
+    const len = tags.length;
+    if (len <= 8) {
+      for (let i = 0; i < len; i++) {
+        if (tags[i] === tag) return true;
+      }
+      return this.activeEffects.size > 0 && this.activeEffects.has(tag);
+    }
+
+    if (this._syncedTagsRef !== tags || this._syncedTagLen !== len) {
+      this._tagSet.clear();
+      for (let i = 0; i < len; i++) {
+        this._tagSet.add(tags[i]);
+      }
+      this._syncedTagLen = len;
+      this._syncedTagsRef = tags;
+    }
+    return this._tagSet.has(tag) || (this.activeEffects.size > 0 && this.activeEffects.has(tag));
   }
 
   /**

@@ -23,16 +23,16 @@
 export const BIOME_PALETTES = {
   cave_exit_intro: {
     name: 'Claro de las Reliquias',
-    grassBase: '#48a842',
-    grassMid: '#3b923f',
-    grassLight: '#76cf4b',
-    grassShadow: '#1f5e42',
-    dirtBase: '#b77b4b',
-    dirtDark: '#7d4638',
-    dirtLight: '#dfab6f',
-    cliffTop: '#475569',
-    cliffFace: '#334155',
-    cliffShadow: '#1e1b4b',
+    grassBase: '#52a549',
+    grassMid: '#3d8b40',
+    grassLight: '#88d459',
+    grassShadow: '#1f5647',
+    dirtBase: '#b57c4e',
+    dirtDark: '#7e4938',
+    dirtLight: '#d8a46f',
+    cliffTop: '#64748b',
+    cliffFace: '#475569',
+    cliffShadow: '#283548',
     cliffRim: '#94a3b8',
     waterBase: '#0284c7',
     waterDeep: '#1e3a8a',
@@ -43,8 +43,8 @@ export const BIOME_PALETTES = {
     plazaBase: '#94a3b8',
     plazaTrim: '#64748b',
     plazaGold: '#eab308',
-    flowerA: '#fef08a',
-    flowerB: '#fb7185'
+    flowerA: '#f8fafc',
+    flowerB: '#fde047'
   },
   starting_clearing: null, // Alias asignado debajo
   marsh_of_spores: {
@@ -194,6 +194,29 @@ export class Tilemap {
     }
 
     this.build(resourceManager);
+  }
+
+  /**
+   * Retorna la paleta cromática activa del bioma para que consumidores externos (ej. minimapa)
+   * reutilicen colores sin acoplarse a `BIOME_PALETTES`.
+   * @returns {Object}
+   */
+  getActivePalette() {
+    return BIOME_PALETTES[this.biomeKey] || BIOME_PALETTES.cave_exit_intro;
+  }
+
+  /**
+   * Calcula un factor de inercia/fricción superficial según el `tileId` bajo los pies (para Slide/Dive).
+   * @param {number} tileId
+   * @param {string} [biomeKey='cave_exit_intro']
+   * @returns {number} Multiplicador de alcance/deslizamiento (`0.88` ceniza -> `1.24` losas/musgo húmedo)
+   */
+  static getSurfaceSlideFactor(tileId, biomeKey = 'cave_exit_intro') {
+    if (tileId === 5) return 1.22; // Plazas de piedra pulida o cristal astral
+    if (tileId === 4) return 1.12; // Puentes de madera / pasarela
+    if (tileId === 1) return biomeKey === 'ash_caldera' ? 0.88 : 0.96; // Tierra o ceniza densa
+    if (biomeKey === 'marsh_of_spores') return 1.16; // Musgo húmedo resbaladizo
+    return 1.0;
   }
 
   /**
@@ -468,6 +491,56 @@ export class Tilemap {
   }
 
   /**
+   * Invalida un chunk específico del caché gráfico y destruye su buffer canvas.
+   * @param {number} cx - Coordenada X del chunk
+   * @param {number} cy - Coordenada Y del chunk
+   * @returns {boolean} True si el chunk estaba en caché y fue desalojado
+   */
+  invalidateChunk(cx, cy) {
+    const key = `${cx}_${cy}`;
+    const canvas = this._chunkCache.get(key);
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+      this._chunkCache.delete(key);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Modifica una loseta de la cuadrícula lógica e invalida únicamente el chunk correspondiente
+   * y sus vecinos inmediatos (afectados por Dual-Grid y voladizos de gabinete).
+   * Cero reconstrucción del mapa completo: renderizado incremental instantáneo para el editor.
+   * @param {number} col - Columna de la loseta
+   * @param {number} row - Fila de la loseta
+   * @param {number} tileId - Nuevo ID de terreno (0..5)
+   * @returns {boolean} True si la loseta cambió de valor
+   */
+  setTileAndInvalidate(col, row, tileId) {
+    if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) {
+      return false;
+    }
+    if (this.grid[row][col] === tileId) {
+      return false;
+    }
+
+    this.grid[row][col] = tileId;
+
+    const cx = Math.floor(col / this.chunkTiles);
+    const cy = Math.floor(row / this.chunkTiles);
+
+    // Desalojar el chunk central y su vecindad 3x3 por si bordea o proyecta sombras/voladizos
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        this.invalidateChunk(cx + dx, cy + dy);
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * Libera la paleta Flyweight de variantes de losetas del bioma anterior.
    */
   clearTileStamps() {
@@ -483,7 +556,7 @@ export class Tilemap {
 
   /**
    * Prepara la paleta Flyweight de texturas únicas repetibles del bioma activo
-   * (4 variantes de hierba, 4 tierra, 4 agua, 2 roca y 2 losa = ~16 mini-canvases de 32x32)
+   * (4 variantes de hierba, 4 tierra, 4 agua, 4 roca y 2 losa = ~18 mini-canvases de 32x32)
    * y purga los chunks viejos para que los nuevos se horneen bajo demanda en `render()`.
    * @param {import('../core/ResourceManager.js').ResourceManager|null} [_resourceManager=null]
    */
@@ -519,13 +592,15 @@ export class Tilemap {
       this._tileStamps.set(stampKey, canvas);
     };
 
-    for (let v = 0; v < 4; v++) {
+    for (let v = 0; v < 8; v++) {
       bakeVariant(`turf_${v}`, v * 3 + 1, v * 5 + 2, this._drawBiomeTurf);
+    }
+    for (let v = 0; v < 4; v++) {
       bakeVariant(`dirt_${v}`, v * 7 + 3, v * 11 + 1, this._drawBiomeDirt);
       bakeVariant(`water_${v}`, v * 5 + 2, v * 9 + 4, this._drawBiomeWater);
+      bakeVariant(`cliff_${v}`, v * 2 + 1, v * 3 + 1, this._drawBiomeCliffTop);
     }
     for (let v = 0; v < 2; v++) {
-      bakeVariant(`cliff_${v}`, v * 2 + 1, v * 3 + 1, this._drawBiomeCliffTop);
       bakeVariant(`plaza_${v}`, v * 2, v * 2, this._drawBiomePlaza);
     }
   }
@@ -586,9 +661,9 @@ export class Tilemap {
           this._drawBiomeBridge(ctx, px, py, x, y, pal);
         } else {
           let stampName = null;
-          if (tileId === 0) stampName = `turf_${variantHash & 3}`;
+          if (tileId === 0) stampName = `turf_${variantHash & 7}`;
           else if (tileId === 1) stampName = `dirt_${variantHash & 3}`;
-          else if (tileId === 2) stampName = `cliff_${variantHash & 1}`;
+          else if (tileId === 2) stampName = `cliff_${variantHash & 3}`;
           else if (tileId === 3) stampName = `water_${variantHash & 3}`;
           else if (tileId === 5) stampName = `plaza_${variantHash & 1}`;
 
@@ -644,6 +719,37 @@ export class Tilemap {
   }
 
   /**
+   * Dibuja un rectángulo dentro de una loseta `ts x ts` envolviendo de forma toroidal
+   * cualquier desbordamiento en X o Y hacia el borde opuesto, garantizando texturas 100% concatenables.
+   * @private
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} px - Origen X de la loseta en el canvas
+   * @param {number} py - Origen Y de la loseta en el canvas
+   * @param {number} ox - Desplazamiento X relativo a la loseta
+   * @param {number} oy - Desplazamiento Y relativo a la loseta
+   * @param {number} w - Ancho del rectángulo
+   * @param {number} h - Alto del rectángulo
+   */
+  _fillWrapRect(ctx, px, py, ox, oy, w, h) {
+    const ts = this.tileSize;
+    const sx = ((Math.round(ox) % ts) + ts) % ts;
+    const sy = ((Math.round(oy) % ts) + ts) % ts;
+    const rw = Math.min(ts, Math.max(0, Math.round(w)));
+    const rh = Math.min(ts, Math.max(0, Math.round(h)));
+    if (rw <= 0 || rh <= 0) return;
+
+    const w1 = Math.min(rw, ts - sx);
+    const w2 = rw - w1;
+    const h1 = Math.min(rh, ts - sy);
+    const h2 = rh - h1;
+
+    ctx.fillRect(px + sx, py + sy, w1, h1);
+    if (w2 > 0) ctx.fillRect(px, py + sy, w2, h1);
+    if (h2 > 0) ctx.fillRect(px + sx, py, w1, h2);
+    if (w2 > 0 && h2 > 0) ctx.fillRect(px, py, w2, h2);
+  }
+
+  /**
    * Dibuja transiciones orgánicas pixel-art en bordes usando exclusivamente `fillRect` enteros.
    * Opera sobre un sub-rectángulo de chunk para evitar recorrer mapas enteros.
    * @private
@@ -672,59 +778,145 @@ export class Tilemap {
         const right = x < this.cols - 1 ? this.grid[y][x + 1] : tileId;
         const h = this._hash2D(x, y, 7);
 
-        // 1. Voladizos escalonados de hierba sobre caminos de tierra batida (tile === 1)
+        // 1. Voladizos orgánicos de racimos foliares sobre caminos de tierra batida (tile === 1)
         if (tileId === 1) {
           if (top === 0) {
             ctx.fillStyle = pal.grassShadow;
             ctx.fillRect(px, py, ts, 2);
+            ctx.fillRect(px + 2, py + 2, 7, 2);
+            ctx.fillRect(px + 13, py + 2, 9, 2);
+            ctx.fillRect(px + 25, py + 2, 6, 1);
+
+            ctx.fillStyle = pal.grassMid;
+            ctx.fillRect(px, py, ts, 1);
+            ctx.fillRect(px + 3, py + 1, 5, 2);
+            ctx.fillRect(px + 14, py + 1, 7, 2);
+            ctx.fillRect(px + 26, py + 1, 4, 1);
+
             ctx.fillStyle = pal.grassBase;
-            ctx.fillRect(px + (h & 3), py, 9, 3);
-            ctx.fillRect(px + 13, py, 10, 2);
-            ctx.fillRect(px + 25, py, 6, 3);
+            ctx.fillRect(px + (h & 3), py, 6, 2);
+            ctx.fillRect(px + 15, py, 5, 2);
+            ctx.fillRect(px + 25, py, 5, 1);
+
             ctx.fillStyle = pal.grassLight;
-            ctx.fillRect(px + 4, py, 4, 2);
-            ctx.fillRect(px + 18, py, 3, 1);
+            ctx.fillRect(px + 4, py, 3, 1);
+            ctx.fillRect(px + 16, py, 3, 1);
           }
           if (bot === 0) {
             ctx.fillStyle = pal.grassShadow;
             ctx.fillRect(px, py + ts - 3, ts, 3);
+            ctx.fillRect(px + 4, py + ts - 4, 6, 1);
+            ctx.fillRect(px + 19, py + ts - 4, 7, 1);
+
+            ctx.fillStyle = pal.grassMid;
+            ctx.fillRect(px + 1, py + ts - 2, 10, 2);
+            ctx.fillRect(px + 17, py + ts - 2, 11, 2);
             ctx.fillStyle = pal.grassBase;
-            ctx.fillRect(px + 2, py + ts - 2, 11, 2);
-            ctx.fillRect(px + 17, py + ts - 3, 9, 3);
+            ctx.fillRect(px + 4, py + ts - 3, 5, 2);
+            ctx.fillRect(px + 20, py + ts - 3, 5, 2);
           }
           if (left === 0) {
             ctx.fillStyle = pal.grassShadow;
             ctx.fillRect(px, py, 2, ts);
+            ctx.fillRect(px + 2, py + 4 + ((h >>> 2) & 3), 2, 7);
+            ctx.fillRect(px + 2, py + 19, 2, 8);
+
+            ctx.fillStyle = pal.grassMid;
+            ctx.fillRect(px, py + 2, 2, 10);
+            ctx.fillRect(px, py + 17, 2, 11);
             ctx.fillStyle = pal.grassBase;
-            ctx.fillRect(px, py + 3 + ((h >> 2) & 3), 3, 10);
-            ctx.fillRect(px, py + 18, 3, 9);
+            ctx.fillRect(px + 1, py + 5, 2, 5);
+            ctx.fillRect(px + 1, py + 20, 2, 6);
             ctx.fillStyle = pal.grassLight;
-            ctx.fillRect(px, py + 6, 2, 5);
+            ctx.fillRect(px, py + 6, 1, 3);
           }
           if (right === 0) {
             ctx.fillStyle = pal.grassShadow;
             ctx.fillRect(px + ts - 2, py, 2, ts);
+            ctx.fillRect(px + ts - 4, py + 5, 2, 7);
+            ctx.fillRect(px + ts - 4, py + 18, 2, 8);
+
+            ctx.fillStyle = pal.grassMid;
+            ctx.fillRect(px + ts - 3, py + 4, 3, 8);
+            ctx.fillRect(px + ts - 3, py + 17, 3, 9);
             ctx.fillStyle = pal.grassBase;
-            ctx.fillRect(px + ts - 3, py + 2, 3, 11);
-            ctx.fillRect(px + ts - 3, py + 17, 3, 10);
+            ctx.fillRect(px + ts - 2, py + 6, 2, 5);
           }
           if (top === 0 && left === 0) {
+            ctx.fillStyle = pal.grassShadow;
+            ctx.fillRect(px, py, 6, 6);
             ctx.fillStyle = pal.grassBase;
-            ctx.fillRect(px, py, 6, 4);
-            ctx.fillRect(px, py, 4, 6);
+            ctx.fillRect(px, py, 5, 4);
+            ctx.fillRect(px, py, 4, 5);
+            ctx.fillStyle = pal.grassLight;
+            ctx.fillRect(px + 1, py + 1, 2, 2);
           }
           if (top === 0 && right === 0) {
+            ctx.fillStyle = pal.grassShadow;
+            ctx.fillRect(px + ts - 6, py, 6, 6);
             ctx.fillStyle = pal.grassBase;
-            ctx.fillRect(px + ts - 6, py, 6, 4);
-            ctx.fillRect(px + ts - 4, py, 4, 6);
+            ctx.fillRect(px + ts - 5, py, 5, 4);
+            ctx.fillRect(px + ts - 4, py, 4, 5);
           }
           if (bot === 0 && left === 0) {
             ctx.fillStyle = pal.grassShadow;
-            ctx.fillRect(px, py + ts - 5, 5, 5);
+            ctx.fillRect(px, py + ts - 6, 6, 6);
+            ctx.fillStyle = pal.grassMid;
+            ctx.fillRect(px, py + ts - 4, 4, 4);
           }
           if (bot === 0 && right === 0) {
             ctx.fillStyle = pal.grassShadow;
-            ctx.fillRect(px + ts - 5, py + ts - 5, 5, 5);
+            ctx.fillRect(px + ts - 6, py + ts - 6, 6, 6);
+            ctx.fillStyle = pal.grassMid;
+            ctx.fillRect(px + ts - 4, py + ts - 4, 4, 4);
+          }
+        }
+
+        // 1B. Cornisas superiores y laterales biseladas de mesetas de risco (tile === 2)
+        if (tileId === 2) {
+          if (top !== 2) {
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px, py, ts, 1);
+            ctx.fillStyle = pal.cliffRim;
+            ctx.fillRect(px, py + 1, ts, 2);
+            ctx.fillStyle = pal.cliffFace;
+            ctx.fillRect(px, py + 3, ts, 2);
+            // Muescas de unión entre rocas de la cornisa
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px + 10 + (h & 3), py + 1, 1, 3);
+            ctx.fillRect(px + 23 + ((h >>> 2) & 3), py + 1, 1, 2);
+          }
+          if (left !== 2) {
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px, py, 1, ts);
+            ctx.fillStyle = pal.cliffRim;
+            ctx.fillRect(px + 1, py, 2, ts);
+            ctx.fillStyle = pal.cliffFace;
+            ctx.fillRect(px + 3, py, 1, ts);
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px + 1, py + 9 + (h & 3), 2, 1);
+            ctx.fillRect(px + 1, py + 22, 2, 1);
+          }
+          if (right !== 2) {
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px + ts - 1, py, 1, ts);
+            ctx.fillStyle = pal.cliffShadow;
+            ctx.fillRect(px + ts - 3, py, 2, ts);
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px + ts - 3, py + 11, 2, 1);
+            ctx.fillRect(px + ts - 3, py + 24, 2, 1);
+          }
+          if (top !== 2 && left !== 2) {
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px, py, 3, 3);
+            ctx.fillStyle = pal.cliffRim;
+            ctx.fillRect(px + 1, py + 1, 3, 3);
+          }
+          if (top !== 2 && right !== 2) {
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px + ts - 3, py, 3, 3);
+            ctx.fillStyle = pal.cliffFace;
+            ctx.fillRect(px + ts - 4, py + 1, 2, 2);
           }
         }
 
@@ -836,8 +1028,8 @@ export class Tilemap {
           )
         ) {
           if ((h & 3) !== 0) {
-            const sx = px + 6 + ((h >> 2) % 16);
-            const sy = py + 6 + ((h >> 6) % 16);
+            const sx = px + 6 + ((h >>> 2) % 16);
+            const sy = py + 6 + ((h >>> 6) % 16);
             // Mancha oscura calcinada sobre la tierra
             ctx.fillStyle = '#7c2d12';
             ctx.fillRect(sx - 1, sy - 1, 6, 4);
@@ -857,6 +1049,7 @@ export class Tilemap {
   /**
    * Dibuja frentes de acantilado con Proyección de Gabinete donde una celda de meseta (`2`)
    * linda por debajo con terreno más bajo (`!= 2`), acotado al chunk activo.
+   * Presenta bloques facetados concatenables, musgo colgante y rocas basales.
    * @private
    */
   _renderCabinetCliffs(
@@ -877,36 +1070,120 @@ export class Tilemap {
           const px = x * ts - originX;
           const faceTop = (y + 1) * ts - 12 - originY;
           const wallHeight = 20;
+          const h = this._hash2D(x, y, 19);
+          const leftSame = x > 0 && this.grid[y][x - 1] === 2 && this.grid[y + 1][x - 1] !== 2;
+          const rightSame = x < this.cols - 1 && this.grid[y][x + 1] === 2 && this.grid[y + 1][x + 1] !== 2;
+          const splitX = 14 + (h % 5);
 
-          // Sombra índigo proyectada sobre la loseta inferior
-          ctx.fillStyle = 'rgba(15, 18, 46, 0.36)';
+          // 1. Sombra proyectada índigo + cojín basal de hierba para anclar el risco
+          ctx.fillStyle = 'rgba(15, 18, 46, 0.34)';
           ctx.fillRect(px, faceTop + wallHeight, ts, 7);
 
-          // Cara vertical del acantilado
+          ctx.fillStyle = pal.grassShadow;
+          ctx.fillRect(px + 1, faceTop + wallHeight, ts - 2, 3);
+          ctx.fillStyle = pal.grassMid;
+          ctx.fillRect(px + 4, faceTop + wallHeight, 8, 2);
+          ctx.fillRect(px + 18, faceTop + wallHeight, 9, 2);
+
+          // 2. Cara vertical facetada del risco en bloques de piedra pizarra
           ctx.fillStyle = pal.cliffFace;
           ctx.fillRect(px, faceTop, ts, wallHeight);
 
           // Estratos oscuros en base del muro
           ctx.fillStyle = pal.cliffShadow;
-          ctx.fillRect(px, faceTop + 12, ts, 8);
+          ctx.fillRect(px, faceTop + 12, splitX, 8);
+          ctx.fillRect(px + splitX, faceTop + 10, ts - splitX, 10);
 
-          // Grietas de estratificación vertical
+          // Facetas iluminadas en esquina superior izquierda de cada bloque pétreo
+          ctx.fillStyle = pal.cliffTop;
+          ctx.fillRect(px + 2, faceTop + 2, splitX - 4, 8);
+          ctx.fillRect(px + splitX + 2, faceTop + 2, ts - splitX - 5, 6);
+          ctx.fillStyle = pal.cliffRim;
+          ctx.fillRect(px + 2, faceTop + 2, Math.max(4, splitX - 6), 2);
+          ctx.fillRect(px + splitX + 2, faceTop + 2, Math.max(4, ts - splitX - 8), 1);
+
+          // 3. Grietas escalonadas entre bloques y contornos laterales en los extremos
           ctx.fillStyle = '#0b101d';
-          ctx.fillRect(px + ((x * 7) % 14) + 5, faceTop + 3, 2, 13);
-          ctx.fillRect(px + ((x * 13) % 12) + 16, faceTop + 5, 2, 11);
+          ctx.fillRect(px + splitX, faceTop + 2, 1, 9);
+          ctx.fillRect(px + splitX - 1, faceTop + 11, 1, 7);
+          ctx.fillRect(px + splitX + 1, faceTop + 8, 2, 1);
 
-          // Cornisa iluminada superior + línea de tinta anime
+          if (!leftSame) {
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px, faceTop, 1, wallHeight);
+          } else {
+            ctx.fillStyle = pal.cliffShadow;
+            ctx.fillRect(px, faceTop + 4, 1, 13);
+          }
+          if (!rightSame) {
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(px + ts - 1, faceTop, 1, wallHeight);
+          }
+
+          // 4. Cornisa superior biselada y contorno inferior de tinta anime
+          ctx.fillStyle = '#0b101d';
+          ctx.fillRect(px, faceTop - 3, ts, 1);
           ctx.fillStyle = pal.cliffRim;
           ctx.fillRect(px, faceTop - 2, ts, 3);
           ctx.fillStyle = '#0b101d';
-          ctx.fillRect(px, faceTop + wallHeight - 1.5, ts, 1.8);
+          ctx.fillRect(px, faceTop + wallHeight - 1, ts, 2);
+
+          // 5. Piedras redondeadas discretas al pie del risco
+          if ((h & 3) !== 0) {
+            const rx = px + 3 + ((h >>> 3) % 20);
+            ctx.fillStyle = '#0b101d';
+            ctx.fillRect(rx, faceTop + wallHeight - 3, 6, 4);
+            ctx.fillStyle = pal.cliffFace;
+            ctx.fillRect(rx + 1, faceTop + wallHeight - 2, 4, 2);
+            ctx.fillStyle = pal.cliffRim;
+            ctx.fillRect(rx + 1, faceTop + wallHeight - 2, 3, 1);
+          }
+
+          // 6. Mantos sutiles de musgo colgando de la cornisa en segmentos alternados
+          if ((h & 3) <= 1) {
+            const mx = px + 4 + ((h >>> 4) % 14);
+            ctx.fillStyle = pal.grassShadow;
+            ctx.fillRect(mx, faceTop - 1, 9, 4);
+            ctx.fillRect(mx + 2, faceTop + 3, 5, 2);
+            ctx.fillStyle = pal.grassBase;
+            ctx.fillRect(mx + 1, faceTop - 1, 7, 3);
+            ctx.fillStyle = pal.grassLight;
+            ctx.fillRect(mx + 2, faceTop - 1, 4, 1);
+
+            if ((h & 15) === 4) {
+              ctx.fillStyle = pal.flowerA;
+              ctx.fillRect(mx + 3, faceTop + 1, 2, 2);
+              ctx.fillStyle = pal.flowerB;
+              ctx.fillRect(mx + 4, faceTop + 1, 1, 1);
+            }
+          }
         }
       }
     }
   }
 
-  /** @private */
-  /** @private */
+  /**
+   * Dibuja un pequeño racimo foliar pixel-art (5x3 px) en tonos medios y claros sin bloques oscuros.
+   * @private
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} lx - Coordenada X
+   * @param {number} ly - Coordenada Y
+   * @param {Object} pal - Paleta cromática del bioma
+   */
+  _drawTurfLeafCluster(ctx, lx, ly, pal) {
+    ctx.fillStyle = pal.grassMid;
+    ctx.fillRect(lx, ly + 1, 4, 1);
+    ctx.fillRect(lx + 1, ly + 2, 3, 1);
+    ctx.fillStyle = pal.grassLight;
+    ctx.fillRect(lx, ly, 2, 1);
+    ctx.fillRect(lx + 3, ly, 2, 1);
+  }
+
+  /**
+   * Dibuja una loseta de grama concatenable (seamless) sin marcas fijas en los bordes,
+   * variando manchas escalonadas suaves y micro-racimos foliares internos por hash.
+   * @private
+   */
   _drawBiomeTurf(ctx, px, py, x, y, pal) {
     const ts = this.tileSize;
     const h = this._hash2D(x, y, 1);
@@ -914,101 +1191,135 @@ export class Tilemap {
     ctx.fillStyle = pal.grassBase;
     ctx.fillRect(px, py, ts, ts);
 
-    // Manchas orgánicas de hierba de distinta escala con desplazamiento pseudoaleatorio
-    const ox1 = h & 15;
-    const oy1 = (h >> 4) & 15;
-    const ox2 = (h >> 8) & 15;
-    const oy2 = (h >> 12) & 15;
-
+    // Manchas escalonadas suaves cuya posición varía por hash (cero rejilla fija cada 32px)
+    const ox1 = 4 + (h % 18);
+    const oy1 = 4 + ((h >>> 4) % 18);
     ctx.fillStyle = pal.grassMid;
-    ctx.fillRect(px + ox1, py + oy1, 10 + ((h >> 16) & 5), 6 + ((h >> 18) & 3));
-    if ((h & 3) !== 0) {
-      ctx.fillRect(px + ((ox2 + 8) % 20), py + ((oy2 + 10) % 20), 8, 5);
-    }
-    if (((h >> 2) & 3) === 0) {
-      ctx.fillStyle = pal.grassLight;
-      ctx.fillRect(px + ((ox1 + 4) % 22), py + ((oy2 + 3) % 22), 7 + ((h >> 20) & 3), 4);
+    ctx.fillRect(px + ox1, py + oy1, 5, 2);
+    ctx.fillRect(px + ox1 + 2, py + oy1 + 2, 4, 1);
+
+    if ((h & 3) !== 1) {
+      const ox2 = 5 + ((h >>> 12) % 17);
+      const oy2 = 5 + ((h >>> 16) % 18);
+      ctx.fillRect(px + ox2, py + oy2, 4, 2);
     }
 
-    // Matas de césped pixel-art en posiciones variadas por hash
-    if ((h & 3) <= 1) {
-      const gx = px + 3 + ((h >> 6) % 22);
-      const gy = py + 5 + ((h >> 10) % 20);
-      ctx.fillStyle = pal.grassShadow;
-      ctx.fillRect(gx, gy + 2, 5, 2);
+    if ((h & 3) === 0 || (h & 3) === 2) {
       ctx.fillStyle = pal.grassLight;
-      ctx.fillRect(gx, gy, 2, 2);
-      ctx.fillRect(gx + 3, gy - 1, 2, 3);
+      ctx.fillRect(px + 6 + ((h >>> 8) % 16), py + 5 + ((h >>> 14) % 16), 3, 1);
     }
 
-    // Flores silvestres poco frecuentes (para evitar patrón de cuadrícula)
-    if ((h & 31) === 5) {
-      const fx = px + 5 + ((h >> 14) % 20);
-      const fy = py + 5 + ((h >> 18) % 20);
-      ctx.fillStyle = pal.grassShadow;
+    // 2 racimos de hojitas suaves en márgenes seguros [4..23]
+    const clusterA_X = px + 4 + ((h >>> 6) % 9);
+    const clusterA_Y = py + 6 + ((h >>> 10) % 9);
+    this._drawTurfLeafCluster(ctx, clusterA_X, clusterA_Y, pal);
+
+    const clusterB_X = px + 15 + ((h >>> 14) % 9);
+    const clusterB_Y = py + 17 + ((h >>> 18) % 8);
+    this._drawTurfLeafCluster(ctx, clusterB_X, clusterB_Y, pal);
+
+    // Briznas sutiles puntuales en variantes pares
+    if ((h & 1) === 0) {
+      const bx = px + 16 + ((h >>> 5) % 9);
+      const by = py + 6 + ((h >>> 9) % 7);
+      ctx.fillStyle = pal.grassLight;
+      ctx.fillRect(bx, by, 2, 1);
+      ctx.fillRect(bx + 2, by + 1, 1, 1);
+    }
+
+    // Flor silvestre muy esporádica (solo 1 de cada 8 variantes: v=7 -> seedX=22, seedY=37)
+    const isFlowerTile = (x === 22 && y === 37) || ((h & 31) === 11);
+    if (isFlowerTile) {
+      const fx = px + 18;
+      const fy = py + 11;
+      ctx.fillStyle = pal.grassMid;
       ctx.fillRect(fx, fy + 2, 3, 1);
       ctx.fillStyle = pal.flowerA;
-      ctx.fillRect(fx, fy, 3, 2);
-      ctx.fillRect(fx + 1, fy - 1, 1, 1);
-    } else if ((h & 63) === 23) {
-      const fx = px + 6 + ((h >> 16) % 18);
-      const fy = py + 6 + ((h >> 20) % 18);
-      ctx.fillStyle = pal.grassShadow;
-      ctx.fillRect(fx, fy + 2, 3, 1);
+      ctx.fillRect(fx, fy, 3, 1);
+      ctx.fillRect(fx + 1, fy - 1, 1, 3);
       ctx.fillStyle = pal.flowerB;
-      ctx.fillRect(fx, fy, 3, 2);
+      ctx.fillRect(fx + 1, fy, 1, 1);
     }
   }
 
-  /** @private */
+  /**
+   * Dibuja una loseta de sendero de tierra concatenable (seamless) sin marcas fijas repetidas,
+   * con ondas suaves por hash y pequeños guijarros discretos.
+   * @private
+   */
   _drawBiomeDirt(ctx, px, py, x, y, pal) {
     const ts = this.tileSize;
     const h = this._hash2D(x, y, 2);
+
     ctx.fillStyle = pal.dirtBase;
     ctx.fillRect(px, py, ts, ts);
 
-    // Parches irregulares de tierra pisoteada con dispersión 2D
-    const dx1 = h & 15;
-    const dy1 = (h >> 4) & 15;
-    const dx2 = (h >> 8) & 15;
-    const dy2 = (h >> 12) & 15;
-
+    // Manchas escalonadas orgánicas desplazadas por hash (cero patrón repetitivo cada 32px)
+    const dx1 = 4 + (h % 17);
+    const dy1 = 5 + ((h >>> 4) % 18);
     ctx.fillStyle = pal.dirtDark;
-    ctx.fillRect(px + dx1, py + dy1, 8 + ((h >> 16) & 5), 5 + ((h >> 19) & 3));
+    ctx.fillRect(px + dx1, py + dy1, 5, 2);
+    ctx.fillRect(px + dx1 + 2, py + dy1 + 2, 4, 1);
+
+    const dx2 = 5 + ((h >>> 16) % 16);
+    const dy2 = 6 + ((h >>> 20) % 17);
+    ctx.fillRect(px + dx2, py + dy2, 4, 2);
 
     ctx.fillStyle = pal.dirtLight;
-    ctx.fillRect(px + ((dx2 + 6) % 21), py + ((dy2 + 5) % 21), 6 + ((h >> 21) & 4), 4);
+    const lx = 6 + ((h >>> 8) % 16);
+    const ly = 7 + ((h >>> 12) % 16);
+    ctx.fillRect(px + lx, py + ly, 4, 1);
+    ctx.fillRect(px + lx + 1, py + ly + 1, 3, 1);
 
-    // Guijarros esporádicos pixel-art (no uno idéntico por loseta)
-    if ((h & 7) <= 2) {
-      const sx = px + 4 + ((h >> 14) % 22);
-      const sy = py + 4 + ((h >> 18) % 22);
+    // Guijarro pequeño facetado y granos sutiles en el interior
+    const sx = px + 6 + ((h >>> 14) % 16);
+    const sy = py + 8 + ((h >>> 18) % 14);
+    ctx.fillStyle = pal.dirtDark;
+    ctx.fillRect(sx, sy + 1, 3, 2);
+    ctx.fillStyle = pal.dirtLight;
+    ctx.fillRect(sx, sy, 2, 1);
+
+    if ((h & 3) <= 1) {
+      const sx2 = px + 5 + ((h >>> 20) % 18);
+      const sy2 = py + 18 + ((h >>> 24) % 8);
       ctx.fillStyle = pal.dirtDark;
-      ctx.fillRect(sx, sy + 2, 4, 2);
-      ctx.fillStyle = pal.dirtLight;
-      ctx.fillRect(sx, sy, 4, 2);
-    }
-    if ((h & 15) === 9) {
-      const sx2 = px + 3 + ((h >> 20) % 24);
-      const sy2 = py + 4 + ((h >> 24) % 22);
-      ctx.fillStyle = pal.dirtDark;
-      ctx.fillRect(sx2, sy2, 2, 2);
+      ctx.fillRect(sx2, sy2, 2, 1);
+      ctx.fillRect(sx2 + 4, sy2 - 3, 1, 1);
     }
   }
 
-  /** @private */
+  /**
+   * Dibuja la cima de meseta/risco concatenable (seamless) sin rejilla ni marcas fijas,
+   * variando vetas pétreas suaves y fisuras minerales discretas por hash.
+   * @private
+   */
   _drawBiomeCliffTop(ctx, px, py, x, y, pal) {
     const ts = this.tileSize;
+    const h = this._hash2D(x, y, 5);
+
     ctx.fillStyle = pal.cliffTop;
     ctx.fillRect(px, py, ts, ts);
 
+    // Veta pétrea sutil desplazada por hash (cero marcas fijas en los bordes)
+    const fx = 5 + (h % 16);
+    const fy = 6 + ((h >>> 4) % 16);
     ctx.fillStyle = pal.cliffFace;
-    ctx.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-    ctx.fillStyle = pal.cliffRim;
-    ctx.fillRect(px + 4, py + 4, 14, 3);
-    if ((x + y) % 3 === 0) {
+    ctx.fillRect(px + fx, py + fy, 6, 2);
+    ctx.fillRect(px + fx + 2, py + fy + 2, 4, 1);
+
+    const fx2 = 6 + ((h >>> 14) % 15);
+    const fy2 = 7 + ((h >>> 18) % 15);
+    ctx.fillRect(px + fx2, py + fy2, 4, 2);
+
+    if ((h & 1) === 0) {
+      const gx = px + 8 + ((h >>> 8) % 13);
+      const gy = py + 12 + ((h >>> 12) % 11);
       ctx.fillStyle = pal.cliffShadow;
-      ctx.fillRect(px + 16, py + 18, 10, 4);
+      ctx.fillRect(gx, gy, 3, 1);
+      ctx.fillRect(gx + 2, gy + 1, 3, 1);
+    } else {
+      ctx.fillStyle = pal.cliffRim;
+      ctx.fillRect(px + fx, py + fy - 1, 3, 1);
     }
   }
 
@@ -1022,21 +1333,21 @@ export class Tilemap {
     // Bandas de profundidad variadas por hash (sin rayas repetidas por loseta)
     if ((h & 3) !== 0) {
       ctx.fillStyle = pal.waterDeep;
-      ctx.fillRect(px + (h & 7), py + 4 + ((h >> 3) & 7), 16 + ((h >> 6) & 11), 6 + ((h >> 10) & 3));
+      ctx.fillRect(px + (h & 7), py + 4 + ((h >>> 3) & 7), 16 + ((h >>> 6) & 11), 6 + ((h >>> 10) & 3));
     }
     if ((h & 7) <= 3) {
       ctx.fillStyle = pal.waterDeep;
-      ctx.fillRect(px + ((h >> 8) % 14), py + 20, 12 + (h & 7), 5);
+      ctx.fillRect(px + ((h >>> 8) % 14), py + 20, 12 + (h & 7), 5);
     }
 
     // Destellos de corriente horizontales en pixel art
     if ((h & 3) === 1 || (h & 7) === 6) {
       ctx.fillStyle = pal.waterFoam;
-      ctx.fillRect(px + 4 + ((h >> 12) % 16), py + 8 + ((h >> 16) % 16), 7 + (h & 3), 2);
+      ctx.fillRect(px + 4 + ((h >>> 12) % 16), py + 8 + ((h >>> 16) % 16), 7 + (h & 3), 2);
     }
     if ((h & 15) === 11) {
       ctx.fillStyle = '#d4f6ff';
-      ctx.fillRect(px + 6 + ((h >> 18) % 16), py + 12 + ((h >> 22) % 12), 4, 1);
+      ctx.fillRect(px + 6 + ((h >>> 18) % 16), py + 12 + ((h >>> 22) % 12), 4, 1);
     }
   }
 
@@ -1144,19 +1455,44 @@ export class Tilemap {
     }
   }
 
-  /** @private */
+  /**
+   * Dibuja losas de plaza talladas en aparejo trabado concatenable con biseles pixel-art
+   * y discretos brotes de musgo en las juntas.
+   * @private
+   */
   _drawBiomePlaza(ctx, px, py, x, y, pal) {
     const ts = this.tileSize;
+    const half = Math.floor(ts * 0.5);
+
     ctx.fillStyle = pal.plazaBase;
     ctx.fillRect(px, py, ts, ts);
 
-    ctx.strokeStyle = pal.plazaTrim;
-    ctx.lineWidth = 1.6;
-    ctx.strokeRect(px + 1, py + 1, ts - 2, ts - 2);
+    // Biseles claros superiores e izquierdos en cada sillar
+    ctx.fillStyle = pal.cliffRim;
+    ctx.fillRect(px + 1, py + 1, ts - 2, 1);
+    ctx.fillRect(px + 1, py + half + 1, half - 2, 1);
+    ctx.fillRect(px + half + 1, py + half + 1, half - 2, 1);
+    ctx.fillRect(px + 1, py + 1, 1, half - 2);
+    ctx.fillRect(px + half + 1, py + half + 1, 1, half - 2);
 
-    ctx.fillStyle = pal.plazaGold;
+    // Juntas de sillares trabados (alineadas a 0 y half para concatenación exacta)
+    ctx.fillStyle = pal.plazaTrim;
+    ctx.fillRect(px, py, ts, 1);
+    ctx.fillRect(px, py + half, ts, 1);
+    ctx.fillRect(px, py + 1, 1, half - 1);
+    ctx.fillRect(px + half, py + half + 1, 1, half - 1);
+
+    // Variante alterna con sutil acento dorado rúnico o musgo en junta
     if ((x + y) % 4 === 0) {
-      ctx.fillRect(px + 13, py + 13, 6, 6);
+      ctx.fillStyle = pal.plazaGold;
+      ctx.fillRect(px + half - 1, py + half - 1, 3, 3);
+      ctx.fillStyle = pal.plazaTrim;
+      ctx.fillRect(px + half, py + half, 1, 1);
+    } else if (x !== 0) {
+      ctx.fillStyle = pal.grassShadow;
+      ctx.fillRect(px + half - 2, py + half, 4, 2);
+      ctx.fillStyle = pal.grassMid;
+      ctx.fillRect(px + half - 1, py + half, 2, 1);
     }
   }
 

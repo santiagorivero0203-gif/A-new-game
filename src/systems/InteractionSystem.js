@@ -63,20 +63,23 @@ export class InteractionSystem {
     let closestTarget = null;
     let minDistanceSq = this.interactionDistance * this.interactionDistance;
 
-    const candidates = npcs.concat(props);
-    for (let i = 0; i < candidates.length; i++) {
-      const target = candidates[i];
-      if (!target || target.isDead) continue;
+    // Recorrer ambas cubetas directamente sin alocar arreglos temporales con concat()
+    for (let pass = 0; pass < 2; pass++) {
+      const list = pass === 0 ? npcs : props;
+      for (let i = 0; i < list.length; i++) {
+        const target = list[i];
+        if (!target || target.isDead) continue;
 
-      const tx = target.pos.x + target.width / 2;
-      const ty = target.pos.y + target.height / 2;
-      const dx = tx - playerCenterX;
-      const dy = ty - playerCenterY;
-      const distSq = dx * dx + dy * dy;
+        const tx = target.pos.x + target.width / 2;
+        const ty = target.pos.y + target.height / 2;
+        const dx = tx - playerCenterX;
+        const dy = ty - playerCenterY;
+        const distSq = dx * dx + dy * dy;
 
-      if (distSq <= minDistanceSq) {
-        minDistanceSq = distSq;
-        closestTarget = target;
+        if (distSq <= minDistanceSq) {
+          minDistanceSq = distSq;
+          closestTarget = target;
+        }
       }
     }
 

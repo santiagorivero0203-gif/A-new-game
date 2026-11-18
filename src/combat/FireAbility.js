@@ -40,7 +40,8 @@ export class FireAbility extends Ability {
       context.audioManager.playAbility('fuego', false);
     }
 
-    if (context && context.combatManager) {
+    const projSys = context ? context.projectileSystem : null;
+    if (context && (projSys || context.combatManager)) {
       const spreadAngles = hasEmberFan ? [0, -0.28, 0.28] : [0];
 
       for (let i = 0; i < spreadAngles.length; i++) {
@@ -52,30 +53,53 @@ export class FireAbility extends Ability {
         // Offset reducido (6px) y hitbox 20x20 para impactar sin tunneling en combate cuerpo a cuerpo
         const startX = player.pos.x + player.width / 2 + dx * 6;
         const startY = player.pos.y + player.height / 2 + dy * 6;
+        const duration = isCenter ? 1.05 : 0.88;
 
-        context.combatManager.addAttack({
-          owner: player,
-          type: 'weak',
-          element: 'fuego',
-          isProjectile: true,
-          isSideOrb: !isCenter,
-          damage: orbDamage,
-          duration: isCenter ? 1.05 : 0.88,
-          x: startX,
-          y: startY,
-          dx,
-          dy,
-          speed,
-          applyEffect: { tag: 'quemadura_ignea', duration: burnDuration },
-          hitbox: { x: startX - 10, y: startY - 10, width: 20, height: 20 },
-          destroyOnHit: true,
-          update: function(dt) {
-            this.x += this.dx * this.speed * dt;
-            this.y += this.dy * this.speed * dt;
-            this.hitbox.x = this.x - 10;
-            this.hitbox.y = this.y - 10;
-          }
-        });
+        if (projSys && typeof projSys.spawn === 'function') {
+          projSys.spawn({
+            owner: player,
+            type: 'weak',
+            element: 'fuego',
+            spriteKey: 'fire_orb',
+            isFriendly: true,
+            isSideOrb: !isCenter,
+            damage: orbDamage,
+            duration,
+            x: startX,
+            y: startY,
+            dx,
+            dy,
+            speed,
+            radius: 10,
+            altitude: 'high',
+            destroyOnHit: true,
+            applyEffect: { tag: 'quemadura_ignea', duration: burnDuration }
+          });
+        } else {
+          context.combatManager.addAttack({
+            owner: player,
+            type: 'weak',
+            element: 'fuego',
+            isProjectile: true,
+            isSideOrb: !isCenter,
+            damage: orbDamage,
+            duration,
+            x: startX,
+            y: startY,
+            dx,
+            dy,
+            speed,
+            applyEffect: { tag: 'quemadura_ignea', duration: burnDuration },
+            hitbox: { x: startX - 10, y: startY - 10, width: 20, height: 20 },
+            destroyOnHit: true,
+            update: function(dt) {
+              this.x += this.dx * this.speed * dt;
+              this.y += this.dy * this.speed * dt;
+              this.hitbox.x = this.x - 10;
+              this.hitbox.y = this.y - 10;
+            }
+          });
+        }
       }
     }
 

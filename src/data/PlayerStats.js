@@ -20,6 +20,13 @@ export const PLAYER_STATS = {
   dash_cooldown_upgraded: 0.22,
   dash_speed: 400, // Deslizamiento ágil y responsivo sin salto desmedido
   dash_duration: 0.20,
+  slide_speed: 330,
+  slide_duration: 0.34,
+  slide_cooldown: 0.25,
+  dive_cost: 12,
+  dive_speed: 445,
+  dive_duration: 0.30,
+  dive_cooldown: 0.42,
   heal_cost: 35,
   heal_cooldown: 1.2,
   sword_cooldown: 0.08,

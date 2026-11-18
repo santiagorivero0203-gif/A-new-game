@@ -61,27 +61,31 @@ const ELEMENT_PALETTES = {
 };
 
 export class CelSpriteAtlas {
-  /** @type {Map<string, HTMLCanvasElement>} Caché Flyweight global con orden LRU */
+  /** @type {Map<string, HTMLCanvasElement>} Caché Flyweight global con marca de uso LRU sin mutar Map en hits */
   static _cache = new Map();
 
-  /** @type {number} Tope de sprites únicos en caché simultáneamente para comprimir RAM */
-  static MAX_CACHED_SPRITES = 56;
+  /** @type {Map<string, {status: 'loading'|'loaded'|'error', img: HTMLImageElement, listeners: Function[]}>} Caché de imágenes personalizadas */
+  static _customImageCache = new Map();
+
+  /** @type {number} Contador monotónico de uso para desalojo LRU sin delete+set en cada frame */
+  static _useClock = 0;
+
+  /** @type {number} Tope de sprites únicos en caché simultáneamente para evitar thrashing y getImageData */
+  static MAX_CACHED_SPRITES = 160;
 
   /**
    * Obtiene un sprite horneado desde caché o ejecuta la función constructora una sola vez.
-   * Mantiene política LRU (evicta variantes antiguas no usadas al superar `MAX_CACHED_SPRITES`).
+   * Marca `_lastUse` en O(1) sin reordenar el `Map` en cada draw; desaloja el más antiguo solo al llenar tope.
    * @param {string} key - Clave única de caché.
    * @param {number} width - Ancho del lienzo fuera de pantalla.
    * @param {number} height - Alto del lienzo fuera de pantalla.
    * @param {(ctx: CanvasRenderingContext2D, w: number, h: number) => void} drawFn - Pintor procedural.
    * @returns {HTMLCanvasElement} Lienzo horneado reutilizable.
    */
-  static getOrBake(key, width, height, drawFn) {
+  static getOrBake(key, width, height, drawFn, skipCrispen = false) {
     const existing = CelSpriteAtlas._cache.get(key);
     if (existing) {
-      // Mover al final para política LRU en O(1)
-      CelSpriteAtlas._cache.delete(key);
-      CelSpriteAtlas._cache.set(key, existing);
+      existing._lastUse = ++CelSpriteAtlas._useClock;
       return existing;
     }
 
@@ -92,12 +96,25 @@ export class CelSpriteAtlas {
     if (ctx) {
       ctx.imageSmoothingEnabled = false;
       drawFn(ctx, width, height);
-      CelSpriteAtlas._crispenAndOutline(ctx, width, height);
+      if (!skipCrispen) {
+        CelSpriteAtlas._crispenAndOutline(ctx, width, height);
+      }
     }
 
+    canvas._lastUse = ++CelSpriteAtlas._useClock;
     CelSpriteAtlas._cache.set(key, canvas);
+
     while (CelSpriteAtlas._cache.size > CelSpriteAtlas.MAX_CACHED_SPRITES) {
-      const oldestKey = CelSpriteAtlas._cache.keys().next().value;
+      let oldestKey = null;
+      let oldestTick = Infinity;
+      for (const [k, c] of CelSpriteAtlas._cache.entries()) {
+        const t = c ? (c._lastUse || 0) : 0;
+        if (t < oldestTick) {
+          oldestTick = t;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey === null) break;
       const oldestCanvas = CelSpriteAtlas._cache.get(oldestKey);
       if (oldestCanvas) {
         oldestCanvas.width = 0;
@@ -861,12 +878,44 @@ export class CelSpriteAtlas {
   }
 
   /**
-   * Boca de caverna pixel-art de 192x156 px con clave rúnica, arco en peldaños enteros y musgo.
+   * Dibuja una diminuta flor silvestre blanca con centro amarillo sobre piedra o musgo.
+   * @private
+   */
+  static _drawMiniRockFlower(ctx, fx, fy) {
+    ctx.fillStyle = '#1e564f';
+    ctx.fillRect(fx - 1, fy + 1, 5, 2);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(fx, fy, 3, 1);
+    ctx.fillRect(fx + 1, fy - 1, 1, 3);
+    ctx.fillStyle = '#fde047';
+    ctx.fillRect(fx + 1, fy, 1, 1);
+  }
+
+  /**
+   * Dibuja una pequeña seta roja con motas blancas para rocas y entornos boscosos.
+   * @private
+   */
+  static _drawMiniRockMushroom(ctx, mx, my) {
+    ctx.fillStyle = INK;
+    ctx.fillRect(mx - 1, my, 7, 4);
+    ctx.fillRect(mx + 1, my + 3, 3, 3);
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(mx + 2, my + 4, 1, 1);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(mx, my + 1, 5, 2);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(mx + 1, my + 1, 1, 1);
+    ctx.fillRect(mx + 3, my + 2, 1, 1);
+  }
+
+  /**
+   * Boca de caverna pixel-art de 192x156 px con clave rúnica, arco en peldaños enteros,
+   * facetas de piedra pizarra, musgo colgante y rocas basales.
    * @returns {HTMLCanvasElement}
    */
   static getCaveMouthSprite() {
-    return CelSpriteAtlas.getOrBake('prop_cave_mouth_v3', 192, 156, (ctx, w, h) => {
-      // Silueta escalonada de piedra basáltica (sin diagonales borrosas)
+    return CelSpriteAtlas.getOrBake('prop_cave_mouth_v4', 192, 156, (ctx, w, h) => {
+      // Silueta escalonada de piedra pizarra
       const rockBands = [
         [8, 15, 62, 68],
         [16, 27, 44, 104],
@@ -874,21 +923,43 @@ export class CelSpriteAtlas {
         [44, 65, 16, 160],
         [66, h - 10, 10, 172]
       ];
-      CelSpriteAtlas._fillRowBands(ctx, rockBands, '#334155', INK);
+      CelSpriteAtlas._fillRowBands(ctx, rockBands, '#475569', INK);
 
-      // Plano superior iluminado cálido
+      // Cojín basal verde-azulado alrededor de la base de la cueva
+      ctx.fillStyle = '#1e564f';
+      ctx.fillRect(8, h - 12, 46, 5);
+      ctx.fillRect(138, h - 12, 46, 5);
+      ctx.fillStyle = '#3d8b40';
+      ctx.fillRect(12, h - 11, 36, 3);
+      ctx.fillRect(142, h - 11, 36, 3);
+
+      // Facetas superiores iluminadas en pizarra claro y biseles
       ctx.fillStyle = '#64748b';
       ctx.fillRect(62, 10, 68, 8);
       ctx.fillRect(46, 18, 92, 10);
-      ctx.fillRect(30, 28, 98, 14);
+      ctx.fillRect(30, 28, 98, 15);
+      ctx.fillRect(18, 45, 42, 30);
       ctx.fillStyle = '#94a3b8';
       ctx.fillRect(64, 10, 54, 4);
       ctx.fillRect(48, 18, 60, 4);
+      ctx.fillRect(31, 28, 42, 3);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(65, 10, 28, 2);
+      ctx.fillRect(49, 18, 22, 2);
 
-      // Sombra índigo lateral derecha
-      ctx.fillStyle = '#1e1b4b';
-      ctx.fillRect(142, 46, 28, h - 56);
-      ctx.fillRect(156, 68, 22, h - 78);
+      // Plano de sombra lateral derecha y estrías verticales facetadas
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(136, 34, 34, h - 46);
+      ctx.fillStyle = '#283548';
+      ctx.fillRect(148, 48, 24, h - 60);
+      ctx.fillRect(160, 68, 18, h - 78);
+
+      // Fisuras verticales escalonadas en los contrafuertes laterales
+      ctx.fillStyle = INK;
+      ctx.fillRect(38, 46, 2, 18);
+      ctx.fillRect(36, 64, 2, 20);
+      ctx.fillRect(146, 54, 2, 16);
+      ctx.fillRect(148, 70, 2, 18);
 
       // Arco interior abismal escalonado pixel-art
       const abyssBands = [
@@ -900,62 +971,126 @@ export class CelSpriteAtlas {
       CelSpriteAtlas._fillRowBands(ctx, abyssBands, '#090919', INK);
 
       // Dintel superior de piedra labrada y clave con runa turquesa
-      CelSpriteAtlas._inkRoundRect(ctx, 84, 38, 24, 18, 2, '#475569', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 84, 38, 24, 18, 2, '#64748b', INK, 1);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(86, 39, 20, 3);
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(94, 42, 4, 10);
       ctx.fillRect(91, 45, 10, 3);
       ctx.fillStyle = '#e0f2fe';
       ctx.fillRect(95, 43, 2, 4);
 
-      // Parches de musgo verde pixel-art sobre las esquinas del dintel
-      CelSpriteAtlas._inkRoundRect(ctx, 24, 34, 32, 10, 2, '#15803d', INK, 1);
-      ctx.fillStyle = '#84cc16';
-      ctx.fillRect(28, 36, 20, 3);
-      CelSpriteAtlas._inkRoundRect(ctx, 132, 40, 28, 9, 2, '#15803d', INK, 1);
-      ctx.fillStyle = '#84cc16';
-      ctx.fillRect(136, 42, 16, 3);
+      // Mantos de musgo en capas sobre las repisas + diminutas flores
+      CelSpriteAtlas._inkRoundRect(ctx, 24, 34, 34, 10, 2, '#1e564f', INK, 1);
+      ctx.fillStyle = '#2b9348';
+      ctx.fillRect(26, 35, 29, 6);
+      ctx.fillStyle = '#74c69d';
+      ctx.fillRect(28, 35, 19, 3);
+      CelSpriteAtlas._drawMiniRockFlower(ctx, 42, 37);
 
-      // Escombros basales pixelados a ambos lados del túnel
-      CelSpriteAtlas._inkRoundRect(ctx, 16, h - 22, 24, 12, 2, '#475569', INK, 1);
-      CelSpriteAtlas._inkRoundRect(ctx, 152, h - 24, 26, 14, 2, '#334155', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 132, 40, 30, 9, 2, '#1e564f', INK, 1);
+      ctx.fillStyle = '#2b9348';
+      ctx.fillRect(134, 41, 25, 6);
+      ctx.fillStyle = '#74c69d';
+      ctx.fillRect(136, 41, 16, 3);
+      CelSpriteAtlas._drawMiniRockFlower(ctx, 146, 43);
+
+      // Rocas secundarias facetadas en la base a ambos lados del túnel
+      CelSpriteAtlas._inkRoundRect(ctx, 14, h - 24, 26, 14, 2, '#475569', INK, 1);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(16, h - 23, 18, 4);
+      CelSpriteAtlas._inkRoundRect(ctx, 150, h - 25, 28, 15, 2, '#334155', INK, 1);
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(152, h - 24, 18, 5);
     });
   }
 
   /**
-   * Roca de acantilado en bloques pixel-art enteros (64x60 px), con cristal arcano opcional.
+   * Peñasco de risco facetado estilo pixel-art (64x60 px) con musgo, rocas basales,
+   * setas o cristal arcano según variante.
    * @param {boolean} [withCrystal=false]
    * @returns {HTMLCanvasElement}
    */
   static getCliffRockSprite(withCrystal = false) {
-    return CelSpriteAtlas.getOrBake(`prop_cliff_rock_v3_${withCrystal ? 'crystal' : 'plain'}`, 64, 60, (ctx) => {
+    return CelSpriteAtlas.getOrBake(`prop_cliff_rock_v4_${withCrystal ? 'crystal' : 'plain'}`, 64, 60, (ctx) => {
+      // Base suave de hierba verde-azulada bajo las piedras
+      ctx.fillStyle = '#1e564f';
+      ctx.fillRect(6, 46, 52, 8);
+      ctx.fillRect(10, 44, 44, 11);
+      ctx.fillStyle = '#3d8b40';
+      ctx.fillRect(9, 47, 46, 5);
+
+      // Cuerpo principal facetado del peñasco
       const bands = [
-        [14, 19, 22, 20],
-        [20, 27, 14, 36],
-        [28, 37, 10, 44],
-        [38, 51, 8, 48]
+        [13, 18, 20, 22],
+        [19, 26, 13, 36],
+        [27, 36, 10, 43],
+        [37, 49, 8, 47]
       ];
-      CelSpriteAtlas._fillRowBands(ctx, bands, '#334155', INK);
+      CelSpriteAtlas._fillRowBands(ctx, bands, '#475569', INK);
 
-      // Plano de luz pizarra superior e izquierda
-      ctx.fillStyle = '#64748b';
-      ctx.fillRect(22, 15, 18, 5);
-      ctx.fillRect(14, 20, 26, 8);
-      ctx.fillRect(10, 28, 22, 12);
+      // Cima plana iluminada y faceta izquierda clara
       ctx.fillStyle = '#94a3b8';
-      ctx.fillRect(22, 15, 14, 2);
-      ctx.fillRect(15, 20, 14, 3);
+      ctx.fillRect(21, 14, 19, 5);
+      ctx.fillRect(15, 19, 17, 6);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(22, 14, 14, 2);
+      ctx.fillRect(16, 19, 10, 2);
 
-      // Plano de sombra índigo derecha e inferior
-      ctx.fillStyle = '#1e1b4b';
-      ctx.fillRect(36, 26, 18, 22);
-      ctx.fillRect(12, 46, 42, 5);
+      // Faceta media izquierda y arista vertical de corte
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(11, 25, 19, 18);
+      ctx.fillRect(20, 20, 14, 10);
+
+      // Faceta derecha sombreada y estrato basal
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(34, 22, 16, 25);
+      ctx.fillStyle = '#283548';
+      ctx.fillRect(38, 30, 15, 18);
+      ctx.fillRect(11, 44, 42, 5);
+
+      // Grietas angulares entre planos de piedra
+      ctx.fillStyle = INK;
+      ctx.fillRect(31, 18, 1, 10);
+      ctx.fillRect(32, 28, 1, 11);
+      ctx.fillRect(30, 39, 1, 8);
+      ctx.fillRect(21, 31, 1, 13);
+      ctx.fillRect(22, 29, 4, 1);
+
+      // Piedras pequeñas adosadas a la base
+      CelSpriteAtlas._inkRoundRect(ctx, 6, 42, 11, 8, 2, '#475569', INK, 1);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(8, 43, 6, 2);
+
+      CelSpriteAtlas._inkRoundRect(ctx, 43, 41, 14, 10, 2, '#475569', INK, 1);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(45, 42, 9, 3);
+      ctx.fillStyle = '#283548';
+      ctx.fillRect(49, 46, 6, 3);
+
+      // Parche de musgo verde sobre el hombro superior derecho
+      ctx.fillStyle = '#1e564f';
+      ctx.fillRect(34, 15, 10, 6);
+      ctx.fillRect(38, 21, 6, 3);
+      ctx.fillStyle = '#2b9348';
+      ctx.fillRect(35, 15, 8, 4);
+      ctx.fillStyle = '#74c69d';
+      ctx.fillRect(36, 15, 5, 2);
+
+      // Flores silvestres discretas en la base derecha
+      CelSpriteAtlas._drawMiniRockFlower(ctx, 41, 39);
+      CelSpriteAtlas._drawMiniRockFlower(ctx, 46, 49);
 
       if (withCrystal) {
-        CelSpriteAtlas._inkRoundRect(ctx, 27, 8, 10, 18, 2, '#38bdf8', INK, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, 35, 13, 7, 12, 2, '#0284c7', INK, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, 26, 7, 10, 18, 2, '#38bdf8', INK, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, 34, 12, 7, 12, 2, '#0284c7', INK, 1);
         ctx.fillStyle = '#e0f2fe';
-        ctx.fillRect(29, 10, 3, 11);
-        ctx.fillRect(36, 15, 2, 6);
+        ctx.fillRect(28, 9, 3, 11);
+        ctx.fillRect(35, 14, 2, 6);
+      } else {
+        // Dos pequeñas setas rojas junto a la base izquierda (Ref 2)
+        CelSpriteAtlas._drawMiniRockMushroom(ctx, 9, 46);
+        CelSpriteAtlas._drawMiniRockMushroom(ctx, 18, 48);
       }
     });
   }
@@ -1137,13 +1272,21 @@ export class CelSpriteAtlas {
   }
 
   /**
-   * Barricada mineral agrietada ('cracked_rock', 64x56 px) rompible con espada/embestida.
+   * Barricada mineral agrietada ('cracked_rock', 64x56 px) rompible con espada/embestida,
+   * con facetado azul-pizarra, guijarros basales y grietas doradas luminosas.
    * @param {boolean} [isHit=false]
    * @returns {HTMLCanvasElement}
    */
   static getCrackedRockSprite(isHit = false) {
-    const key = isHit ? 'prop_cracked_rock_hit' : 'prop_cracked_rock_v2';
+    const key = isHit ? 'prop_cracked_rock_hit' : 'prop_cracked_rock_v3';
     return CelSpriteAtlas.getOrBake(key, 64, 56, (sctx) => {
+      if (!isHit) {
+        sctx.fillStyle = '#1e564f';
+        sctx.fillRect(5, 44, 54, 7);
+        sctx.fillStyle = '#3d8b40';
+        sctx.fillRect(8, 45, 48, 4);
+      }
+
       const rows = [
         [24, 18, 8],
         [20, 28, 10],
@@ -1166,15 +1309,44 @@ export class CelSpriteAtlas {
         }
         sctx.fillStyle = INK;
         sctx.fillRect(minX - 1, yPos, span + 2, 1);
-        sctx.fillStyle = isHit ? '#ffffff' : (yPos >= 44 ? '#334155' : '#64748b');
+        sctx.fillStyle = isHit ? '#ffffff' : (yPos >= 43 ? '#283548' : '#475569');
         sctx.fillRect(minX, yPos, span, 1);
       }
+
       if (!isHit) {
+        // Facetas superiores e izquierdas iluminadas
+        sctx.fillStyle = '#64748b';
+        sctx.fillRect(15, 11, 20, 15);
+        sctx.fillRect(9, 20, 18, 18);
         sctx.fillStyle = '#94a3b8';
-        sctx.fillRect(14, 14, 18, 6);
-        sctx.fillRect(10, 20, 12, 8);
-        sctx.fillStyle = '#475569';
-        sctx.fillRect(42, 18, 12, 24);
+        sctx.fillRect(18, 11, 15, 5);
+        sctx.fillRect(12, 17, 13, 5);
+        sctx.fillStyle = '#cbd5e1';
+        sctx.fillRect(20, 11, 10, 2);
+
+        // Faceta derecha sombreada
+        sctx.fillStyle = '#334155';
+        sctx.fillRect(38, 17, 16, 25);
+        sctx.fillStyle = '#283548';
+        sctx.fillRect(42, 27, 13, 18);
+
+        // Guijarros basales facetados
+        CelSpriteAtlas._inkRoundRect(sctx, 5, 40, 10, 8, 2, '#475569', INK, 1);
+        sctx.fillStyle = '#94a3b8';
+        sctx.fillRect(7, 41, 6, 2);
+        CelSpriteAtlas._inkRoundRect(sctx, 48, 41, 10, 7, 2, '#334155', INK, 1);
+        sctx.fillStyle = '#64748b';
+        sctx.fillRect(50, 42, 5, 2);
+
+        // Grieta ígnea dorada escalonada con borde oscuro
+        sctx.fillStyle = INK;
+        sctx.fillRect(27, 12, 4, 7);
+        sctx.fillRect(25, 19, 4, 8);
+        sctx.fillRect(27, 26, 6, 4);
+        sctx.fillRect(31, 29, 5, 7);
+        sctx.fillRect(29, 36, 5, 9);
+        sctx.fillRect(16, 28, 10, 4);
+
         sctx.fillStyle = '#facc15';
         sctx.fillRect(28, 12, 2, 7);
         sctx.fillRect(26, 19, 2, 8);
@@ -1182,6 +1354,7 @@ export class CelSpriteAtlas {
         sctx.fillRect(32, 29, 3, 7);
         sctx.fillRect(30, 36, 3, 9);
         sctx.fillRect(17, 29, 9, 2);
+
         sctx.fillStyle = '#fef08a';
         sctx.fillRect(28, 13, 1, 5);
         sctx.fillRect(32, 30, 1, 5);
@@ -1292,6 +1465,173 @@ export class CelSpriteAtlas {
       if (!isConsumed) {
         ctx.drawImage(CelSpriteAtlas.getStarterSwordBladeSprite(), 0, 0);
       }
+    });
+  }
+
+  /**
+   * Obtiene o pre-hornea sprites Flyweight de proyectiles y conos compactos
+   * para renderizado en lote (batching) sin asignaciones ni gradientes por frame.
+   * @param {string} key - 'fire_orb'|'enemy_fire_orb'|'poison_orb'|'kinetic_bolt'|'reflected_gold'|'blade_wave'|'cone_patrol'|'cone_alert'
+   * @returns {HTMLCanvasElement|null}
+   */
+  static getProjectileSprite(key) {
+    if (typeof document === 'undefined') return null;
+    if (key === 'blade_wave') {
+      return CelSpriteAtlas.getOrBake('proj_blade_wave_v1', 48, 48, (ctx) => {
+        ctx.translate(24, 24);
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.78)';
+        ctx.lineWidth = 7;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(-6, 0, 20, -Math.PI * 0.42, Math.PI * 0.42);
+        ctx.stroke();
+        ctx.strokeStyle = '#fef08a';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(-4, 0, 21, -Math.PI * 0.36, Math.PI * 0.36);
+        ctx.stroke();
+      }, true);
+    }
+
+    if (key === 'cone_patrol' || key === 'cone_alert') {
+      const isAlert = key === 'cone_alert';
+      return CelSpriteAtlas.getOrBake(`stealth_${key}_v1`, 128, 128, (ctx) => {
+        const range = 112;
+        const halfAng = Math.PI / 6;
+        ctx.beginPath();
+        ctx.moveTo(8, 64);
+        ctx.arc(8, 64, range, -halfAng, halfAng);
+        ctx.closePath();
+        ctx.fillStyle = isAlert ? 'rgba(239, 68, 68, 0.14)' : 'rgba(250, 204, 21, 0.08)';
+        ctx.strokeStyle = isAlert ? 'rgba(239, 68, 68, 0.38)' : 'rgba(250, 204, 21, 0.22)';
+        ctx.fill();
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }, true);
+    }
+
+    const orbPalettes = {
+      fire_orb: { size: 38, core: '#fffbeb', mid: '#f59e0b', edge: '#ea580c', fade: 'rgba(220, 38, 38, 0)', dot: 4.4 },
+      enemy_fire_orb: { size: 28, core: '#fff7ed', mid: '#fb923c', edge: 'rgba(239, 68, 68, 0.75)', fade: 'rgba(239, 68, 68, 0)', dot: 3.5 },
+      poison_orb: { size: 28, core: '#f0fdf4', mid: '#4ade80', edge: 'rgba(168, 85, 247, 0.72)', fade: 'rgba(168, 85, 247, 0)', dot: 3.5 },
+      kinetic_bolt: { size: 28, core: '#ffffff', mid: '#38bdf8', edge: 'rgba(14, 165, 233, 0.72)', fade: 'rgba(14, 165, 233, 0)', dot: 3.6 },
+      reflected_gold: { size: 32, core: '#ffffff', mid: '#facc15', edge: 'rgba(250, 204, 21, 0.75)', fade: 'rgba(250, 204, 21, 0)', dot: 5.5 }
+    };
+    const cfg = orbPalettes[key] || orbPalettes.fire_orb;
+
+    return CelSpriteAtlas.getOrBake(`proj_${key}_v1`, cfg.size, cfg.size, (gctx, w) => {
+      const half = w * 0.5;
+      const grad = gctx.createRadialGradient(half, half, 2, half, half, half - 1);
+      grad.addColorStop(0, cfg.core);
+      grad.addColorStop(0.38, cfg.mid);
+      grad.addColorStop(0.76, cfg.edge);
+      grad.addColorStop(1, cfg.fade);
+      gctx.fillStyle = grad;
+      gctx.beginPath();
+      gctx.arc(half, half, half - 1, 0, Math.PI * 2);
+      gctx.fill();
+
+      gctx.fillStyle = '#ffffff';
+      gctx.beginPath();
+      gctx.arc(half, half, cfg.dot, 0, Math.PI * 2);
+      gctx.fill();
+    }, true);
+  }
+
+  /**
+   * Obtiene o carga asíncronamente una imagen externa o Data URL para objetos de ambiente personalizados.
+   * Retorna la instancia `HTMLImageElement` inmediatamente si ya finalizó la carga, o `null` mientras carga o si falló.
+   * @param {string} textureUrl - Ruta relativa/absoluta o Data URL de la textura personalizada
+   * @param {Function|null} [onLoad=null] - Callback opcional invocado cuando la imagen termina de cargar
+   * @returns {HTMLImageElement|null}
+   */
+  static getCustomTextureImage(textureUrl, onLoad = null) {
+    if (!textureUrl || typeof textureUrl !== 'string' || typeof Image === 'undefined') {
+      return null;
+    }
+
+    const existing = CelSpriteAtlas._customImageCache.get(textureUrl);
+    if (existing) {
+      if (existing.status === 'loaded') return existing.img;
+      if (existing.status === 'loading' && typeof onLoad === 'function') {
+        if (!existing.listeners.includes(onLoad)) {
+          existing.listeners.push(onLoad);
+        }
+      }
+      return null;
+    }
+
+    const img = new Image();
+    const entry = {
+      status: 'loading',
+      img,
+      listeners: typeof onLoad === 'function' ? [onLoad] : []
+    };
+    CelSpriteAtlas._customImageCache.set(textureUrl, entry);
+
+    img.onload = () => {
+      entry.status = 'loaded';
+      for (let i = 0; i < entry.listeners.length; i++) {
+        try {
+          entry.listeners[i](img);
+        } catch (_e) {
+          // Ignorar errores en listeners de UI desacoplados
+        }
+      }
+      entry.listeners.length = 0;
+    };
+
+    img.onerror = () => {
+      entry.status = 'error';
+      entry.listeners.length = 0;
+    };
+
+    img.src = textureUrl;
+    if (img.complete && img.naturalWidth > 0) {
+      entry.status = 'loaded';
+      entry.listeners.length = 0;
+      return img;
+    }
+
+    return null;
+  }
+
+  /**
+   * Genera un sprite pedestal/prototipo pixel-art reutilizable para objetos de ambiente
+   * personalizados que aún no tienen textura asignada o cuya textura está cargando.
+   * @param {number} [width=64] - Ancho del lienzo en píxeles
+   * @param {number} [height=64] - Alto del lienzo en píxeles
+   * @param {string} [tintColor='#a855f7'] - Color guía para bordes y runa central
+   * @returns {HTMLCanvasElement}
+   */
+  static getCustomPropPlaceholderSprite(width = 64, height = 64, tintColor = '#a855f7') {
+    const w = Math.max(16, Math.min(384, Math.round(width) || 64));
+    const h = Math.max(16, Math.min(384, Math.round(height) || 64));
+    const color = tintColor || '#a855f7';
+    return CelSpriteAtlas.getOrBake(`custom_prop_placeholder_${w}_${h}_${color}`, w, h, (ctx) => {
+      // Marco exterior pixel-art con bisel superior y fondo pizarra
+      CelSpriteAtlas._inkRoundRect(ctx, 2, 2, w - 4, h - 4, 4, '#1e293b', INK, 1);
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(4, 4, Math.max(4, w - 8), Math.max(2, Math.floor((h - 8) * 0.3)));
+
+      // Esquinas biseladas en color guía
+      const corner = Math.max(3, Math.min(7, Math.floor(Math.min(w, h) * 0.14)));
+      ctx.fillStyle = color;
+      ctx.fillRect(3, 3, corner, 2);
+      ctx.fillRect(3, 3, 2, corner);
+      ctx.fillRect(w - 3 - corner, 3, corner, 2);
+      ctx.fillRect(w - 5, 3, 2, corner);
+      ctx.fillRect(3, h - 5, corner, 2);
+      ctx.fillRect(3, h - 3 - corner, 2, corner);
+      ctx.fillRect(w - 3 - corner, h - 5, corner, 2);
+      ctx.fillRect(w - 5, h - 3 - corner, 2, corner);
+
+      // Emblema rúnico central
+      const cx = Math.floor(w * 0.5);
+      const cy = Math.floor(h * 0.5);
+      const r = Math.max(4, Math.min(14, Math.floor(Math.min(w, h) * 0.22)));
+      CelSpriteAtlas._inkEllipse(ctx, cx, cy, r, r, '#0f172a', color, 1);
+      CelSpriteAtlas._drawSparkle(ctx, cx, cy, Math.max(2, Math.floor(r * 0.55)), color);
     });
   }
 

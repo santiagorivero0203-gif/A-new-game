@@ -148,7 +148,11 @@ export class CinematicManager {
       img.src = url;
       img.onload = () => {
         this.imageCache.set(url, img);
-        resolve();
+        if (typeof img.decode === 'function') {
+          img.decode().catch(() => {}).finally(resolve);
+        } else {
+          resolve();
+        }
       };
       img.onerror = () => {
         console.warn(`[CinematicManager] No se pudo pre-cargar: ${url}`);

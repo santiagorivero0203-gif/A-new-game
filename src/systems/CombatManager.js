@@ -45,11 +45,22 @@ export class CombatManager {
 
     /** @type {Array<Object>} Ataques, barridos y proyectiles activos en el mundo */
     this.activeAttacks = [];
+    /** @type {Object|null} Sistema de proyectiles desacoplado (opcional, Zero-GC) */
+    this.projectileSystem = null;
 
     /** @type {number} Máximo de atacantes cuerpo a cuerpo simultáneos coordinados por IA */
     this.maxMeleeTokens = 2;
     /** @type {Set<Object>} Enemigos sosteniendo actualmente un token de ataque */
     this._activeTokenHolders = new Set();
+
+    /** @private Objeto reutilizable Zero-GC para `active_threat` en HUD */
+    this._activeThreatCache = { name: '', health: 0, maxHealth: 100, hasShield: false, element: 'plantas' };
+    /** @private Buffer reutilizable Zero-GC para consultas a SpatialGrid de ataques */
+    this._attackQueryBuf = [];
+    this._lastSyncedComboCount = -1;
+    this._lastSyncedComboRank = '';
+    this._lastSyncedTimerPct = -1;
+    this._lastSyncedStyleScore = -1;
   }
 
   /**
@@ -123,10 +134,25 @@ export class CombatManager {
    */
   _syncComboState(context) {
     if (!context || !context.state || typeof context.state.set !== 'function') return;
-    context.state.set('combo_count', this.comboCount);
-    context.state.set('combo_rank', this.getStyleRank());
-    context.state.set('combo_timer_pct', this.COMBO_DURATION > 0 ? (this.comboTimer / this.COMBO_DURATION) * 100 : 0);
-    context.state.set('style_score', this.styleScore);
+    const rank = this.getStyleRank();
+    const timerPct = this.COMBO_DURATION > 0 ? (this.comboTimer / this.COMBO_DURATION) * 100 : 0;
+
+    if (this._lastSyncedComboCount !== this.comboCount) {
+      this._lastSyncedComboCount = this.comboCount;
+      context.state.set('combo_count', this.comboCount);
+    }
+    if (this._lastSyncedComboRank !== rank) {
+      this._lastSyncedComboRank = rank;
+      context.state.set('combo_rank', rank);
+    }
+    if (Math.abs(timerPct - this._lastSyncedTimerPct) > 0.5 || (timerPct === 0 && this._lastSyncedTimerPct !== 0)) {
+      this._lastSyncedTimerPct = timerPct;
+      context.state.set('combo_timer_pct', timerPct);
+    }
+    if (Math.abs(this.styleScore - this._lastSyncedStyleScore) > 0.25 || (this.styleScore === 0 && this._lastSyncedStyleScore !== 0)) {
+      this._lastSyncedStyleScore = this.styleScore;
+      context.state.set('style_score', this.styleScore);
+    }
   }
 
   /**
@@ -176,13 +202,13 @@ export class CombatManager {
           context.state.set('active_threat', null);
         }
       } else if (context.state && typeof context.state.set === 'function') {
-        context.state.set('active_threat', {
-          name: this.trackedTarget.name || 'Guardián Corrupto',
-          health: Math.max(0, this.trackedTarget.health || 0),
-          maxHealth: this.trackedTarget.max_health || 100,
-          hasShield: !!(this.trackedTarget.hasWoodenShield || this.trackedTarget.hasTag('wooden_shield')),
-          element: this.trackedTarget.elementalAffinity || 'plantas'
-        });
+        const tc = this._activeThreatCache;
+        tc.name = this.trackedTarget.name || 'Guardián Corrupto';
+        tc.health = Math.max(0, this.trackedTarget.health || 0);
+        tc.maxHealth = this.trackedTarget.max_health || 100;
+        tc.hasShield = !!(this.trackedTarget.hasWoodenShield || this.trackedTarget.hasTag('wooden_shield'));
+        tc.element = this.trackedTarget.elementalAffinity || 'plantas';
+        context.state.set('active_threat', tc);
       }
     }
 
@@ -223,10 +249,24 @@ export class CombatManager {
         attack.update(dt);
       }
 
-      if (attack.hitbox && entities) {
-        const entLen = entities.length;
+      if (attack.hitbox && (entities || (context.entityManager && (typeof context.entityManager.queryNearby === 'function' || context.entityManager.spatialGrid)))) {
+        const attHit = attack.hitbox;
+        const candidates = (context.entityManager && typeof context.entityManager.queryNearby === 'function')
+          ? context.entityManager.queryNearby(
+              attHit.x - 16, attHit.y - 16,
+              attHit.x + attHit.width + 16, attHit.y + attHit.height + 16,
+              this._attackQueryBuf
+            )
+          : (context.entityManager && context.entityManager.spatialGrid)
+            ? context.entityManager.spatialGrid.queryBounds(
+                attHit.x - 16, attHit.y - 16,
+                attHit.x + attHit.width + 16, attHit.y + attHit.height + 16,
+                this._attackQueryBuf
+              )
+            : entities;
+        const entLen = candidates.length;
         for (let eIdx = 0; eIdx < entLen; eIdx++) {
-          const entity = entities[eIdx];
+          const entity = candidates[eIdx];
           if (!entity || entity.isDead) continue;
           if (entity === attack.owner) continue;
           if (entity.hasTag('player') && attack.owner && attack.owner.hasTag('player')) continue;
@@ -238,7 +278,6 @@ export class CombatManager {
           if (entity.hasTag('npc')) continue;
 
           const entHit = entity.getHitbox();
-          const attHit = attack.hitbox;
 
           if (attHit.x < entHit.x + entHit.width &&
               attHit.x + attHit.width > entHit.x &&
@@ -364,6 +403,8 @@ export class CombatManager {
         if (facingAttacker) {
           const parryRank = skillTree ? skillTree.getSkillRank('parry_window') : 0;
           const aegisCounterRank = skillTree ? skillTree.getSkillRank('aegis_counter') : 0;
+          const mirrorRank = skillTree ? skillTree.getSkillRank('mirror_ricochet') : 0;
+          const hasMirrorRicochet = mirrorRank >= 1;
           const hasBastionImmortal = !!(skillTree && skillTree.hasSkill('bastion_immortal'));
           const hasParryUpgrade = parryRank >= 1;
           const parryWindow = 0.16 + parryRank * 0.04;
@@ -467,6 +508,7 @@ export class CombatManager {
 
               // Talento `mirror_ricochet`: bifurca 2 cometas laterales extra a ±18°
               if (hasMirrorRicochet) {
+                const projSys = (context && context.projectileSystem) || this.projectileSystem;
                 const baseAng = Math.atan2(attack.dy || 0, attack.dx || 1);
                 const splitOffsets = [-0.31, 0.31];
                 for (let s = 0; s < splitOffsets.length; s++) {
@@ -475,30 +517,55 @@ export class CombatManager {
                   const sdy = Math.sin(sAng);
                   const sx = attackCenter.x;
                   const sy = attackCenter.y;
-                  this.addAttack({
-                    owner: entity,
-                    type: 'projectile',
-                    isProjectile: true,
-                    isReflected: true,
-                    element: attack.element || 'kinetic',
-                    damage: Math.round(reflectedDamage * 0.72),
-                    duration: 1.35,
-                    x: sx,
-                    y: sy,
-                    dx: sdx,
-                    dy: sdy,
-                    speed: reflectedSpeed * 0.95,
-                    destroyOnHit: true,
-                    applyEffect: { tag: 'staggered', duration: 2.0 },
-                    hitEntities: new Set(),
-                    hitbox: { x: sx - 8, y: sy - 8, width: 16, height: 16 },
-                    update: function(dt) {
-                      this.x += this.dx * this.speed * dt;
-                      this.y += this.dy * this.speed * dt;
-                      this.hitbox.x = this.x - 8;
-                      this.hitbox.y = this.y - 8;
-                    }
-                  });
+                  const cometDmg = Math.round(reflectedDamage * 0.72);
+                  const cometSpeed = reflectedSpeed * 0.95;
+
+                  if (projSys && typeof projSys.spawn === 'function') {
+                    projSys.spawn({
+                      owner: entity,
+                      type: 'projectile',
+                      isReflected: true,
+                      isFriendly: true,
+                      spriteKey: 'reflected_gold',
+                      element: attack.element || 'kinetic',
+                      damage: cometDmg,
+                      duration: 1.35,
+                      x: sx,
+                      y: sy,
+                      dx: sdx,
+                      dy: sdy,
+                      speed: cometSpeed,
+                      radius: 8,
+                      altitude: 'high',
+                      destroyOnHit: true,
+                      applyEffect: { tag: 'staggered', duration: 2.0 }
+                    });
+                  } else {
+                    this.addAttack({
+                      owner: entity,
+                      type: 'projectile',
+                      isProjectile: true,
+                      isReflected: true,
+                      element: attack.element || 'kinetic',
+                      damage: cometDmg,
+                      duration: 1.35,
+                      x: sx,
+                      y: sy,
+                      dx: sdx,
+                      dy: sdy,
+                      speed: cometSpeed,
+                      destroyOnHit: true,
+                      applyEffect: { tag: 'staggered', duration: 2.0 },
+                      hitEntities: new Set(),
+                      hitbox: { x: sx - 8, y: sy - 8, width: 16, height: 16 },
+                      update: function(dt) {
+                        this.x += this.dx * this.speed * dt;
+                        this.y += this.dy * this.speed * dt;
+                        this.hitbox.x = this.x - 8;
+                        this.hitbox.y = this.y - 8;
+                      }
+                    });
+                  }
                 }
               }
               return;

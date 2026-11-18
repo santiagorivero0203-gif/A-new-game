@@ -229,82 +229,71 @@ export class ProceduralAssets {
   }
 
   /**
-   * Dibuja una loseta de hierba base (32x32) en estricto Pixel-Art con coordenadas enteras.
+   * Dibuja una loseta de hierba base (32x32) concatenable en estricto Pixel-Art con coordenadas enteras.
    * @private
    * @param {CanvasRenderingContext2D} ctx
    * @param {number} w
    * @param {number} h
    */
   static _drawGrassTile(ctx, w, h) {
-    // Fondo verde hierba limpio y armonizado con los arbustos pixel-art
-    ctx.fillStyle = '#4da33b';
+    // Fondo verde hierba orgánico armonizado con BIOME_PALETTES.cave_exit_intro
+    ctx.fillStyle = '#52a549';
     ctx.fillRect(0, 0, w, h);
 
-    // Parches sutiles en coordenadas enteras
-    ctx.fillStyle = '#3b8c32';
-    ctx.fillRect(3, 5, 8, 4);
-    ctx.fillRect(19, 18, 9, 5);
+    // Manchas interiores suaves escalonadas sin marcas en los bordes
+    ctx.fillStyle = '#3d8b40';
+    ctx.fillRect(10, 12, 5, 2);
+    ctx.fillRect(12, 14, 4, 1);
+    ctx.fillStyle = '#88d459';
+    ctx.fillRect(14, 7, 3, 1);
 
-    ctx.fillStyle = '#6ebd30';
-    ctx.fillRect(13, 4, 7, 3);
-    ctx.fillRect(5, 21, 6, 3);
-
-    // Clústeres de briznas 1px pixel-art
-    const blades = [
-      [6, 9], [16, 12], [25, 7], [10, 24], [22, 27]
-    ];
-    for (let i = 0; i < blades.length; i++) {
-      const bx = blades[i][0];
-      const by = blades[i][1];
-      ctx.fillStyle = '#1d5c38';
-      ctx.fillRect(bx, by + 1, 3, 1);
-      ctx.fillStyle = '#b6e345';
-      ctx.fillRect(bx, by - 1, 1, 2);
-      ctx.fillRect(bx + 2, by, 1, 1);
+    // Dos micro-racimos de briznas suaves sin bloques oscuros
+    const clusters = [[6, 10], [19, 20]];
+    for (let i = 0; i < clusters.length; i++) {
+      const lx = clusters[i][0];
+      const ly = clusters[i][1];
+      ctx.fillStyle = '#3d8b40';
+      ctx.fillRect(lx, ly + 1, 4, 1);
+      ctx.fillRect(lx + 1, ly + 2, 3, 1);
+      ctx.fillStyle = '#88d459';
+      ctx.fillRect(lx, ly, 2, 1);
+      ctx.fillRect(lx + 3, ly, 2, 1);
     }
-
-    // Pequeñas flores silvestres de 2x2 px
-    ctx.fillStyle = '#fef08a';
-    ctx.fillRect(26, 14, 2, 2);
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(9, 15, 2, 2);
   }
 
   /**
-   * Dibuja una loseta de sendero de tierra cálida (32x32) en Pixel-Art con coordenadas enteras.
+   * Dibuja una loseta de sendero de tierra cálida (32x32) concatenable en Pixel-Art con coordenadas enteras.
    * @private
    * @param {CanvasRenderingContext2D} ctx
    * @param {number} w
    * @param {number} h
    */
   static _drawDirtTile(ctx, w, h) {
-    ctx.fillStyle = '#b77b4b';
+    ctx.fillStyle = '#b57c4e';
     ctx.fillRect(0, 0, w, h);
 
-    ctx.fillStyle = '#8f523e';
-    ctx.fillRect(4, 10, 10, 5);
-    ctx.fillRect(18, 22, 9, 5);
+    // Manchas orgánicas suaves interiores sin marcas fijas en los bordes
+    ctx.fillStyle = '#7e4938';
+    ctx.fillRect(9, 14, 5, 2);
+    ctx.fillRect(11, 16, 4, 1);
+    ctx.fillRect(20, 7, 4, 2);
 
-    ctx.fillStyle = '#d99e63';
-    ctx.fillRect(15, 4, 9, 4);
-    ctx.fillRect(4, 22, 7, 4);
+    ctx.fillStyle = '#d8a46f';
+    ctx.fillRect(16, 12, 4, 1);
+    ctx.fillRect(17, 13, 3, 1);
 
-    // Guijarros pixel-art con contorno inferior oscuro
-    const pebbles = [
-      [8, 7, 3], [21, 14, 3], [13, 25, 3], [26, 6, 2]
-    ];
-    for (let i = 0; i < pebbles.length; i++) {
-      const [px, py, pr] = pebbles[i];
-      ctx.fillStyle = '#6c3832';
-      ctx.fillRect(px, py + 1, pr, 2);
-      ctx.fillStyle = '#f3d19c';
-      ctx.fillRect(px, py, pr, 1);
-    }
+    // Un guijarro facetado discreto y granito
+    ctx.fillStyle = '#7e4938';
+    ctx.fillRect(8, 9, 3, 2);
+    ctx.fillStyle = '#d8a46f';
+    ctx.fillRect(8, 8, 2, 1);
+    ctx.fillStyle = '#7e4938';
+    ctx.fillRect(21, 23, 2, 1);
   }
 
   /**
-   * Dibuja un árbol frondoso cel-shaded (84x98 px) con 4 bandas de Hue Shifting en copa
-   * y tronco agrietado con musgo.
+   * Dibuja un árbol frondoso cel-shaded (84x98 px) inspirado en pixel-art clásico moderno:
+   * copa redonda en bandas curvas de racimos de hojas, base de césped acampanada y seta roja.
    * @private
    * @param {CanvasRenderingContext2D} ctx
    * @param {number} w
@@ -314,40 +303,66 @@ export class ProceduralAssets {
     const cx = Math.floor(w * 0.5);
     const baseY = h - 6;
 
-    // 1. Tronco y raíces en pixel art puro (enteros sin antialiasing)
-    // Contorno exterior del tronco (1px #050811) y acampanado de raíces
+    // 0. Base de césped/musgo bajo las raíces (anillo escalonado orgánico)
+    ctx.fillStyle = '#1e564f';
+    ctx.fillRect(cx - 19, baseY - 3, 38, 6);
+    ctx.fillRect(cx - 15, baseY - 5, 30, 8);
+    ctx.fillStyle = '#3b8c32';
+    ctx.fillRect(cx - 17, baseY - 3, 34, 4);
+    ctx.fillRect(cx - 13, baseY - 4, 26, 5);
+    ctx.fillStyle = '#74c69d';
+    ctx.fillRect(cx - 16, baseY - 2, 4, 2);
+    ctx.fillRect(cx + 12, baseY - 2, 4, 2);
+    ctx.fillStyle = '#95d540';
+    ctx.fillRect(cx - 18, baseY - 1, 2, 2);
+    ctx.fillRect(cx + 15, baseY, 2, 2);
+
+    // 1. Tronco y raíces acampanadas en pixel art puro
     ctx.fillStyle = INK;
     ctx.fillRect(cx - 10, 44, 20, baseY - 44);
-    ctx.fillRect(cx - 12, baseY - 12, 24, 11);
-    ctx.fillRect(cx - 14, baseY - 6, 28, 6);
+    ctx.fillRect(cx - 13, baseY - 12, 26, 11);
+    ctx.fillRect(cx - 16, baseY - 6, 32, 6);
 
-    // Relleno base corteza cálida (#7c3f26)
-    ctx.fillStyle = '#7c3f26';
+    // Relleno base corteza cálida
+    ctx.fillStyle = '#783c26';
     ctx.fillRect(cx - 9, 45, 18, baseY - 46);
-    ctx.fillRect(cx - 11, baseY - 11, 22, 10);
-    ctx.fillRect(cx - 13, baseY - 5, 26, 4);
+    ctx.fillRect(cx - 12, baseY - 11, 24, 10);
+    ctx.fillRect(cx - 15, baseY - 5, 30, 4);
 
-    // Sombra bajo copa y lado derecho en ciruela oscuro (#4a1d30)
-    ctx.fillStyle = '#4a1d30';
-    ctx.fillRect(cx - 9, 45, 18, 8);
-    ctx.fillRect(cx + 2, 52, 7, baseY - 53);
-    ctx.fillRect(cx + 5, baseY - 11, 6, 10);
-    ctx.fillRect(cx + 7, baseY - 5, 6, 4);
+    // Sombra bajo copa y lado derecho + surcos profundos
+    ctx.fillStyle = '#4a2419';
+    ctx.fillRect(cx - 9, 45, 18, 9);
+    ctx.fillRect(cx + 2, 53, 7, baseY - 54);
+    ctx.fillRect(cx + 5, baseY - 11, 7, 10);
+    ctx.fillRect(cx + 8, baseY - 5, 7, 4);
+    ctx.fillRect(cx - 4, 57, 2, baseY - 64);
 
-    // Vetas verticales y luz izquierda (#b4693e)
-    ctx.fillStyle = '#b4693e';
-    ctx.fillRect(cx - 7, 55, 3, baseY - 65);
-    ctx.fillRect(cx - 2, 58, 2, baseY - 70);
-    ctx.fillRect(cx - 10, baseY - 9, 3, 6);
+    // Vetas verticales y luz izquierda
+    ctx.fillStyle = '#a45a3d';
+    ctx.fillRect(cx - 8, 55, 3, baseY - 63);
+    ctx.fillRect(cx - 2, 59, 2, baseY - 67);
+    ctx.fillRect(cx - 11, baseY - 9, 3, 6);
+    ctx.fillStyle = '#c87a4e';
+    ctx.fillRect(cx - 8, 56, 1, baseY - 68);
+    ctx.fillRect(cx - 13, baseY - 4, 3, 2);
 
-    // Musgo pixelado verde en raíces
-    ctx.fillStyle = '#1d5c38';
-    ctx.fillRect(cx - 12, baseY - 6, 5, 3);
-    ctx.fillRect(cx + 7, baseY - 5, 4, 2);
-    ctx.fillStyle = '#6ebd30';
-    ctx.fillRect(cx - 11, baseY - 6, 3, 1);
+    // Pequeña seta roja con pintas blancas junto a la raíz derecha
+    const mx = cx + 9;
+    const my = baseY - 7;
+    ctx.fillStyle = INK;
+    ctx.fillRect(mx - 1, my, 8, 5);
+    ctx.fillRect(mx + 1, my + 4, 4, 3);
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(mx + 2, my + 4, 2, 2);
+    ctx.fillStyle = '#e11d48';
+    ctx.fillRect(mx, my + 1, 6, 3);
+    ctx.fillStyle = '#fb7185';
+    ctx.fillRect(mx + 1, my + 1, 3, 1);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(mx + 1, my + 2, 1, 1);
+    ctx.fillRect(mx + 4, my + 1, 1, 1);
 
-    // 2. Copa de árbol en silueta unificada (sin círculos negros internos)
+    // 2. Copa frondosa unificada con sombra profunda inferior
     ProceduralAssets._drawUnifiedFoliageCluster(
       ctx,
       [
@@ -356,44 +371,45 @@ export class ProceduralAssets {
         { cx: cx, cy: 50, rx: 21, ry: 13 },
         { cx: cx - 17, cy: 34, rx: 18, ry: 15 },
         { cx: cx + 17, cy: 35, rx: 17, ry: 14 },
-        { cx: cx - 1, cy: 23, rx: 24, ry: 18, crease: true }
+        { cx: cx, cy: 34, rx: 22, ry: 15 },
+        { cx: cx - 1, cy: 23, rx: 24, ry: 18 }
       ],
       {
         outline: INK,
-        shadow: '#1d5c38',
-        mid: '#6ebd30',
-        light: '#b6e345'
+        shadow: '#163829',
+        mid: '#3c8d37',
+        light: '#69be3b'
       }
     );
 
-    // Puntos de dither / follaje brillante para textura pixel art
-    ctx.fillStyle = '#b6e345';
-    ctx.fillRect(cx - 16, 20, 3, 2);
-    ctx.fillRect(cx - 10, 14, 4, 2);
-    ctx.fillRect(cx + 4, 16, 3, 2);
-    ctx.fillRect(cx - 22, 34, 3, 2);
-    ctx.fillRect(cx + 10, 30, 3, 2);
-
-    ctx.fillStyle = '#d9f99d';
-    ctx.fillRect(cx - 11, 13, 2, 1);
-    ctx.fillRect(cx - 17, 19, 2, 1);
-    ctx.fillRect(cx + 3, 15, 2, 1);
-
-    // Pequeñas flores/frutos luminosos de 2x2
-    const blossoms = [
-      [cx - 15, 26],
-      [cx + 13, 33],
-      [cx + 2, 19],
-      [cx - 8, 42]
+    // Bandas internas de racimos foliares dentados (hojas escalonadas sin barras planas)
+    const darkLeaves = [
+      [cx - 26, 46, -1], [cx - 17, 49, -1], [cx - 6, 51, 1],
+      [cx + 6, 49, 1], [cx + 18, 46, 1], [cx - 11, 42, -1],
+      [cx + 3, 43, 1]
     ];
-    for (let i = 0; i < blossoms.length; i++) {
-      const bx = blossoms[i][0];
-      const by = blossoms[i][1];
-      ctx.fillStyle = '#1d5c38';
-      ctx.fillRect(bx - 1, by, 4, 3);
-      ctx.fillStyle = '#fde047';
-      ctx.fillRect(bx, by, 2, 2);
+    for (let i = 0; i < darkLeaves.length; i++) {
+      const [lx, ly, d] = darkLeaves[i];
+      ProceduralAssets._drawPixelLeaf(ctx, lx, ly, '#245c36', d);
     }
+
+    // Hojas iluminadas en la corona superior izquierda
+    const lightLeaves = [
+      [cx - 17, 17, -1], [cx - 8, 12, 1], [cx + 4, 15, 1],
+      [cx - 23, 29, -1], [cx - 7, 25, 1], [cx + 9, 28, 1],
+      [cx - 14, 33, -1], [cx + 1, 20, 1]
+    ];
+    for (let i = 0; i < lightLeaves.length; i++) {
+      const [lx, ly, d] = lightLeaves[i];
+      ProceduralAssets._drawPixelLeaf(ctx, lx, ly, '#94db4f', d);
+    }
+
+    // Destellos puntuales verde lima claro en ápices
+    ctx.fillStyle = '#b5e48c';
+    ctx.fillRect(cx - 16, 17, 2, 1);
+    ctx.fillRect(cx - 7, 12, 3, 1);
+    ctx.fillRect(cx + 5, 15, 2, 1);
+    ctx.fillRect(cx - 6, 25, 2, 1);
   }
 
   /**
@@ -497,7 +513,23 @@ export class ProceduralAssets {
   }
 
   /**
-   * Dibuja un arbusto frondoso (48x44 px) con frutos brillantes y sombra fría.
+   * Pinta una pequeña hoja escalonada pixel-art para romper siluetas foliares.
+   * @private
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} x
+   * @param {number} y
+   * @param {string} color
+   * @param {number} [dir=1] - 1 hacia la derecha, -1 hacia la izquierda
+   */
+  static _drawPixelLeaf(ctx, x, y, color, dir = 1) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, 3, 2);
+    ctx.fillRect(x + (dir > 0 ? 2 : -1), y - 1, 2, 1);
+  }
+
+  /**
+   * Dibuja un arbusto frondoso (48x44 px) con capas orgánicas de hojas en pixel-art,
+   * sombra fría verde-azulada y pequeñas flores silvestres blanco-amarillas.
    * @private
    * @param {CanvasRenderingContext2D} ctx
    * @param {number} w
@@ -507,7 +539,17 @@ export class ProceduralAssets {
     const cx = Math.floor(w * 0.5);
     const cy = Math.floor(h * 0.58);
 
-    // Paleta verde lima vibrante con contorno exterior unificado (sin cortes internos)
+    // 1. Hojas periféricas exteriores en sombra fría antes del cluster principal
+    const outerDarkLeaves = [
+      [cx - 21, cy + 1, -1], [cx - 19, cy - 8, -1], [cx - 12, cy - 16, -1],
+      [cx + 15, cy - 12, 1], [cx + 19, cy - 2, 1], [cx + 17, cy + 5, 1]
+    ];
+    for (let i = 0; i < outerDarkLeaves.length; i++) {
+      const [lx, ly, d] = outerDarkLeaves[i];
+      ProceduralAssets._drawPixelLeaf(ctx, lx, ly, '#1e564f', d);
+    }
+
+    // 2. Silueta unificada de lóbulos foliares (paleta 6 tonos de Referencia 1)
     ProceduralAssets._drawUnifiedFoliageCluster(
       ctx,
       [
@@ -519,43 +561,60 @@ export class ProceduralAssets {
       ],
       {
         outline: INK,
-        shadow: '#1d5c38',
-        mid: '#6ebd30',
-        light: '#b6e345'
+        shadow: '#1e564f',
+        mid: '#2b9348',
+        light: '#55a630'
       }
     );
 
     // Recortar la base a línea plana de arbusto asentado en tierra
     const baseY = Math.min(h - 3, cy + 9);
     ctx.clearRect(0, baseY + 1, w, h - baseY);
-    ctx.fillStyle = '#1d5c38';
-    ctx.fillRect(cx - 15, baseY - 2, 29, 2);
+    ctx.fillStyle = '#1e564f';
+    ctx.fillRect(cx - 15, baseY - 2, 30, 2);
     ctx.fillStyle = INK;
-    ctx.fillRect(cx - 15, baseY, 29, 1);
+    ctx.fillRect(cx - 15, baseY, 30, 1);
 
-    // Dither de follaje pixel art (2x1 / 1x1) entre luz y sombra
-    ctx.fillStyle = '#6ebd30';
-    ctx.fillRect(cx - 11, cy + 4, 2, 1);
-    ctx.fillRect(cx - 6, cy + 5, 2, 1);
-    ctx.fillRect(cx + 3, cy + 4, 2, 1);
-    ctx.fillStyle = '#d9f99d';
-    ctx.fillRect(cx - 3, cy - 15, 3, 1);
-
-    // Bayas rojas pixel-art con brillo de 1px
-    const berries = [
-      [cx - 8, cy - 2],
-      [cx + 6, cy + 2],
-      [cx + 1, cy - 9]
+    // 3. Capas internas de racimos foliares luminosos (verde medio -> lima -> brote claro)
+    const midLeaves = [
+      [cx - 13, cy - 4, -1], [cx - 6, cy + 3, -1], [cx + 4, cy + 2, 1],
+      [cx + 10, cy - 3, 1], [cx - 2, cy - 7, 1]
     ];
-    for (let i = 0; i < berries.length; i++) {
-      const bx = berries[i][0];
-      const by = berries[i][1];
-      ctx.fillStyle = '#1d5c38';
-      ctx.fillRect(bx - 1, by, 4, 3);
-      ctx.fillStyle = '#e11d48';
-      ctx.fillRect(bx, by, 2, 2);
-      ctx.fillStyle = '#fda4af';
-      ctx.fillRect(bx, by, 1, 1);
+    for (let i = 0; i < midLeaves.length; i++) {
+      const [lx, ly, d] = midLeaves[i];
+      ProceduralAssets._drawPixelLeaf(ctx, lx, ly, '#55a630', d);
+    }
+
+    const brightLeaves = [
+      [cx - 9, cy - 11, -1], [cx - 2, cy - 13, 1], [cx + 5, cy - 9, 1],
+      [cx - 11, cy - 2, -1], [cx + 2, cy - 2, 1]
+    ];
+    for (let i = 0; i < brightLeaves.length; i++) {
+      const [lx, ly, d] = brightLeaves[i];
+      ProceduralAssets._drawPixelLeaf(ctx, lx, ly, '#95d540', d);
+    }
+
+    ctx.fillStyle = '#b5e48c';
+    ctx.fillRect(cx - 4, cy - 15, 3, 1);
+    ctx.fillRect(cx - 10, cy - 11, 2, 1);
+    ctx.fillRect(cx + 3, cy - 10, 2, 1);
+
+    // 4. Pequeñas flores silvestres de 4 pétalos blancos con botón amarillo (Ref 1)
+    const flowers = [
+      [cx - 10, cy - 8],
+      [cx - 5, cy - 5],
+      [cx + 7, cy + 1]
+    ];
+    for (let i = 0; i < flowers.length; i++) {
+      const fx = flowers[i][0];
+      const fy = flowers[i][1];
+      ctx.fillStyle = '#1e564f';
+      ctx.fillRect(fx - 1, fy + 1, 5, 2);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(fx, fy, 3, 1);
+      ctx.fillRect(fx + 1, fy - 1, 1, 3);
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(fx + 1, fy, 1, 1);
     }
   }
 }

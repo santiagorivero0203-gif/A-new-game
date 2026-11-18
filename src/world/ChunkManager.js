@@ -420,6 +420,43 @@ export class ChunkManager {
   }
 
   /**
+   * Exporta los estados persistentes actuales como pares `[uid, state]` antes de cambiar de mundo.
+   * Guarda primero las entidades vivas montadas en los chunks activos para no perder cambios recientes.
+   * @returns {Array<[string, Object]>}
+   */
+  exportMemory() {
+    for (const list of this.mountedByChunk.values()) {
+      for (let i = 0; i < list.length; i++) {
+        const ent = list[i];
+        if (ent && ent._chunkUid && typeof ent.serializeChunkState === 'function') {
+          this.entityMemory.set(ent._chunkUid, ent.serializeChunkState(this.worldClockSec));
+        }
+      }
+    }
+    for (const [uid, ent] of this._pinnedActiveEnemies.entries()) {
+      if (ent && typeof ent.serializeChunkState === 'function') {
+        this.entityMemory.set(uid, ent.serializeChunkState(this.worldClockSec));
+      }
+    }
+    return Array.from(this.entityMemory.entries());
+  }
+
+  /**
+   * Restaura memoria persistente exportada previamente antes de montar los chunks iniciales.
+   * @param {Array<[string, Object]>|null} entries
+   */
+  importMemory(entries) {
+    this.entityMemory.clear();
+    if (!Array.isArray(entries)) return;
+    for (let i = 0; i < entries.length; i++) {
+      const pair = entries[i];
+      if (Array.isArray(pair) && pair.length >= 2) {
+        this.entityMemory.set(pair[0], pair[1]);
+      }
+    }
+  }
+
+  /**
    * Retorna estadísticas ligeras de diagnóstico de memoria y streaming.
    * @returns {{totalBlueprints: number, loadedChunks: number, rememberedStates: number}}
    */

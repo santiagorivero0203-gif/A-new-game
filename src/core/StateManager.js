@@ -21,6 +21,9 @@ export class StateManager {
 
     /** @type {Object.<string, Function[]>} Mapa de listeners por evento */
     this.listeners = {};
+
+    /** @type {Map<string, string>} Caché de nombres de evento `${key}_changed` para evitar concatenaciones por frame */
+    this._changedEventKeys = new Map();
   }
 
   /**
@@ -67,14 +70,26 @@ export class StateManager {
   }
 
   /**
-   * Establece un valor del estado global y emite un evento de cambio.
-   * El evento emitido sigue el patrón: `${key}_changed`
+   * Establece un valor del estado global y emite un evento de cambio solo si cambió
+   * y existen suscriptores registrados (Zero-GC en llamadas repetidas por frame).
    * @param {string} key
    * @param {*} value
    */
   set(key, value) {
+    if (this.state[key] === value) return;
     this.state[key] = value;
-    this.emit(`${key}_changed`, value);
+
+    let evtKey = this._changedEventKeys.get(key);
+    if (!evtKey) {
+      evtKey = `${key}_changed`;
+      this._changedEventKeys.set(key, evtKey);
+    }
+    const subs = this.listeners[evtKey];
+    if (subs && subs.length > 0) {
+      for (let i = 0; i < subs.length; i++) {
+        subs[i](value);
+      }
+    }
   }
 
   /**

@@ -144,7 +144,11 @@ export class Enemy extends Entity {
     this.stealthHalfAngle = this.config.stealthHalfAngle || (Math.PI / 6);
     this._stealthScanTimer = Math.random() * 0.12;
     this.isAlerted = false;
+    /** @type {number} Sospecha acumulada (0-100) reciclable por StealthSystem */
+    this.suspicion = 0;
     this.loseAggroTimer = 0;
+    /** @type {number} Distancia cuadrada al jugador cacheadas del frame actual para evitar recalcular en main/HUD */
+    this._lastPlayerDistSq = Infinity;
 
     // --- Animación Procedural Viva y Reloj de Escáner ---
     this.animClock = 0;
@@ -263,6 +267,9 @@ export class Enemy extends Entity {
     this.tags = this.tags.filter(t => t !== 'solid');
     if (context && context.entityManager) {
       context.entityManager._solidsCache = null;
+      if (context.entityManager.solidGrid) {
+        context.entityManager.solidGrid.remove(this);
+      }
     }
     if (context && context.combatManager) {
       context.combatManager.cancelAttacksFrom(this);
@@ -342,7 +349,8 @@ export class Enemy extends Entity {
    */
   _launchArchetypeAttack(context) {
     const combat = context.combatManager;
-    if (!combat) return;
+    const projSys = context.projectileSystem;
+    if (!combat && !projSys) return;
 
     const cx = this.pos.x + this.width / 2;
     const cy = this.pos.y + this.height / 2;
@@ -353,35 +361,58 @@ export class Enemy extends Entity {
     this.scaleY = 0.78;
 
     if (this.archetype === 'artillery') {
-      // Disparar proyectil deflectable con Parry Deportivo
+      // Disparar proyectil deflectable con Parry Deportivo y esquivable en perfil bajo (`altitude: 'high'`)
       const pSpeed = this.config.projectileSpeed || 225;
       const startX = cx + dx * 14;
       const startY = cy + dy * 14;
 
-      combat.addAttack({
-        owner: this,
-        type: 'projectile',
-        isProjectile: true,
-        element: this.elementalAffinity,
-        damage: 22,
-        postureDamage: this.config.postureDamage,
-        duration: 2.2,
-        x: startX,
-        y: startY,
-        dx,
-        dy,
-        speed: pSpeed,
-        destroyOnHit: true,
-        hitbox: { x: startX - 8, y: startY - 8, width: 16, height: 16 },
-        update: function(dt) {
-          this.x += this.dx * this.speed * dt;
-          this.y += this.dy * this.speed * dt;
-          this.hitbox.x = this.x - 8;
-          this.hitbox.y = this.y - 8;
-        }
-      });
+      if (projSys && typeof projSys.spawn === 'function') {
+        projSys.spawn({
+          owner: this,
+          type: 'projectile',
+          element: this.elementalAffinity,
+          isFriendly: false,
+          reflectable: true,
+          damage: 22,
+          postureDamage: this.config.postureDamage,
+          duration: 2.2,
+          x: startX,
+          y: startY,
+          dx,
+          dy,
+          speed: pSpeed,
+          radius: 8,
+          altitude: this.config.projectileAltitude || 'high',
+          destroyOnHit: true
+        });
+      } else if (combat) {
+        combat.addAttack({
+          owner: this,
+          type: 'projectile',
+          isProjectile: true,
+          element: this.elementalAffinity,
+          damage: 22,
+          postureDamage: this.config.postureDamage,
+          duration: 2.2,
+          x: startX,
+          y: startY,
+          dx,
+          dy,
+          speed: pSpeed,
+          destroyOnHit: true,
+          hitbox: { x: startX - 8, y: startY - 8, width: 16, height: 16 },
+          update: function(dt) {
+            this.x += this.dx * this.speed * dt;
+            this.y += this.dy * this.speed * dt;
+            this.hitbox.x = this.x - 8;
+            this.hitbox.y = this.y - 8;
+          }
+        });
+      }
       return;
     }
+
+    if (!combat) return;
 
     // Ataque cuerpo a cuerpo en embestida (Hound, Tank, Duelist, Slime)
     const dur = this.config.attackDuration || 0.24;
@@ -527,6 +558,8 @@ export class Enemy extends Entity {
 
     // 1. Gestión de Muerte y Reaparición limpia
     if (this.isDead) {
+      this._lastPlayerDistSq = Infinity;
+      this.suspicion = 0;
       this.respawnTimer -= dt;
       if (this.respawnTimer <= 0) {
         this.isDead = false;
@@ -605,6 +638,7 @@ export class Enemy extends Entity {
     const toPlayerX = plX - myX;
     const toPlayerY = plY - myY;
     const distSq = toPlayerX * toPlayerX + toPlayerY * toPlayerY;
+    this._lastPlayerDistSq = distSq;
 
     // Ahorro de CPU: enemigos lejanos en reposo/patrulla (> 340 px) no procesan IA fuera de escena
     if (distSq > 115600 && (this.aiState === 'IDLE' || this.aiState === 'PATROL') && !this.hasTag('wave_enemy')) {
@@ -700,17 +734,29 @@ export class Enemy extends Entity {
         const turnRate = this.archetype === 'tank' ? Math.min(1, dt * 4.2) : Math.min(1, dt * 10);
         this._faceVector(nx, ny, turnRate);
 
-        // Fuerza de Separación Zero-GC respecto a otros enemigos cercanos para formar abanico táctico
+        // Fuerza de Separación Zero-GC: cubeta directa en escenas ligeras o SpatialGrid O(1) en hordas
         let sepX = 0;
         let sepY = 0;
-        const allEnts = context && (context.entities || (context.entityManager && context.entityManager.getByTag('enemy')));
-        if (allEnts) {
-          const myCx = this.pos.x + this.width * 0.5;
-          const myCy = this.pos.y + this.height * 0.5;
-          for (let i = 0; i < allEnts.length; i++) {
-            const other = allEnts[i];
+        const myCx = this.pos.x + this.width * 0.5;
+        const myCy = this.pos.y + this.height * 0.5;
+        let nearbyEnts = null;
+        if (context && context.entityManager) {
+          if (typeof context.entityManager.queryNearby === 'function' && context.entityManager.entities.length >= 48) {
+            if (!Enemy._sepQueryBuf) Enemy._sepQueryBuf = [];
+            nearbyEnts = context.entityManager.queryNearby(
+              myCx - 48, myCy - 48, myCx + 48, myCy + 48, Enemy._sepQueryBuf
+            );
+          } else {
+            nearbyEnts = context.entityManager.getByTag('enemy');
+          }
+        } else if (context) {
+          nearbyEnts = context.entities;
+        }
+        if (nearbyEnts) {
+          for (let i = 0; i < nearbyEnts.length; i++) {
+            const other = nearbyEnts[i];
             if (!other || other === this || other.isDead) continue;
-            if (!other.tags || !other.hasTag('enemy')) continue;
+            if (!other.hasTag('enemy')) continue;
             const dx = myCx - (other.pos.x + other.width * 0.5);
             const dy = myCy - (other.pos.y + other.height * 0.5);
             const dSq = dx * dx + dy * dy;
@@ -900,10 +946,11 @@ export class Enemy extends Entity {
    * Renderiza el cono de visión compacto únicamente cuando StealthSystem está activado.
    * @param {CanvasRenderingContext2D} ctx
    * @param {import('../systems/StealthSystem.js').StealthSystem|null} [stealthSystem=null]
+   * @param {((key: string) => HTMLCanvasElement|null)|null} [getConeSpriteFn=null]
    */
-  drawVisionCone(ctx, stealthSystem = null) {
+  drawVisionCone(ctx, stealthSystem = null, getConeSpriteFn = null) {
     if (!stealthSystem || !stealthSystem.enabled) return;
-    stealthSystem.drawCompactVisionCone(ctx, this);
+    stealthSystem.drawCompactVisionCone(ctx, this, getConeSpriteFn);
   }
 
   /**

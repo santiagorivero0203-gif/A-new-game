@@ -4,6 +4,7 @@ import { House } from '../entities/House.js';
 import { NPC } from '../entities/NPC.js';
 import { Enemy } from '../entities/Enemy.js';
 import { InteractableProp } from '../entities/InteractableProp.js';
+import { normalizeLevel, computePerimeterTrees } from '../data/LevelSchema.js';
 
 /**
  * Colisionador invisible ligero para riberas de ríos, barrancos o muros naturales del terreno.
@@ -57,13 +58,10 @@ export class LevelLoader {
       throw new Error('[LevelLoader] levelData y entityManager son requeridos.');
     }
 
-    const mapCfg = levelData.map || levelData;
-    const cols = mapCfg.cols || levelData.cols || 40;
-    const rows = mapCfg.rows || levelData.rows || 40;
-    const tileSize = mapCfg.tileSize || levelData.tileSize || 32;
+    const level = normalizeLevel(levelData);
+    const { cols, rows, tileSize, playerSpawn } = level;
     const mapWidth = cols * tileSize;
     const mapHeight = rows * tileSize;
-    const playerSpawn = levelData.playerSpawn || { x: 224, y: 218 };
 
     // 1. Ajustar límites de cámara (Room Clamping) y límites físicos del mundo (Out-of-Bounds Clamping)
     const bounds = { x: 0, y: 0, width: mapWidth, height: mapHeight };
@@ -79,13 +77,8 @@ export class LevelLoader {
     }
 
     // 2. Instanciar Colisionadores Fluviales / Barrancos Invisibles (pocas franjas anchas compartidas)
-    const solidColliders = Array.isArray(levelData.solidColliders)
-      ? levelData.solidColliders
-      : Array.isArray(levelData.colliders)
-        ? levelData.colliders
-        : null;
-    if (solidColliders) {
-      for (const col of solidColliders) {
+    if (level.solidColliders.length > 0) {
+      for (const col of level.solidColliders) {
         entityManager.addEntity(new InvisibleBarrier(col.x, col.y, col.width, col.height));
       }
     }
@@ -195,57 +188,13 @@ export class LevelLoader {
       }
     }
 
-    // 7. Perímetro Optimizado de Bosque
-    if (levelData.perimeterConfig) {
-      const step = Math.max(108, levelData.perimeterConfig.step || 108);
-      const roadGap = levelData.perimeterConfig.roadGapY || [560, 700];
-      const streamGapX = levelData.perimeterConfig.streamGapX || null;
-      const caveSafeZone = levelData.perimeterConfig.caveSafeZone || null;
-
-      const isInsideCaveSafeZone = (tx, ty) => {
-        if (!caveSafeZone) return false;
-        return (
-          tx >= caveSafeZone.x &&
-          tx <= caveSafeZone.x + caveSafeZone.width &&
-          ty >= caveSafeZone.y &&
-          ty <= caveSafeZone.y + caveSafeZone.height
-        );
-      };
-
-      const addTreeAt = (tx, ty) => {
-        if (chunkManager) {
-          chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: tx, y: ty });
-        } else {
-          entityManager.addEntity(new Tree(tx, ty));
-        }
-      };
-
-      // Linderos Norte y Sur
-      let colIdx = 0;
-      for (let x = 0; x < mapWidth - 40; x += step) {
-        const staggerY = (colIdx % 2) * 24;
-        colIdx++;
-        if (streamGapX && x + 64 > streamGapX[0] && x < streamGapX[1]) {
-          continue;
-        }
-        if (!isInsideCaveSafeZone(x, staggerY)) {
-          addTreeAt(x, staggerY);
-        }
-        addTreeAt(x, mapHeight - 96 - staggerY);
-      }
-
-      // Linderos Oeste y Este
-      let rowIdx = 0;
-      for (let y = 96; y < mapHeight - 120; y += step) {
-        const staggerX = (rowIdx % 2) * 24;
-        rowIdx++;
-        if (levelData.perimeterConfig.hasOpenRoad && y > roadGap[0] && y < roadGap[1]) {
-          continue;
-        }
-        if (!isInsideCaveSafeZone(staggerX, y)) {
-          addTreeAt(staggerX, y);
-        }
-        addTreeAt(mapWidth - 96 - staggerX, y);
+    // 7. Perímetro Optimizado de Bosque (fórmula compartida con LevelEditor vía LevelSchema)
+    const perimeterTrees = computePerimeterTrees(level);
+    for (const pt of perimeterTrees) {
+      if (chunkManager) {
+        chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: pt.x, y: pt.y });
+      } else {
+        entityManager.addEntity(new Tree(pt.x, pt.y));
       }
     }
 
@@ -258,9 +207,10 @@ export class LevelLoader {
       mapWidth,
       mapHeight,
       playerSpawn,
-      startDormant: !!levelData.startDormant,
-      arenaCenter: levelData.arenaCenter || null,
-      initialObjective: levelData.initialObjective || null
+      spawnPoints: level.spawnPoints,
+      startDormant: level.startDormant,
+      arenaCenter: levelData.arenaCenter === null ? null : level.arenaCenter,
+      initialObjective: level.initialObjective || null
     };
   }
 }

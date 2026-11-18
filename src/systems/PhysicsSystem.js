@@ -19,6 +19,8 @@ export class PhysicsSystem {
     this._testBox = { x: 0, y: 0, width: 0, height: 0 };
     /** @private Vector de retorno reutilizable */
     this._resultPos = new Vector2();
+    /** @private Buffer reutilizable Zero-GC para consultas a SpatialGrid */
+    this._solidQueryBuf = [];
     /** @type {{x: number, y: number, width: number, height: number}|null} Límites físicos del nivel */
     this.worldBounds = null;
     /** @type {import('../world/Tilemap.js').Tilemap|null} Mapa lógico para colisiones automáticas con agua, magma y acantilados */
@@ -103,17 +105,22 @@ export class PhysicsSystem {
     const dist = Math.hypot(dx, dy);
     if (dist <= 18) return true;
 
-    const solids = this.entityManager ? this.entityManager.getSolids() : null;
-    const hasTilemap = Boolean(this.tilemap && typeof this.tilemap.getTile === 'function');
-    if ((!solids || solids.length === 0) && !hasTilemap) return true;
-
-    const tileSize = hasTilemap ? (this.tilemap.tileSize || 32) : 32;
-
-    // Muestreo continuo con paso de 16 px y rechazo espacial rápido de sólidos fuera del segmento
     const minSegX = Math.min(x1, x2) - 8;
     const maxSegX = Math.max(x1, x2) + 8;
     const minSegY = Math.min(y1, y2) - 8;
     const maxSegY = Math.max(y1, y2) + 8;
+
+    const solids = this.entityManager
+      ? (typeof this.entityManager.queryNearbySolids === 'function'
+          ? this.entityManager.queryNearbySolids(minSegX, minSegY, maxSegX, maxSegY, this._solidQueryBuf)
+          : (this.entityManager.solidGrid
+              ? this.entityManager.solidGrid.queryBounds(minSegX, minSegY, maxSegX, maxSegY, this._solidQueryBuf)
+              : this.entityManager.getSolids()))
+      : null;
+    const hasTilemap = Boolean(this.tilemap && typeof this.tilemap.getTile === 'function');
+    if ((!solids || solids.length === 0) && !hasTilemap) return true;
+
+    const tileSize = hasTilemap ? (this.tilemap.tileSize || 32) : 32;
 
     const steps = Math.ceil(dist / 16);
     const stepX = dx / steps;
@@ -163,7 +170,6 @@ export class PhysicsSystem {
    * @returns {Vector2} Coordenadas finales seguras
    */
   moveWithCollisions(entity, targetX, targetY) {
-    const solids = this.entityManager.getSolids();
     let finalX = targetX;
     let finalY = targetY;
 
@@ -184,13 +190,19 @@ export class PhysicsSystem {
       if (finalY > maxY) finalY = maxY;
     }
 
-    // Límites amplios del desplazamiento actual para descarte ultrarrápido de sólidos lejanos
+    // Límites amplios del desplazamiento actual para consulta espacial local O(1) en SpatialGrid
     const curHbX = entity.pos.x + entity.hitbox.offsetX;
     const curHbY = entity.pos.y + entity.hitbox.offsetY;
     const minSweepX = (finalX + entity.hitbox.offsetX < curHbX ? finalX + entity.hitbox.offsetX : curHbX) - 4;
     const maxSweepX = (finalX + entity.hitbox.offsetX > curHbX ? finalX + entity.hitbox.offsetX : curHbX) + originalHitbox.width + 4;
     const minSweepY = (finalY + entity.hitbox.offsetY < curHbY ? finalY + entity.hitbox.offsetY : curHbY) - 4;
     const maxSweepY = (finalY + entity.hitbox.offsetY > curHbY ? finalY + entity.hitbox.offsetY : curHbY) + originalHitbox.height + 4;
+
+    const solids = (typeof this.entityManager.queryNearbySolids === 'function')
+      ? this.entityManager.queryNearbySolids(minSweepX, minSweepY, maxSweepX, maxSweepY, this._solidQueryBuf)
+      : (this.entityManager.solidGrid
+          ? this.entityManager.solidGrid.queryBounds(minSweepX, minSweepY, maxSweepX, maxSweepY, this._solidQueryBuf)
+          : this.entityManager.getSolids());
 
     // 1. Probar colisión en el eje X
     testBox.x = finalX + entity.hitbox.offsetX;
@@ -199,7 +211,7 @@ export class PhysicsSystem {
     let collidedX = false;
     for (let i = 0; i < solids.length; i++) {
       const solid = solids[i];
-      if (solid === entity) continue;
+      if (!solid || solid === entity || solid.isDead || !solid.hasTag('solid')) continue;
       if (
         solid.pos.x + solid.width < minSweepX ||
         solid.pos.x > maxSweepX ||
@@ -230,7 +242,7 @@ export class PhysicsSystem {
     let collidedY = false;
     for (let i = 0; i < solids.length; i++) {
       const solid = solids[i];
-      if (solid === entity) continue;
+      if (!solid || solid === entity || solid.isDead || !solid.hasTag('solid')) continue;
       if (
         solid.pos.x + solid.width < minSweepX ||
         solid.pos.x > maxSweepX ||

@@ -37,9 +37,16 @@ import { VFXRenderer } from './render/VFXRenderer.js';
 import { WaveManager } from './systems/WaveManager.js';
 import { LevelLoader } from './world/LevelLoader.js';
 import { ChunkManager } from './world/ChunkManager.js';
+import { WorldMemoryStore } from './world/WorldMemoryStore.js';
+import { ProjectileSystem } from './systems/ProjectileSystem.js';
 import { CelSpriteAtlas } from './render/CelSpriteAtlas.js';
-import { WORLDS_CATALOG } from './data/worlds.js';
+import { PerfOverlay } from './render/PerfOverlay.js';
+import { WORLDS_CATALOG, loadWorldData, releaseWorldData, getCustomWorld } from './data/worlds.js';
+import { levelRepository } from './editor/LevelRepository.js';
 import assetsManifest from './data/assets.json';
+
+// Sincroniza en memoria cualquier zona personalizada guardada localmente para habilitar portales entre zonas
+levelRepository.syncAllToEngine();
 
 // Capas de renderizado del Motor
 const mainCanvas = document.getElementById('main-canvas');
@@ -51,6 +58,8 @@ const sanctuaryModalEl = document.getElementById('skill-tree-modal');
 
 const btnPlay = document.getElementById('btn-play');
 const btnSettings = document.getElementById('btn-settings');
+const btnLevelEditor = document.getElementById('btn-level-editor');
+const btnEditorReturn = document.getElementById('btn-editor-return');
 const btnQuickTalents = document.getElementById('btn-quick-talents');
 const btnQuickArsenal = document.getElementById('btn-quick-arsenal');
 const btnQuickPause = document.getElementById('btn-quick-pause');
@@ -80,6 +89,9 @@ const skillTreeManager = new SkillTreeManager(stateManager);
 const waveManager = new WaveManager(entityManager, stateManager);
 // Mecánica modular de detección/sigilo guardada e inactiva por defecto salvo secciones específicas
 const stealthSystem = new StealthSystem({ enabled: false });
+const projectileSystem = new ProjectileSystem(192);
+combatManager.projectileSystem = projectileSystem;
+const worldMemoryStore = new WorldMemoryStore();
 
 const renderer = new Renderer(mainCanvas);
 const vfxRenderer = new VFXRenderer();
@@ -88,6 +100,7 @@ const uiManager = new UIManager();
 const cinematicManager = new CinematicManager(stateManager);
 const camera = new Camera(mainCanvas.width, mainCanvas.height);
 const foliageSystem = new FoliageSystem(entityManager);
+const perfOverlay = new PerfOverlay();
 const chunkManager = new ChunkManager({
   entityManager,
   foliageSystem,
@@ -96,10 +109,12 @@ const chunkManager = new ChunkManager({
 });
 let engine = null;
 
-// 2. Estado Lazy del Mundo (no se instancian chunks, mapas ni sprites hasta comenzar la partida)
+// 2. Estado Lazy del Mundo (cero análisis JSON hasta pulsar Jugar)
 let currentWorldKey = 'cave_exit_intro';
 let currentWorldMeta = WORLDS_CATALOG[currentWorldKey];
-let currentLevelData = currentWorldMeta.data;
+let currentLevelData = null;
+let _pendingInitialLoad = null;
+let _isTransitioningWorld = false;
 let worldInitialized = false;
 let assetsInitialized = false;
 let levelInfo = null;
@@ -161,12 +176,75 @@ function ensureSharedWorldAssets() {
   });
 }
 
+/** Buffers Zero-GC compartidos por colisiones de proyectiles y sigilo */
+const _projQueryBuf = [];
+const _noiseQueryBuf = [];
+
+stealthSystem.setNoiseQueryFn((minX, minY, maxX, maxY) => (
+  (typeof entityManager.queryNearby === 'function' && entityManager.entities.length >= 48)
+    ? entityManager.queryNearby(minX, minY, maxX, maxY, _noiseQueryBuf)
+    : entityManager.getByTag('enemy')
+));
+
+/**
+ * Estima la intensidad lumínica en `(px, py)` reciclando las luces ya cargadas en `lightManager`.
+ * Evita acoplar StealthSystem con LightManager.
+ * @returns {number} Escalar normalizado `[0.42..1.0]`
+ */
+function samplePlayerLightFactor(px, py) {
+  let lightSum = 0.44;
+  const lights = lightManager.lights;
+  for (let i = 0; i < lights.length; i++) {
+    const l = lights[i];
+    if (!l || l === playerLight) continue;
+    const r = l._currentRadius || l.radius || 140;
+    const dx = px - l.x;
+    const dy = py - l.y;
+    const dSq = dx * dx + dy * dy;
+    if (dSq >= r * r) continue;
+    const falloff = 1 - Math.sqrt(dSq) / Math.max(1, r);
+    lightSum += falloff * (l.intensity ?? 0.75) * 0.75;
+    if (lightSum >= 1.0) return 1.0;
+  }
+  return Math.min(1.0, lightSum);
+}
+
+/**
+ * Configura de forma unificada iluminación y zonas de sigilo al entrar o cambiar de escenario.
+ */
+function _configureActiveWorldSystems(levelData, worldMeta) {
+  const hasStealthZones = Array.isArray(levelData.stealthZones) && levelData.stealthZones.length > 0;
+  stealthSystem.setZones(levelData.stealthZones || [], Boolean(levelData.enableStealth || hasStealthZones), stateManager, player);
+  inputManager.setStealthEnabled(stealthSystem.enabled);
+  syncWorldLights(levelData, worldMeta.biome);
+}
+
+/**
+ * Descarga bajo demanda el JSON del escenario inicial solo al arrancar la partida.
+ * @returns {Promise<Object|null>}
+ */
+async function ensureInitialWorldData() {
+  if (currentLevelData) return currentLevelData;
+  if (!_pendingInitialLoad) {
+    _pendingInitialLoad = loadWorldData(currentWorldKey, true)
+      .then((data) => {
+        currentLevelData = data;
+        return data;
+      })
+      .catch((err) => {
+        _pendingInitialLoad = null;
+        throw err;
+      });
+  }
+  return _pendingInitialLoad;
+}
+
 /**
  * Inicializa el mundo, chunks iniciales, tilemap y jugador de forma perezosa
  * únicamente cuando el usuario inicia partida (cero pre-carga innecesaria en pantalla de título).
  */
 function ensureWorldInitialized() {
-  if (worldInitialized) return;
+  if (worldInitialized || !currentLevelData) return;
   worldInitialized = true;
 
   const initialMapCfg = currentLevelData.map || currentLevelData;
@@ -211,7 +289,6 @@ function ensureWorldInitialized() {
 
   playerLight.x = player.pos.x + player.width / 2;
   playerLight.y = player.pos.y + player.height / 2;
-  syncWorldLights(currentLevelData, currentWorldMeta.biome);
 
   entityManager.addEntity(player);
   stateManager.set('player', player);
@@ -225,8 +302,7 @@ function ensureWorldInitialized() {
   stateManager.set('threat_level', 'calm');
   stateManager.set('intro_stage', 0);
   stateManager.set('current_world', currentWorldKey);
-  stealthSystem.setEnabled(Boolean(currentLevelData.enableStealth), stateManager, player);
-  inputManager.setStealthEnabled(stealthSystem.enabled);
+  _configureActiveWorldSystems(currentLevelData, currentWorldMeta);
   stateManager.set(
     'level_objective',
     levelInfo.initialObjective || 'Sal de la cueva de cristales y rompe el derrumbe con tu espada'
@@ -239,79 +315,128 @@ function ensureWorldInitialized() {
 }
 
 /**
- * Viaja de forma instantánea y limpia entre los 4 Mundos del Atlas de la Reliquia,
- * liberando texturas/sprites del bioma anterior y montando solo los chunks iniciales del nuevo.
+ * Viaja de forma asíncrona y persistente entre los 4 Mundos del Atlas de la Reliquia:
+ * guarda deltas compactos + Niebla de Guerra en `WorldMemoryStore`, libera JSON/sprites
+ * del escenario previo y carga bajo demanda el nuevo JSON sin retener múltiples mundos en RAM.
  * @param {string} worldKey
  */
-function loadWorld(worldKey) {
-  const worldMeta = WORLDS_CATALOG[worldKey];
-  if (!worldMeta || !worldMeta.data) return;
-  if (!worldInitialized) ensureWorldInitialized();
+async function loadWorld(worldKey, options = {}) {
+  const custom = getCustomWorld(worldKey);
+  const worldMeta = WORLDS_CATALOG[worldKey] || (custom ? {
+    id: worldKey,
+    name: custom.name || 'Zona Personalizada',
+    subtitle: custom.worldId && WORLDS_CATALOG[custom.worldId]
+      ? `${WORLDS_CATALOG[custom.worldId].name} · Zona`
+      : 'Zona Personalizada',
+    description: custom.initialObjective || 'Zona forjada con la Reliquia.',
+    biome: custom.biome || 'cave_exit_intro',
+    weather: custom.weather || 'pollen',
+    accentColor: WORLDS_CATALOG[custom.worldId]?.accentColor || '#38bdf8'
+  } : null);
 
-  currentWorldKey = worldKey;
-  currentWorldMeta = worldMeta;
-  currentLevelData = worldMeta.data;
+  if (!worldMeta || _isTransitioningWorld) return;
+  _isTransitioningWorld = true;
 
-  combatManager.clearAllCombatState();
-  chunkManager.clearAll();
-  foliageSystem.clear();
-  entityManager.clearExceptPlayer(player);
-  CelSpriteAtlas.clear();
-  introSequenceState.active = false;
-  vfxRenderer.setIntroOrbs([]);
-  camera.cinematicTarget = null;
+  try {
+    await ensureInitialWorldData();
+    if (!worldInitialized) ensureWorldInitialized();
 
-  levelInfo = LevelLoader.loadLevel(currentLevelData, {
-    entityManager,
-    foliageSystem,
-    camera,
-    physicsSystem,
-    chunkManager
-  });
-
-  tilemap.reconfigureFromLevel(currentLevelData, resourceManager);
-  waveManager.resetForWorld(levelInfo.arenaCenter || null);
-  stealthSystem.setEnabled(Boolean(currentLevelData.enableStealth), stateManager, player);
-  inputManager.setStealthEnabled(stealthSystem.enabled);
-
-  player.pos.set(levelInfo.playerSpawn.x, levelInfo.playerSpawn.y);
-  player.velocity.set(0, 0);
-
-  if (worldKey !== 'cave_exit_intro') {
-    if (typeof player.unlockSword === 'function') player.unlockSword();
-    if (typeof player.unlockAllElements === 'function') player.unlockAllElements();
-    stateManager.set('gauntlet_tier', Math.max(2, stateManager.get('gauntlet_tier') || 2));
-    stateManager.set('unlocked_powers', ['Fuego', 'Embestida', 'Raíces']);
-    if (!player.currentAbility || !player.hasElement(player.currentAbility)) {
-      player.equipAbility('Fuego');
+    const isPlaytestSession = _isPlaytestingLevel || worldKey === '__editor_playtest__';
+    if (isPlaytestSession && btnEditorReturn) {
+      btnEditorReturn.classList.remove('hidden');
     }
+
+    const prevWorldKey = currentWorldKey;
+    if (prevWorldKey && !isPlaytestSession) {
+      worldMemoryStore.save(prevWorldKey, chunkManager.exportMemory());
+    }
+
+    const nextLevelData = await loadWorldData(worldKey, true);
+    if (!nextLevelData) return;
+
+    currentWorldKey = worldKey;
+    currentWorldMeta = worldMeta;
+    currentLevelData = nextLevelData;
+
+    combatManager.clearAllCombatState();
+    projectileSystem.clear();
+    chunkManager.clearAll();
+    foliageSystem.clear();
+    entityManager.clearExceptPlayer(player);
+    CelSpriteAtlas.clear();
+    introSequenceState.active = false;
+    vfxRenderer.setIntroOrbs([]);
+    camera.cinematicTarget = null;
+    if (prevWorldKey && prevWorldKey !== worldKey) {
+      releaseWorldData(prevWorldKey);
+    }
+
+    const savedMem = isPlaytestSession ? null : worldMemoryStore.restore(worldKey);
+    if (savedMem) {
+      chunkManager.importMemory(savedMem);
+    }
+
+    levelInfo = LevelLoader.loadLevel(currentLevelData, {
+      entityManager,
+      foliageSystem,
+      camera,
+      physicsSystem,
+      chunkManager
+    });
+
+    tilemap.reconfigureFromLevel(currentLevelData, resourceManager);
+    waveManager.resetForWorld(levelInfo.arenaCenter || null);
+
+    // Resolver punto de aparición específico por spawnId (transiciones entre zonas)
+    let targetSpawn = levelInfo.playerSpawn;
+    if (options && options.spawnId && Array.isArray(levelInfo.spawnPoints)) {
+      const matchedSpawn = levelInfo.spawnPoints.find(sp => sp.id === options.spawnId);
+      if (matchedSpawn) {
+        targetSpawn = { x: matchedSpawn.x, y: matchedSpawn.y };
+      }
+    }
+
+    player.pos.set(targetSpawn.x, targetSpawn.y);
+    player.velocity.set(0, 0);
+
+    if (worldKey !== 'cave_exit_intro') {
+      if (typeof player.unlockSword === 'function') player.unlockSword();
+      if (typeof player.unlockAllElements === 'function') player.unlockAllElements();
+      stateManager.set('gauntlet_tier', Math.max(2, stateManager.get('gauntlet_tier') || 2));
+      stateManager.set('unlocked_powers', ['Fuego', 'Embestida', 'Raíces']);
+      if (!player.currentAbility || !player.hasElement(player.currentAbility)) {
+        player.equipAbility('Fuego');
+      }
+    }
+
+    _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
+    _playerCenterCache.y = Math.round(player.pos.y) + player.height * 0.5;
+    playerLight.x = _playerCenterCache.x;
+    playerLight.y = _playerCenterCache.y;
+
+    _configureActiveWorldSystems(currentLevelData, worldMeta);
+    audioManager.setBiomeAmbience(worldMeta.biome);
+
+    stateManager.set('current_world', currentWorldKey);
+    stateManager.set(
+      'level_objective',
+      levelInfo.initialObjective || currentLevelData.worldTitle || worldMeta.description
+    );
+    stateManager.set('active_dialogue', {
+      speaker: (worldMeta.subtitle || worldMeta.name || 'ZONA').toUpperCase(),
+      text: `Has cruzado el umbral hacia ${worldMeta.name}. ${worldMeta.description || ''}`.trim(),
+      timer: 4.5
+    });
+
+    camera.snapTo(_playerCenterCache);
+    chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
+    chunkManager.syncFlyweightSprites();
+  } finally {
+    _isTransitioningWorld = false;
   }
-
-  _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
-  _playerCenterCache.y = Math.round(player.pos.y) + player.height * 0.5;
-  playerLight.x = _playerCenterCache.x;
-  playerLight.y = _playerCenterCache.y;
-
-  syncWorldLights(currentLevelData, worldMeta.biome);
-  audioManager.setBiomeAmbience(worldMeta.biome);
-
-  stateManager.set('current_world', currentWorldKey);
-  stateManager.set(
-    'level_objective',
-    levelInfo.initialObjective || currentLevelData.worldTitle || worldMeta.description
-  );
-  stateManager.set('active_dialogue', {
-    speaker: worldMeta.subtitle.toUpperCase(),
-    text: `Has cruzado el umbral hacia ${worldMeta.name}. ${worldMeta.description}`,
-    timer: 4.5
-  });
-
-  camera.snapTo(_playerCenterCache);
-  chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
-  chunkManager.syncFlyweightSprites();
 }
 
-stateManager.set('load_world_hook', (targetWorld) => loadWorld(targetWorld));
+stateManager.set('load_world_hook', (targetWorld, opts = {}) => loadWorld(targetWorld, opts));
 
 // 4. Redimensionado Full-Screen Responsivo Optimizado (Pixel-Art nativo y Compositor Único)
 function resizeCanvases() {
@@ -349,6 +474,7 @@ const _gameContext = {
   entityManager,
   chunkManager,
   combatManager,
+  projectileSystem,
   equipmentManager,
   skillTreeManager,
   waveManager,
@@ -358,8 +484,39 @@ const _gameContext = {
   uiManager,
   engine: null,
   tilemap: null,
+  surfaceSlideFactor: 1.0,
   time: 0,
   ctx: null
+};
+
+/** Hooks planos Zero-GC reutilizados por `ProjectileSystem.update()` sin alocar closures por frame */
+const _projectileHooks = {
+  isTileBlockedFn: (wx, wy) => {
+    if (!tilemap) return false;
+    if (wx < 0 || wy < 0 || wx >= tilemap.width || wy >= tilemap.height) return true;
+    const ts = tilemap.tileSize || 32;
+    return tilemap.getTile(Math.floor(wx / ts), Math.floor(wy / ts)) === 2;
+  },
+  queryTargetsFn: (minX, minY, maxX, maxY) => (
+    typeof entityManager.queryNearby === 'function'
+      ? entityManager.queryNearby(minX, minY, maxX, maxY, _projQueryBuf)
+      : entityManager.entities
+  ),
+  playerTarget: null,
+  onHitFn: (slot, target) => combatManager.handleHit(slot, target, _gameContext),
+  onHitPropFn: (slot, prop) => {
+    if (typeof prop.takeEnvironmentalHit === 'function') {
+      prop.takeEnvironmentalHit(slot.damage || 16, slot, _gameContext);
+    }
+  },
+  onLowEvadeFn: (target, slot) => {
+    if (slot.altitude === 'high') {
+      combatManager.registerComboAction('low_evade', 12, _gameContext, false);
+      if (uiManager && camera) {
+        uiManager.spawnDamageNumber(target.pos.x + 16, target.pos.y - 10, '¡ESQUIVA BAJA!', '#38bdf8');
+      }
+    }
+  }
 };
 
 /**
@@ -377,9 +534,11 @@ function buildGameContext(deltaTime = 0.016) {
 }
 
 let simClockSec = 0;
+let _lastUpdateMs = 0;
 
 // 6. Ciclo de Actualización (Update)
 function update(deltaTime) {
+  const _tUpdStart = window.DEBUG_MODE ? performance.now() : 0;
   const gameState = stateManager.get('game_state');
   if (gameState === 'STATE_CINEMATIC') {
     cinematicManager.update(deltaTime);
@@ -395,7 +554,26 @@ function update(deltaTime) {
 
   inputManager.update();
   simClockSec += deltaTime;
+
+  // Cálculos únicos reciclados por Jugador, Sigilo, Chunks y Proyectiles
+  _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
+  _playerCenterCache.y = Math.round(player.pos.y) + player.height * 0.5;
   const gameContext = buildGameContext(deltaTime);
+  if (tilemap) {
+    const ts = tilemap.tileSize || 32;
+    const pTileId = tilemap.getTile(
+      Math.floor(_playerCenterCache.x / ts),
+      Math.floor(_playerCenterCache.y / ts)
+    );
+    gameContext.surfaceSlideFactor = Tilemap.getSurfaceSlideFactor(pTileId, currentWorldMeta.biome);
+  } else {
+    gameContext.surfaceSlideFactor = 1.0;
+  }
+
+  stealthSystem.evaluateZoneAt(_playerCenterCache.x, _playerCenterCache.y, stateManager, player, deltaTime);
+  if (stealthSystem.enabled) {
+    stealthSystem.setPlayerLightLevel(samplePlayerLightFactor(_playerCenterCache.x, _playerCenterCache.y));
+  }
 
   // Sincronización reactiva de Vitalidad máxima con rangos de 'max_health_up' sin emitir si no cambió
   const targetMaxHp = 3 + skillTreeManager.getSkillRank('max_health_up');
@@ -416,8 +594,11 @@ function update(deltaTime) {
     }
   }
 
+  const updateBounds = camera.getVisibleWorldBounds(64);
   combatManager.update(gameContext);
-  chunkManager.update(camera.getVisibleWorldBounds(64), deltaTime);
+  _projectileHooks.playerTarget = player;
+  projectileSystem.update(deltaTime, _projectileHooks);
+  chunkManager.update(updateBounds, deltaTime);
   entityManager.update(gameContext);
   waveManager.update(gameContext);
   interactionSystem.update(deltaTime, gameContext);
@@ -432,7 +613,8 @@ function update(deltaTime) {
   const equippedPower = stateManager.get('equipped_power') || 'Fuego';
   playerLight.color = POWER_LIGHT_COLORS[equippedPower] || '#38bdf8';
 
-  // Foco táctico de cámara iterando únicamente cubeta O(1) de enemigos
+  // Pasada única sobre cubeta O(1) de enemigos: recicla `ent._lastPlayerDistSq` de `Enemy.update()`
+  // para Cámara (combatFocus) y Sigilo (threat_level) sin recalcular distancias.
   let combatFocus = null;
   const enemies = entityManager.getByTag('enemy');
   let focusX = 0;
@@ -448,9 +630,12 @@ function update(deltaTime) {
     if (!ent || ent.active === false || ent.isDead) continue;
     const ex = ent.pos.x + ent.width * 0.5;
     const ey = ent.pos.y + ent.height * 0.5;
-    const dx = ex - _playerCenterCache.x;
-    const dy = ey - _playerCenterCache.y;
-    const distSq = dx * dx + dy * dy;
+    let distSq = ent._lastPlayerDistSq;
+    if (!Number.isFinite(distSq)) {
+      const dx = ex - _playerCenterCache.x;
+      const dy = ey - _playerCenterCache.y;
+      distSq = dx * dx + dy * dy;
+    }
 
     if (distSq <= focusRangeSq) {
       focusX += ex;
@@ -493,6 +678,9 @@ function update(deltaTime) {
     || player.health <= 1
     || player.currentState === 'STATE_STAGGERED';
   audioManager.setCriticalAudioState(isCriticalAudio);
+  if (window.DEBUG_MODE) {
+    _lastUpdateMs = performance.now() - _tUpdStart;
+  }
 }
 
 // 7. Ciclo de Dibujado Unificado (Single-Canvas Opaque Buffer + Frustum Culling previo al Y-Sort)
@@ -505,16 +693,18 @@ function render(deltaTime) {
     return;
   }
 
+  const _tRndStart = window.DEBUG_MODE ? performance.now() : 0;
   renderer.begin(camera);
   tilemap.render(renderer.ctx, camera);
 
   const visibleBounds = camera.getVisibleWorldBounds(128);
   const visibleEntities = entityManager.getVisibleEntities(visibleBounds);
 
-  renderer.drawEnemyGroundDecals(visibleEntities, stealthSystem);
+  renderer.drawEnemyGroundDecals(visibleEntities, stealthSystem, CelSpriteAtlas.getProjectileSprite);
   renderer.drawCanopyShadows(entityManager.getByTag('tree'), camera, simClockSec);
   renderer.drawEntities(visibleEntities, camera, true);
   vfxRenderer.render(renderer.ctx, combatManager.activeAttacks, player);
+  projectileSystem.render(renderer.ctx, visibleBounds, CelSpriteAtlas.getProjectileSprite);
   renderer.end(camera);
 
   lightManager.update(deltaTime);
@@ -525,6 +715,20 @@ function render(deltaTime) {
     uiManager.render(inputManager, stateManager, deltaTime, camera);
   } else {
     uiManager.setGameState(gameState);
+  }
+
+  if (window.DEBUG_MODE) {
+    const _rndMs = performance.now() - _tRndStart;
+    const stats = chunkManager.getStats();
+    perfOverlay.recordFrame(deltaTime, _lastUpdateMs, _rndMs, {
+      loadedChunks: stats.loadedChunks,
+      rememberedStates: stats.rememberedStates,
+      mountedEntities: entityManager.entities.length,
+      tileChunks: tilemap._chunkCache.size,
+      atlasSprites: CelSpriteAtlas._cache.size
+    });
+  } else if (perfOverlay.el) {
+    perfOverlay.hide();
   }
 }
 
@@ -694,8 +898,24 @@ function updateCaveOrbIntroSequence(dt) {
   }
 }
 
-function enterCaveExitGameplay() {
-  ensureWorldInitialized();
+async function enterCaveExitGameplay() {
+  try {
+    await ensureInitialWorldData();
+    ensureWorldInitialized();
+    if (!worldInitialized) {
+      throw new Error('No se pudo inicializar el escenario inicial');
+    }
+  } catch (err) {
+    console.error('[Main] Error cargando el escenario inicial:', err);
+    stateManager.set('game_state', 'STATE_MENU');
+    uiManager.setGameState('STATE_MENU');
+    if (mainMenuEl) {
+      mainMenuEl.classList.add('menu-cover-active');
+      mainMenuEl.classList.remove('hidden');
+    }
+    engine.pause(false);
+    return;
+  }
   CelSpriteAtlas.prewarm();
 
   stateManager.set('game_state', 'STATE_PLAYING');
@@ -723,6 +943,8 @@ function enterCaveExitGameplay() {
 
 function startGame() {
   if (stateManager.get('game_state') !== 'STATE_MENU') return;
+  // Inicia la carga dinámica del JSON del Mundo 1 en paralelo con el prólogo para evitar demora al omitir
+  void ensureInitialWorldData();
   uiManager.unmountSanctuary();
   if (sanctuaryModalEl) sanctuaryModalEl.classList.add('hidden');
   if (mainMenuEl) {
@@ -734,7 +956,7 @@ function startGame() {
   audioManager.setBiomeAmbience(currentWorldMeta.biome);
 
   cinematicManager.play(PROLOGUE_CUTSCENE, () => {
-    enterCaveExitGameplay();
+    void enterCaveExitGameplay();
   });
 }
 
@@ -743,14 +965,14 @@ if (mainMenuEl) {
   const onTitleScreenBackgroundTap = (e) => {
     if (stateManager.get('game_state') !== 'STATE_MENU') return;
     if (e.target && typeof e.target.closest === 'function') {
-      if (e.target.closest('#btn-settings') || e.target.closest('#skill-tree-modal')) return;
+      if (e.target.closest('#btn-settings') || e.target.closest('#btn-level-editor') || e.target.closest('#skill-tree-modal')) return;
     }
     startGame();
   };
   mainMenuEl.addEventListener('click', onTitleScreenBackgroundTap);
   mainMenuEl.addEventListener('touchend', (e) => {
     if (e.target && typeof e.target.closest === 'function') {
-      if (e.target.closest('#btn-settings') || e.target.closest('#skill-tree-modal')) return;
+      if (e.target.closest('#btn-settings') || e.target.closest('#btn-level-editor') || e.target.closest('#skill-tree-modal')) return;
     }
     if (e.cancelable) e.preventDefault();
     onTitleScreenBackgroundTap(e);
@@ -911,10 +1133,74 @@ addTouchClick(btnToMainMenu, () => {
   }
   stateManager.set('game_state', 'STATE_MENU');
   uiManager.setGameState('STATE_MENU');
+  projectileSystem.clear();
   if (tilemap) tilemap.clearChunks();
   CelSpriteAtlas.clear();
   engine.pause(false);
 });
+
+// 11.B Integración de la Forja de Niveles (Carga Perezosa e Inyección Bajo Demanda)
+let _activeEditorInstance = null;
+let _isPlaytestingLevel = false;
+
+async function launchLevelEditor() {
+  if (mainMenuEl) {
+    mainMenuEl.classList.add('hidden');
+  }
+  if (sanctuaryModalEl) {
+    sanctuaryModalEl.classList.add('hidden');
+    uiManager.unmountSanctuary();
+  }
+
+  const { openLevelEditor } = await import('./editor/LevelEditor.js');
+  _activeEditorInstance = openLevelEditor({
+    container: document.getElementById('game-container'),
+    onExit: () => {
+      engine.pause(false);
+      if (mainMenuEl) {
+        mainMenuEl.classList.remove('hidden');
+        mainMenuEl.classList.add('menu-cover-active');
+      }
+      stateManager.set('game_state', 'STATE_MENU');
+      uiManager.setGameState('STATE_MENU');
+    },
+    onPlaytest: async (worldKey) => {
+      _isPlaytestingLevel = true;
+      if (btnEditorReturn) btnEditorReturn.classList.remove('hidden');
+
+      engine.resume();
+      if (stateManager.get('game_state') !== 'STATE_PLAYING') {
+        stateManager.set('game_state', 'STATE_PLAYING');
+        uiManager.setGameState('STATE_PLAYING');
+      }
+      await loadWorld(worldKey);
+    }
+  });
+}
+
+if (btnLevelEditor) {
+  addTouchClick(btnLevelEditor, (e) => {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    launchLevelEditor();
+  });
+}
+
+if (btnEditorReturn) {
+  addTouchClick(btnEditorReturn, async () => {
+    _isPlaytestingLevel = false;
+    btnEditorReturn.classList.add('hidden');
+    engine.pause(false);
+    stateManager.set('active_dialogue', null);
+    stateManager.set('game_state', 'STATE_MENU');
+    uiManager.setGameState('STATE_MENU');
+    combatManager.clearAllCombatState();
+    projectileSystem.clear();
+    chunkManager.clearAll();
+    if (_activeEditorInstance) {
+      _activeEditorInstance.resumeFromPlaytest();
+    }
+  });
+}
 
 // Botón táctil móvil para interactuar con Pedestales, NPCs y Altares
 if (btnTouchInteract) {
@@ -996,6 +1282,16 @@ inputManager.onSkillEquipped((newPower) => {
 });
 
 window.addEventListener('keydown', (e) => {
+  // Atajo F9 para retornar inmediatamente del Playtest a la Forja de Niveles
+  if (e.key === 'F9' && _isPlaytestingLevel && btnEditorReturn) {
+    e.preventDefault();
+    btnEditorReturn.click();
+    return;
+  }
+
+  // Si el editor de niveles está en pantalla, no interferir con sus atajos ni iniciar juego
+  if (document.getElementById('level-editor-overlay')) return;
+
   const currentState = stateManager.get('game_state');
 
   // Avance desde Pantalla de Título con Enter o Espacio (si el modal de ajustes no está abierto)

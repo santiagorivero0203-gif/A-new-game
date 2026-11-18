@@ -55,8 +55,9 @@ export class Renderer {
    * Cuando está archivado/inactivo retorna de inmediato en O(1).
    * @param {Array<Object>} entities
    * @param {import('../systems/StealthSystem.js').StealthSystem|null} [stealthSystem=null]
+   * @param {((key: string) => HTMLCanvasElement|null)|null} [getConeSpriteFn=null]
    */
-  drawEnemyGroundDecals(entities, stealthSystem = null) {
+  drawEnemyGroundDecals(entities, stealthSystem = null, getConeSpriteFn = null) {
     if (!stealthSystem || !stealthSystem.enabled) return;
 
     const ctx = this.ctx;
@@ -65,7 +66,7 @@ export class Renderer {
       if (!ent || ent.active === false || ent.isDead || typeof ent.drawVisionCone !== 'function') {
         continue;
       }
-      ent.drawVisionCone(ctx, stealthSystem);
+      ent.drawVisionCone(ctx, stealthSystem, getConeSpriteFn);
     }
   }
 

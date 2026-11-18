@@ -99,12 +99,16 @@ export class Player extends Entity {
     this.parryWindowDuration = PLAYER_STATS.parry_window_base || 0.16;
     this.hurtTimer = 0;
 
-    // --- Física de Esquiva (Dash) y Pool Zero-GC de Estelas Fantasma ---
+    // --- Física de Esquiva / Deslizamiento / Plancha y Pool Zero-GC de Estelas ---
     this.dashCooldown = 0;
     this.dashTimer = 0;
     this.isDashing = false;
     this.dashSpeed = 0;
     this.dashDirection = new Vector2(0, 0);
+    this.lowProfile = false;
+    this._burstFriction = 0;
+    this._burstGhostColor = null;
+    this._sprintNoiseTimer = 0;
     /** @type {Array<{x: number, y: number, alpha: number, color: string}>} Estelas activas en coordenadas de mundo */
     this.dashGhosts = [];
     /** @private Pool reutilizable de estelas para evitar presión sobre el Garbage Collector */
@@ -338,17 +342,84 @@ export class Player extends Entity {
    * @param {number} [speed=420]
    * @param {number} [duration=0.22]
    */
-  startDash(dx, dy, speed = 420, duration = 0.22) {
+  /**
+   * Núcleo compartido de impulso direccional para Dash, Slide (`STATE_SLIDE`) y Dive (`STATE_DIVE`).
+   * Unifica temporizadores, vector normalizado, squash-and-stretch, iframes y estelas sin duplicación.
+   * @param {'STATE_DASH'|'STATE_SLIDE'|'STATE_DIVE'} nextState
+   * @param {number} dx
+   * @param {number} dy
+   * @param {number} speed
+   * @param {number} duration
+   * @param {number} [friction=0] - Desaceleración lineal (px/s²)
+   * @param {number} [iframeExtra=0.06] - Ajuste de iframes (si duration + iframeExtra <= 0 no otorga iframes)
+   * @param {string|null} [ghostColor=null]
+   */
+  _startBurstMotion(nextState, dx, dy, speed, duration, friction = 0, iframeExtra = 0.06, ghostColor = null) {
     const len = Math.hypot(dx, dy) || 1;
     this.dashDirection.set(dx / len, dy / len);
     this._syncFacingFromVector(this.dashDirection.x, this.dashDirection.y);
     this.dashSpeed = speed;
     this.dashTimer = duration;
     this.stateTimer = duration;
+    this._burstFriction = friction;
+    this._burstGhostColor = ghostColor;
     this.isDashing = true;
-    this.scaleX = 1.24;
-    this.scaleY = 0.80;
-    this.applyEffect('iframe', duration + 0.06);
+    this.fsmState = nextState;
+
+    if (nextState === 'STATE_SLIDE') {
+      this.scaleX = 1.30;
+      this.scaleY = 0.68;
+      this.lowProfile = true;
+    } else if (nextState === 'STATE_DIVE') {
+      this.scaleX = 1.36;
+      this.scaleY = 0.64;
+      this.lowProfile = true;
+    } else {
+      this.scaleX = 1.24;
+      this.scaleY = 0.80;
+      this.lowProfile = false;
+    }
+
+    const iframeDuration = duration + iframeExtra;
+    if (iframeDuration > 0) {
+      this.applyEffect('iframe', iframeDuration);
+    }
+  }
+
+  /**
+   * Inicia un desplazamiento balístico invulnerable (Dash) sobre un vector 2D normalizado.
+   * @param {number} dx
+   * @param {number} dy
+   * @param {number} [speed=420]
+   * @param {number} [duration=0.22]
+   */
+  startDash(dx, dy, speed = 420, duration = 0.22) {
+    this._startBurstMotion('STATE_DASH', dx, dy, speed, duration, 0, 0.06, null);
+  }
+
+  /**
+   * Inicia un deslizamiento táctico en perfil bajo (`lowProfile = true`) aprovechando la fricción del suelo.
+   * @param {number} dx
+   * @param {number} dy
+   * @param {number} [surfaceSlideFactor=1.0] - Escalar plano del suelo (`Tilemap.getSurfaceSlideFactor`)
+   */
+  startSlide(dx, dy, surfaceSlideFactor = 1.0) {
+    const factor = Math.max(0.65, Number(surfaceSlideFactor) || 1.0);
+    const speed = (PLAYER_STATS.slide_speed || 330) * (1 + Math.min(0.28, (factor - 1) * 0.35));
+    const duration = (PLAYER_STATS.slide_duration || 0.34) * Math.min(1.45, Math.max(0.85, 0.85 + (factor - 1) * 0.45));
+    const friction = 340 / factor;
+    this._startBurstMotion('STATE_SLIDE', dx, dy, speed, duration, friction, -999, '#38bdf8');
+  }
+
+  /**
+   * Inicia una plancha balística (`STATE_DIVE`) en perfil bajo con evasión aérea breve.
+   * @param {number} dx
+   * @param {number} dy
+   */
+  startDive(dx, dy) {
+    const speed = PLAYER_STATS.dive_speed || 445;
+    const duration = PLAYER_STATS.dive_duration || 0.30;
+    this._startBurstMotion('STATE_DIVE', dx, dy, speed, duration, 520, -0.12, '#bae6fd');
   }
 
   /**
@@ -459,6 +530,10 @@ export class Player extends Entity {
     this.guard_meter = this.max_guard;
     this.fsmState = 'STATE_IDLE';
     this.isDashing = false;
+    this.isProne = false;
+    this.lowProfile = false;
+    this._burstFriction = 0;
+    this._burstGhostColor = null;
     this.healTimer = 1.0;
     this.applyEffect('iframe', 2.2);
     this.applyEffect('vitality_shield', 3.5);
@@ -546,13 +621,17 @@ export class Player extends Entity {
       styleBonus += crimsonRank === 1 ? 0.18 : 0.30;
     }
 
-    // Caso Especial AAA: DASH-STRIKE (Estocada Relámpago si atacas durante el Dash)
+    // Caso Especial AAA: DASH-STRIKE / SLIDE-STRIKE (Estocada Relámpago si atacas durante Dash/Slide/Dive)
     if (this.isDashing && this.dashTimer > 0.02) {
+      const wasSlide = this.fsmState === 'STATE_SLIDE' || this.fsmState === 'STATE_DIVE';
       this.isDashing = false;
       this.dashTimer = 0;
+      this._burstFriction = 0;
+      this._burstGhostColor = null;
+      this.lowProfile = Boolean(this.isProne);
 
       const dashUpgradeMult = 1.0 + dashRank * 0.10;
-      const strikeDamage = Math.round(baseDamage * 1.40 * dashUpgradeMult * styleBonus);
+      const strikeDamage = Math.round(baseDamage * (wasSlide ? 1.48 : 1.40) * dashUpgradeMult * styleBonus);
       const duration = 0.18;
 
       this.fsmState = 'STATE_ATTACK_WEAK';
@@ -790,30 +869,53 @@ export class Player extends Entity {
             ? waveBaseDamage
             : Math.round(waveBaseDamage * 0.78);
 
-          combatManager.addAttack({
-            owner: this,
-            type: 'weak',
-            element: 'physical',
-            isBladeWave: true,
-            isProjectile: true,
-            damage: wDamage,
-            duration: 0.45,
-            x: startX,
-            y: startY,
-            dx: wdx,
-            dy: wdy,
-            aimAngle: wAng,
-            speed: waveSpeed,
-            hitEntities: new Set(),
-            destroyOnHit: false,
-            hitbox: { x: startX - 16, y: startY - 16, width: 32, height: 32 },
-            update: function (dt) {
-              this.x += this.dx * this.speed * dt;
-              this.y += this.dy * this.speed * dt;
-              this.hitbox.x = this.x - 16;
-              this.hitbox.y = this.y - 16;
-            }
-          });
+          const projSys = context && context.projectileSystem;
+          if (projSys && typeof projSys.spawn === 'function') {
+            projSys.spawn({
+              owner: this,
+              type: 'weak',
+              element: 'physical',
+              isBladeWave: true,
+              isFriendly: true,
+              spriteKey: 'blade_wave',
+              damage: wDamage,
+              duration: 0.45,
+              x: startX,
+              y: startY,
+              dx: wdx,
+              dy: wdy,
+              aimAngle: wAng,
+              speed: waveSpeed,
+              radius: 16,
+              altitude: 'low',
+              destroyOnHit: false
+            });
+          } else {
+            combatManager.addAttack({
+              owner: this,
+              type: 'weak',
+              element: 'physical',
+              isBladeWave: true,
+              isProjectile: true,
+              damage: wDamage,
+              duration: 0.45,
+              x: startX,
+              y: startY,
+              dx: wdx,
+              dy: wdy,
+              aimAngle: wAng,
+              speed: waveSpeed,
+              hitEntities: new Set(),
+              destroyOnHit: false,
+              hitbox: { x: startX - 16, y: startY - 16, width: 32, height: 32 },
+              update: function (dt) {
+                this.x += this.dx * this.speed * dt;
+                this.y += this.dy * this.speed * dt;
+                this.hitbox.x = this.x - 16;
+                this.hitbox.y = this.y - 16;
+              }
+            });
+          }
         }
       }
     }
@@ -918,10 +1020,13 @@ export class Player extends Entity {
 
     if (this.dashTimer > 0) {
       this.dashTimer -= deltaTime;
+      if (this._burstFriction > 0) {
+        this.dashSpeed = Math.max(55, this.dashSpeed - this._burstFriction * deltaTime);
+      }
       this._ghostSpawnAccum += deltaTime;
       if (this._ghostSpawnAccum >= 0.035) {
         this._ghostSpawnAccum = 0;
-        const pColor = this.currentAbility === 'Fuego' ? '#fb923c' : this.currentAbility === 'Embestida' ? '#38bdf8' : '#4ade80';
+        const pColor = this._burstGhostColor || (this.currentAbility === 'Fuego' ? '#fb923c' : this.currentAbility === 'Embestida' ? '#38bdf8' : '#4ade80');
         const ghost = this._ghostPool.length > 0 ? this._ghostPool.pop() : { x: 0, y: 0, alpha: 0, color: '' };
         ghost.x = this.pos.x;
         ghost.y = this.pos.y;
@@ -931,9 +1036,12 @@ export class Player extends Entity {
       }
       if (this.dashTimer <= 0) {
         this.isDashing = false;
-        if (this.fsmState === 'STATE_DASH') {
+        this._burstFriction = 0;
+        this._burstGhostColor = null;
+        if (this.fsmState === 'STATE_DASH' || this.fsmState === 'STATE_SLIDE' || this.fsmState === 'STATE_DIVE') {
           this.fsmState = 'STATE_IDLE';
         }
+        this.lowProfile = Boolean(this.isProne);
       }
     }
 
@@ -999,32 +1107,69 @@ export class Player extends Entity {
         this._syncFacingFromVector(moveX, moveY);
       }
 
-      // 1.5 Sigilo activable solo cuando StealthSystem esté habilitado + Sprint con Resistencia
+      // 1.5 Postura Baja / Deslizamiento (`STATE_SLIDE`) + Sigilo en zonas permitidas + Sprint con Resistencia
       const stealthAllowed = Boolean(context && context.stealthSystem && context.stealthSystem.enabled);
-      if (!stealthAllowed) {
-        this.isProne = false;
-        this.isStealthHidden = false;
-        if (input.isStealthPressed && typeof input.consumeStealth === 'function') {
-          input.consumeStealth();
+      const isMoving = (moveX !== 0 || moveY !== 0);
+      const dxDir = this.facing === 'right' ? 1 : this.facing === 'left' ? -1 : 0;
+      const dyDir = this.facing === 'down' ? 1 : this.facing === 'up' ? -1 : 0;
+      const burstDirX = isMoving ? moveX : dxDir;
+      const burstDirY = isMoving ? moveY : dyDir;
+
+      const emitNoise = (radius) => {
+        if (!stealthAllowed) return;
+        if (context && typeof context.emitNoiseFn === 'function') {
+          context.emitNoiseFn(this.pos.x + 16, this.pos.y + 16, radius);
+        } else if (context && context.stealthSystem && typeof context.stealthSystem.emitNoise === 'function') {
+          context.stealthSystem.emitNoise(this.pos.x + 16, this.pos.y + 16, radius);
         }
-      } else if (input.isStealthPressed) {
-        this.isProne = !this.isProne;
-        this.isStealthHidden = Boolean(this.inTallGrass && this.isProne);
+      };
+
+      if (input.isStealthPressed) {
         if (typeof input.consumeStealth === 'function') input.consumeStealth();
+        const canSlideFromSprint = isMoving && this.isSprinting && !this.isDashing && this.dashCooldown <= 0;
+        const canSlideFromDash = this.fsmState === 'STATE_DASH';
+        if ((canSlideFromSprint || canSlideFromDash) && this.fsmState !== 'STATE_GUARD_BREAK') {
+          this.isProne = false;
+          this.isStealthHidden = false;
+          this.dashCooldown = PLAYER_STATS.slide_cooldown || 0.25;
+          this.attackTimer = 0;
+          this.queuedAction = null;
+          if (combatManager) combatManager.cancelAttacksFrom(this);
+          this.swordCooldown = 0;
+          const surfaceSlideFactor = (context && typeof context.surfaceSlideFactor === 'number') ? context.surfaceSlideFactor : 1.0;
+          if (context.audioManager) context.audioManager.playDash();
+          if (context.vfxRenderer) {
+            context.vfxRenderer.spawnImpact('dash_dust', this.pos.x + 16, this.pos.y + 26, { radius: 16, duration: 0.24 });
+          }
+          emitNoise(82);
+          this.startSlide(burstDirX, burstDirY, surfaceSlideFactor);
+        } else if (!this.isDashing) {
+          this.isProne = !this.isProne;
+          this.isStealthHidden = Boolean(stealthAllowed && this.inTallGrass && this.isProne);
+        }
+      } else if (!stealthAllowed && this.isStealthHidden) {
+        this.isStealthHidden = false;
       }
 
-      const wantsSprint = (input.isSprintPressed || input.isKeyPressed('KeyF') || input.isKeyPressed('KeyV')) && !this.isProne;
-      const isMoving = (moveX !== 0 || moveY !== 0);
+      this.lowProfile = Boolean(this.isProne || this.fsmState === 'STATE_SLIDE' || this.fsmState === 'STATE_DIVE');
+
+      const wantsSprint = (input.isSprintPressed || input.isKeyPressed('KeyF') || input.isKeyPressed('KeyV')) && !this.isProne && !this.isDashing;
 
       if (wantsSprint && isMoving && !this.staminaExhausted && this.stamina > 0) {
         this.isSprinting = true;
         this.stamina = Math.max(0, this.stamina - 24 * deltaTime);
+        this._sprintNoiseTimer += deltaTime;
+        if (this._sprintNoiseTimer >= 0.42) {
+          this._sprintNoiseTimer = 0;
+          emitNoise(128);
+        }
         if (this.stamina <= 0) {
           this.staminaExhausted = true;
           this.isSprinting = false;
         }
       } else {
         this.isSprinting = false;
+        this._sprintNoiseTimer = 0;
         const staminaRank = skillTree ? skillTree.getSkillRank('stamina_mastery') : 0;
         this.max_stamina = 100 + staminaRank * 25;
         const regenRate = 28 * (1 + staminaRank * 0.20);
@@ -1085,37 +1230,39 @@ export class Player extends Entity {
         }
       }
 
-      // 3. Dash con Invulnerabilidad y Cancelación Instantánea de Animación
-      const canDashCancel = this.fsmState !== 'STATE_GUARD_BREAK' && !this.isDashing;
-      if (input.isDashPressed && this.dashCooldown <= 0 && canDashCancel) {
+      // 3. Dash Balístico o Plancha Táctica (`STATE_DIVE` si ya está agachado / deslizando)
+      const isSlideState = this.fsmState === 'STATE_SLIDE';
+      const canDashCancel = this.fsmState !== 'STATE_GUARD_BREAK' && (!this.isDashing || isSlideState);
+      if (input.isDashPressed && (this.dashCooldown <= 0 || isSlideState) && canDashCancel) {
         if (typeof input.consumeDash === 'function') input.consumeDash();
-        const dashCost = PLAYER_STATS.dash_cost;
-        if (this.energy >= dashCost) {
-          this.energy -= dashCost;
+        const wantsDive = this.isProne || isSlideState;
+        const burstCost = wantsDive ? (PLAYER_STATS.dive_cost || 12) : PLAYER_STATS.dash_cost;
+        if (this.energy >= burstCost) {
+          this.energy -= burstCost;
           const dashRank = skillTree ? skillTree.getSkillRank('dash_cooldown') : 0;
-          this.dashCooldown = Math.max(
-            0.22,
-            (PLAYER_STATS.dash_cooldown_base || 0.6) * (1 - dashRank * 0.14)
-          );
+          const baseCd = wantsDive ? (PLAYER_STATS.dive_cooldown || 0.42) : (PLAYER_STATS.dash_cooldown_base || 0.6);
+          this.dashCooldown = Math.max(0.22, baseCd * (1 - dashRank * 0.14));
 
           this.attackTimer = 0;
           this.queuedAction = null;
           if (combatManager) {
             combatManager.cancelAttacksFrom(this);
           }
-          this.swordCooldown = 0; // Liberar espada al instante para permitir Dash-Strike en el frame siguiente
-          this.fsmState = 'STATE_DASH';
-
-          const dx = this.facing === 'right' ? 1 : this.facing === 'left' ? -1 : 0;
-          const dy = this.facing === 'down' ? 1 : this.facing === 'up' ? -1 : 0;
-          const useX = (moveX !== 0 || moveY !== 0) ? moveX : dx;
-          const useY = (moveX !== 0 || moveY !== 0) ? moveY : dy;
+          this.swordCooldown = 0; // Liberar espada al instante para permitir Dash-Strike / Slide-Strike
 
           if (context.audioManager) context.audioManager.playDash();
           if (context.vfxRenderer) {
-            context.vfxRenderer.spawnImpact('dash_dust', this.pos.x + 16, this.pos.y + 26, { radius: 18, duration: 0.22 });
+            context.vfxRenderer.spawnImpact('dash_dust', this.pos.x + 16, this.pos.y + 26, { radius: wantsDive ? 20 : 18, duration: 0.22 });
           }
-          this.startDash(useX, useY, PLAYER_STATS.dash_speed, PLAYER_STATS.dash_duration);
+
+          if (wantsDive) {
+            this.isProne = false;
+            this.isStealthHidden = false;
+            emitNoise(110);
+            this.startDive(burstDirX, burstDirY);
+          } else {
+            this.startDash(burstDirX, burstDirY, PLAYER_STATS.dash_speed, PLAYER_STATS.dash_duration);
+          }
 
           // Talento `phantom_step` (Asalto Fantasma): electrocuta enemigos atravesados escalado por rango
           const phantomRank = skillTree ? skillTree.getSkillRank('phantom_step') : 0;
@@ -1482,15 +1629,16 @@ export class Player extends Entity {
 
     const isMoving = this.fsmState === 'STATE_MOVE';
     const bobY = isMoving ? Math.round(Math.abs(Math.sin(this.walkCycle)) * -2) : 0;
-    const proneYOffset = this.isProne ? 4 : 0;
+    const isLowManeuver = this.fsmState === 'STATE_SLIDE' || this.fsmState === 'STATE_DIVE';
+    const proneYOffset = this.fsmState === 'STATE_DIVE' ? 7 : (this.isProne || isLowManeuver) ? 4 : 0;
     const stepPhase = Math.floor(this.walkCycle * 1.35) & 3;
     const stepFrame = isMoving ? (stepPhase === 0 ? 1 : stepPhase === 2 ? 3 : 0) : 0;
 
-    // Pivote pixel-art entero para bob vertical y postura de sigilo (cero escalado fraccionario)
+    // Pivote pixel-art entero para bob vertical y postura de perfil bajo/sigilo
     ctx.save();
     ctx.translate(0, bobY + proneYOffset);
 
-    if (this.isProne) {
+    if (this.isProne && !isLowManeuver) {
       ctx.globalAlpha = this.isStealthHidden ? 0.68 : 0.90;
     }
 
@@ -1541,10 +1689,15 @@ export class Player extends Entity {
 
     ctx.restore();
 
-    // 5. Indicador discreto de postura agachada/sigilo nítido sobre los píxeles
-    if (this.isProne) {
-      ctx.fillStyle = this.isStealthHidden ? '#4ade80' : '#94a3b8';
+    // 5. Indicador discreto de postura baja / deslizamiento / sigilo sobre los píxeles
+    if (this.lowProfile || this.isProne) {
+      ctx.fillStyle = this.isStealthHidden ? '#4ade80' : isLowManeuver ? '#38bdf8' : '#94a3b8';
       ctx.fillRect(x + 10, y + 32, 12, 2);
+      if (isLowManeuver) {
+        ctx.fillStyle = '#bae6fd';
+        ctx.fillRect(x + 6, y + 26, 6, 2);
+        ctx.fillRect(x + 20, y + 24, 5, 2);
+      }
     }
 
     // 6. Indicador de Estrellas de Aturdimiento determinista si sufrió Guard Break

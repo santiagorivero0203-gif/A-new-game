@@ -349,7 +349,7 @@ export class InputManager {
       }
       if (KEYBINDINGS.HEAL.includes(e.code)) this.triggerAction('heal', 200);
       if (KEYBINDINGS.DASH.includes(e.code)) this.triggerAction('dash', 200);
-      if (this.stealthEnabled && KEYBINDINGS.STEALTH.includes(e.code) && !e.repeat) {
+      if (KEYBINDINGS.STEALTH.includes(e.code) && !e.repeat) {
         this.triggerAction('stealth', 200);
       }
 
@@ -570,9 +570,9 @@ export class InputManager {
     // 3.7 Botón de Sprint / Carrera con Resistencia (acción continua mientras se mantiene pulsado)
     bindBtn('touch-btn-sprint', () => { this.isSprintPressed = true; }, () => { this.isSprintPressed = false; });
 
-    // 3.8 Botón de Sigilo / Agacharse en Grama Alta (solo responde si el modo sigilo está habilitado)
+    // 3.8 Botón de Agacharse / Slide / Sigilo ([C]) activo siempre en móvil
     bindBtn('touch-btn-stealth', () => {
-      if (this.stealthEnabled) this.isStealthPressed = true;
+      this.isStealthPressed = true;
     }, () => {
       this.isStealthPressed = false;
     }, 'stealth');
@@ -860,14 +860,12 @@ export class InputManager {
   }
 
   /**
-   * Habilita o deshabilita el comando de sigilo según la escena actual.
+   * Habilita o deshabilita el indicador visual de zona de sigilo según la escena actual.
+   * Mantiene [C] / botón de agacharse disponible para Slide y Dive táctico.
    * @param {boolean} enabled
    */
   setStealthEnabled(enabled) {
     this.stealthEnabled = Boolean(enabled);
-    if (!this.stealthEnabled) {
-      this.consumeStealth();
-    }
   }
 
   /**

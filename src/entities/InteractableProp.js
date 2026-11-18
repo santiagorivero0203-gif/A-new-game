@@ -35,7 +35,7 @@ export class InteractableProp extends Entity {
    */
   constructor(config) {
     const normalizedType = InteractableProp._normalizePropType(config.propType);
-    const dims = InteractableProp._getDimensions(normalizedType);
+    const dims = InteractableProp._getDimensions(normalizedType, config);
     super(config.x, config.y, dims.w, dims.h);
 
     this.propId = config.id || `${normalizedType}_${Math.round(config.x)}_${Math.round(config.y)}`;
@@ -50,8 +50,17 @@ export class InteractableProp extends Entity {
     this.runeColor = config.runeColor || '#38bdf8';
     this.portalColor = config.portalColor || '#38bdf8';
     this.targetWorld = config.targetWorld || '';
+    this.targetSpawnId = config.targetSpawnId || null;
     this.worldLabel = config.worldLabel || 'Atlas de Mundos';
     this.essenceReward = Number(config.essenceReward || 0);
+
+    // Metadatos para objetos de ambiente personalizados (Forja de Zonas)
+    this.customKey = config.customKey || 'objeto_personalizado';
+    this.devDescription = config.devDescription || '';
+    this.textureUrl = config.textureUrl || '';
+    this.isSolidProp = config.isSolid !== false;
+    this.isInteractableProp = config.isInteractable !== false;
+    this.tintColor = config.tintColor || '#a855f7';
 
     this.tags.push('prop');
     this.isConsumed = false;
@@ -123,10 +132,13 @@ export class InteractableProp extends Entity {
   }
 
   /**
-   * Retorna dimensiones canónicas por tipo de prop.
+   * Retorna dimensiones canónicas por tipo de prop (o dimensiones explícitas para `custom_env_prop`).
    * @private
+   * @param {string} propType
+   * @param {Object|null} [config=null]
+   * @returns {{ w: number, h: number }}
    */
-  static _getDimensions(propType) {
+  static _getDimensions(propType, config = null) {
     const normalizedType = InteractableProp._normalizePropType(propType);
     switch (normalizedType) {
       case 'cave_mouth': return { w: 192, h: 156 };
@@ -142,6 +154,11 @@ export class InteractableProp extends Entity {
       case 'rusted_greatsword': return { w: 48, h: 56 };
       case 'runic_obelisk': return { w: 56, h: 88 };
       case 'world_portal': return { w: 76, h: 76 };
+      case 'custom_env_prop':
+        return {
+          w: Math.max(16, Math.min(384, Number(config?.width) || 64)),
+          h: Math.max(16, Math.min(384, Number(config?.height) || 64))
+        };
       default: return { w: 48, h: 48 };
     }
   }
@@ -230,6 +247,20 @@ export class InteractableProp extends Entity {
         this.tags.push('interactable');
         this.tags.push('world_portal');
         this.hitbox = { offsetX: 18, offsetY: 28, width: 40, height: 26 };
+        break;
+
+      case 'custom_env_prop':
+        if (this.isSolidProp) this.tags.push('solid');
+        if (this.isInteractableProp) {
+          this.tags.push('interactable');
+          this.tags.push('custom_env_prop');
+        }
+        this.hitbox = {
+          offsetX: Math.round(this.width * 0.12),
+          offsetY: Math.round(this.height * 0.55),
+          width: Math.max(12, Math.round(this.width * 0.76)),
+          height: Math.max(10, Math.round(this.height * 0.38))
+        };
         break;
     }
 
@@ -625,7 +656,7 @@ export class InteractableProp extends Entity {
       if (stateManager) {
         const loadWorldHook = stateManager.get('load_world_hook');
         if (this.targetWorld && typeof loadWorldHook === 'function') {
-          loadWorldHook(this.targetWorld);
+          loadWorldHook(this.targetWorld, { spawnId: this.targetSpawnId });
           return null;
         }
         const openHook = stateManager.get('open_sanctuary_hook');
@@ -635,6 +666,16 @@ export class InteractableProp extends Entity {
         }
       }
       return `Portal del Atlas sintonizado hacia ${this.worldLabel}.`;
+    }
+
+    if (this.propType === 'custom_env_prop') {
+      if (context && context.audioManager && typeof context.audioManager.playRunicResonance === 'function') {
+        context.audioManager.playRunicResonance();
+      }
+      return this.loreText
+        || (this.devDescription
+          ? `[${this.label || this.customKey}] ${this.devDescription}`
+          : `Objeto de ambiente: ${this.label || this.customKey}.`);
     }
 
     return null;
@@ -728,9 +769,21 @@ export class InteractableProp extends Entity {
       this._drawSanctuaryAltar(ctx, x, y);
     } else if (this.propType === 'horde_totem') {
       this._drawHordeTotem(ctx, x, y);
+    } else if (this.propType === 'custom_env_prop') {
+      const customImg = CelSpriteAtlas.getCustomTextureImage(this.textureUrl);
+      if (customImg) {
+        ctx.drawImage(customImg, x, y, this.width, this.height);
+      } else {
+        const placeholder = CelSpriteAtlas.getCustomPropPlaceholderSprite(this.width, this.height, this.tintColor);
+        if (placeholder) ctx.drawImage(placeholder, x, y, this.width, this.height);
+      }
     }
 
-    if (this.playerNearby && !((this.propType === 'relic_pedestal' || this.propType === 'starter_sword') && this.isConsumed)) {
+    if (
+      this.playerNearby &&
+      !(this.propType === 'custom_env_prop' && !this.isInteractableProp) &&
+      !((this.propType === 'relic_pedestal' || this.propType === 'starter_sword') && this.isConsumed)
+    ) {
       this._drawPromptBadge(ctx, x + this.width / 2, y - 8);
     }
   }

@@ -195,5 +195,93 @@ sequenceDiagram
 - **Cero Bucle Ocioso (`Engine.js`)**: `engine.pause()` cancela el `requestAnimationFrame` pendiente en lugar de seguir refrescando 60/120 veces por segundo; en `STATE_CINEMATIC` el bucle se pausa automáticamente al terminar el efecto máquina de escribir hasta la siguiente interacción (`onWake`), y la pestaña oculta (`visibilitychange`) detiene el bucle.
 - **Carga Perezosa de Mundo, Cinemáticas y Menús**: Al iniciar en `#main-menu` NO se pre-cargan cinemáticas, entidades, sprites ni el Santuario. Al salir del menú se libera `cover.jpg` (`.menu-cover-active`), `UIManager.unmountSanctuary()` limpia el DOM/texturas del Santuario al cerrarlo (`menu_sanctuary_bg.jpg`, `skill_combat_preview.jpg`), `LightManager` limita re-horneados a `~30 Hz`, y `.hidden *` pausa animaciones CSS.
 
+---
+
+## 9. Optimización de Datos, Cero-GC y Rejilla Espacial v4.0.0 (Fases 0–3)
+
+### 9.1. Telemetría Condicional (`PerfOverlay.js`)
+- [`PerfOverlay`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/render/PerfOverlay.js) renderiza FPS, ms de `update`/`render`, chunks activos/recordados y caché de sprites a ~4 Hz únicamente cuando `window.DEBUG_MODE === true`.
+
+### 9.2. Compresión de Imágenes y Limpieza de `public/assets`
+- Cinemáticas y `cover.jpg` reescaladas de `2752x1536` a `1280x720` (calidad 82, `-78%` de RAM decodificada), `menu_sanctuary_bg.jpg` a `960x536`, `skill_combat_preview.jpg` a `640x358`, `gauntlet_crest.jpg` de `1024x1024` a `128x128` (`5.4 KB`), y decodificación asíncrona con `img.decode()` en `CinematicManager`.
+- Assets sin referencias movidos fuera de `public/` a `_assets_backup/unused/` (y originales respaldados en `_assets_backup/originals/`).
+
+### 9.3. Cero Asignaciones por Frame (`StateManager`, `Entity`, `EntityManager`, `CombatManager`, `InteractionSystem`, `CelSpriteAtlas`)
+- `StateManager.set()` aplica dirty-check (`===`) y cachea nombres `${key}_changed` sin emitir cuando el valor no cambia.
+- `Entity.hasTag()` consulta un `Set` sincronizado en O(1) en lugar de `Array.includes`.
+- `EntityManager.removeEntity()` usa swap-and-pop O(1) sin `Array.splice`.
+- `CombatManager` reutiliza `_activeThreatCache` y aplica dirty-check en `_syncComboState()`; `InteractionSystem` evita `concat()`; `CelSpriteAtlas` marca `_lastUse` en O(1) sin `delete+set` en cada frame.
+
+### 9.4. Rejilla Espacial Hash (`SpatialGrid.js`)
+- [`SpatialGrid`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/world/SpatialGrid.js) indexa entidades y sólidos por celdas de `128 px` con claves enteras empaquetadas y buffers reutilizables (`queryBounds`) en `PhysicsSystem`, `Enemy` (separación) y `CombatManager` (colisiones de ataques).
+
+---
+
+## 10. Escalabilidad Multi-Escenario, Pool de Proyectiles, Slide/Dive, Sigilo v2 y Minimapa v5.0
+
+> **Principio rector:** Ningún subsistema importa directamente las clases concretas de otros subsistemas; el orquestador [`main.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/main.js) calcula una sola vez los datos compartidos del fotograma (`_playerCenterCache`, `visibleBounds`, `surfaceSlideFactor`, `lightFactor`, `enemy._lastPlayerDistSq`) y los recicla mediante escalares y callbacks planos Zero-GC.
+
+### 10.1. Carga Dinámica de Mundos y Persistencia Desacoplada (`worlds.js`, `WorldMemoryStore.js`, `ChunkManager.js`)
+- `WORLDS_CATALOG` conserva únicamente metadatos ligeros en el bundle inicial; [`loadWorldData(worldKey, evictOthers)`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/data/worlds.js) importa bajo demanda el JSON del bioma activo (`import('./levels/${worldKey}.json')` nativo de Vite/ESM sin atributos MIME incompatibles en dev) y libera referencias de escenarios previos con `releaseWorldData()`.
+- [`WorldMemoryStore`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/world/WorldMemoryStore.js) preserva snapshots compactos (`ChunkManager.exportMemory()` / `importMemory()`) y máscaras de Niebla de Guerra (`Uint32Array`, ~64 bytes/mundo) al viajar entre mundos sin retener nodos ni texturas inactivas en RAM.
+
+### 10.2. Pool de Proyectiles Zero-GC y Batching Flyweight (`ProjectileSystem.js`, `CelSpriteAtlas.js`)
+- [`ProjectileSystem`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/systems/ProjectileSystem.js) gestiona hasta **192 proyectiles simultáneos** con ranuras planas reutilizables (*swap-and-pop*), detección O(1) de proyectiles hostiles contra `playerTarget`, rechazo rápido de hitos estáticos y renderizado en un único lote desde sprites horneados (`CelSpriteAtlas.getProjectileSprite()`).
+- Soporte nativo de altura (`altitude: 'high' | 'low'`): los proyectiles altos pasan sobre el jugador cuando `player.lowProfile === true` y disparan `onLowEvadeFn` (`¡ESQUIVA BAJA!`). Integrado de forma opcional (con fallback a `CombatManager`) en [`FireAbility.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/combat/FireAbility.js), [`Enemy.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/entities/Enemy.js), [`Player.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/entities/Player.js) (`bladeWave`) y [`CombatManager.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/systems/CombatManager.js) (`mirror_ricochet`).
+
+### 10.3. Maniobras de Perfil Bajo Compartidas: Slide y Dive (`Player.js`, `Tilemap.js`, `PlayerStats.js`)
+- [`Player._startBurstMotion()`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/entities/Player.js) unifica **`STATE_DASH`**, **`STATE_SLIDE`** (`[C]` / botón móvil `BAJAR` al correr o cancelar dash) y **`STATE_DIVE`** (`[Espacio]` / botón `ESQUIVAR` estando agachado o deslizando) reutilizando el mismo temporizador, vector de impulso, pool de estelas fantasma y **Slide-Strike** cuerpo a cuerpo.
+- `Tilemap.getSurfaceSlideFactor(tileId, biomeKey)` entrega un escalar plano en `gameContext.surfaceSlideFactor` para modular fricción/alcance en piedra pulida, madera, musgo húmedo o ceniza sin acoplar `Player` con `Tilemap`.
+
+### 10.4. Sigilo Modular v2: Zonas, Sospecha Gradual y Eventos de Ruido (`StealthSystem.js`)
+- [`StealthSystem`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/systems/StealthSystem.js) soporta activación global o por zonas AABB (`setZones` / `evaluateZoneAt`) sin bloquear `player.isProne` / `lowProfile` fuera de zona.
+- Acumula `enemy.suspicion` (`0..100`) reciclando `enemy._lastPlayerDistSq`, el perfil bajo (`player.lowProfile`) y el escalar lumínico (`samplePlayerLightFactor` en `main.js`), responde a pulsos puntuales (`emitNoise` sin polling ocioso) y dibuja conos Flyweight (`cone_patrol` / `cone_alert`) vía callback.
+
+### 10.5. Audio WebAudio Resiliente y Optimización de Entidades
+- `SpatialGrid.updateEntity()` descarta en O(1) entidades inmóviles comparando coordenadas previas (`_sgLx` / `_sgLy`) y `CelSpriteAtlas.MAX_CACHED_SPRITES = 160` evita desalojos y lecturas `getImageData` GPU->CPU durante combates intensos; `LightManager` limita re-horneados a ~30 Hz salvo saltos de cámara `>= 14 px`.
+- [`AudioManager`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/core/AudioManager.js) bloquea la inicialización prematura fuera de gesto de usuario, escucha `statechange` + promesas `.resume().then()` en `pointerdown`/`mousedown`/`click`/`touchend`/`keydown` para activar automáticamente la ambientación del bioma y SFX en Firefox/Chrome sin descartarlos por estado `'suspended'`, y acota el filtro paso-bajo al Nyquist real del hardware (`sampleRate * 0.45`).
+
+---
+
+## 11. Forja de Mundos: Creador y Editor Visual de Niveles v1.0.0 (`src/editor/`)
+
+> **Objetivo:** Permitir la creación, edición visual, guardado, exportación/importación `.json` y prueba instantánea (*Playtest*) de niveles 100% compatibles con el esquema JSON canónico del motor, sin dependencias circulares y sin impacto de RAM o CPU durante la partida normal.
+
+### 11.1. Principios de Cero Sobrecarga (Lazy Import & Render Bajo Demanda)
+- **Carga Perezosa (0 KB en arranque):** El módulo del editor (`src/editor/*`) no forma parte del bundle principal de arranque. Solo se importa mediante `await import('./editor/LevelEditor.js')` cuando el jugador hace clic en el botón periférico **"FORJA DE NIVELES"** de la Pantalla de Título. En el build de producción se empaqueta como un chunk aislado (`dist/assets/LevelEditor-*.js`).
+- **Renderizado Bajo Demanda (0 FPS en reposo):** No ejecuta ningún bucle continuo de `requestAnimationFrame` mientras el usuario no interactúa. Solo redibuja un fotograma cuando se produce una acción (pincelada, pan, zoom, selección o edición de inspector).
+- **Desacoplamiento Estricto:** El editor nunca instancia `CombatManager`, `Player` físico ni `PhysicsSystem`. Opera sobre un objeto plano `levelDraft` que respeta el contrato exacto de [`LevelLoader.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/world/LevelLoader.js).
+
+### 11.2. Módulos del Editor (`src/editor/`)
+1. **[`EditorCatalog.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/editor/EditorCatalog.js):** Metadatos puros de paletas:
+   - **Terreno:** IDs canónicos `0..5` (Césped concatenable `turf_0..7`, Sendero `dirt_0..3`, Acantilado `cliff_0..3` con bloques facetados y musgo, Agua/Magma `water_0..3`, Puente, Plaza `plaza_0..1` en aparejo trabado). Texturas independientes exportadas en `public/assets/environment/`.
+   - **Props:** 13 tipos canónicos + **`custom_env_prop` (Objeto de Ambiente Personalizado)** con soporte de textura personalizada (`textureUrl`), dimensiones dinámicas (`16–384 px`), descripción funcional (`devDescription`), clave técnica (`customKey`) y plantillas reutilizables en `localStorage` (`be_a_legend_custom_props_v1`).
+   - **Estructuras:** Árbol, Arbusto y Casa.
+   - **Actores:** `playerSpawn`, `arenaCenter`, NPCs (`tarak`, `valerio`), Enemigos dinámicos consumidos de `ENEMY_ARCHETYPES`.
+   - **Zonas y Luces:** `solidColliders` (AABB), `stealthZones` (AABB) y `lights` (puntos de luz rúnica con radio/color).
+2. **[`LevelSerializer.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/editor/LevelSerializer.js):**
+   - **Compresión RLE:** Codifica `terrainGrid` en cadenas Run-Length compactas (`"0x12,1x4,2x3"`), reduciendo el consumo en `localStorage` (`be_a_legend_custom_levels_v1`) de ~25 KB a ~250 bytes por nivel.
+   - **Validación Pre-Vuelo:** Detecta spawn fuera de límites o sobre acantilados/agua, emite avisos útiles y garantiza integridad estructural.
+   - **Exportación / Importación:** Descarga y lectura de archivos `.json` compatibles con `LevelLoader`.
+3. **[`EditorHistory.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/editor/EditorHistory.js):**
+   - Historial de Deshacer / Rehacer de 40 pasos basado en deltas mínimos (`tile_stroke`, `item_add`, `item_remove`, `item_move`, `spawn_move`), sin clonar mapas completos en memoria.
+4. **[`LevelEditor.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/editor/LevelEditor.js):**
+   - Lienzo interactivo con Pan (botón central/derecho/espacio), Zoom discreto (rueda del ratón / botones), brochas de terreno (`1x1`, `3x3`, `Rectángulo`, `Bote de pintura BFS`), selección y arrastre de objetos con Snap (`32px`, `16px`, `Libre`), e inspector contextual.
+
+### 11.3. Horneado Incremental del Terreno (`Tilemap.js`)
+- `Tilemap.prototype.setTileAndInvalidate(col, row, tileId)` modifica la celda de la grilla lógica y desaloja del caché `_chunkCache` **únicamente el chunk editado y sus vecinos inmediatos (3x3)** afectados por Dual-Grid y voladizos de gabinete, eliminando la necesidad de reconstruir el mapa entero durante la edición.
+
+### 11.4. Puente de Playtest en 1 Clic y Retorno Instantáneo
+- Al presionar **"▶ PROBAR"** (o `F5`):
+  1. `LevelValidator` comprueba la viabilidad del nivel.
+  2. `registerCustomWorld()` en [`worlds.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/data/worlds.js) inyecta el borrador en memoria bajo el ID `__editor_playtest__`.
+  3. El editor oculta su capa visual preservando la posición de cámara y la pila Undo/Redo en RAM.
+  4. El motor carga el nivel con `loadWorld('__editor_playtest__')` y muestra el botón flotante **"⏹ VOLVER AL EDITOR"** en el HUD superior (`F9`).
+- Al pulsar **"⏹ VOLVER AL EDITOR"**:
+  1. Se purgan los estados de combate y proyectiles.
+  2. El editor restaura su interfaz exactamente en el estado en que se dejó.
+
+
+
 
 

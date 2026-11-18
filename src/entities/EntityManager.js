@@ -1,14 +1,33 @@
+import { SpatialGrid } from '../world/SpatialGrid.js';
+
 /**
  * @module EntityManager
  * @description Contenedor central y orquestador de ciclo de vida de todas las entidades.
  * Optimizado para 60/120 FPS estables:
  * - Separa entidades dinámicas (`_dynamicEntities`) de estructuras estáticas (`tree`, `house`, `terrain_barrier`).
- * - Indexa en O(1) etiquetas estructurales invariantes (`tree`, `house`, `npc`, `interactable`, `enemy`, `player`, `foliage`).
+ * - Indexa en O(1) etiquetas estructurales invariantes y mantiene rejillas espaciales `SpatialGrid` (128 px).
+ * - Elimina entidades con swap-and-pop O(1) sin desplazamientos `Array.splice`.
  * - Aplica Frustum Culling previo al Y-Sorting con Insertion Sort in-place de coste casi lineal O(N).
  * @author Be a Legend Team
- * @version 1.3.0
+ * @version 1.4.0
  */
 const INVARIANT_BUCKET_TAGS = ['tree', 'house', 'npc', 'interactable', 'enemy', 'player', 'foliage'];
+
+/**
+ * Remueve un elemento de un arreglo mediante swap-and-pop O(1) sin desplazar memoria.
+ * @param {Array<*>} arr
+ * @param {*} item
+ */
+function swapPopRemove(arr, item) {
+  const idx = arr.indexOf(item);
+  if (idx > -1) {
+    const last = arr.length - 1;
+    if (idx !== last) arr[idx] = arr[last];
+    arr.pop();
+    return true;
+  }
+  return false;
+}
 
 export class EntityManager {
   constructor() {
@@ -46,6 +65,17 @@ export class EntityManager {
 
     /** @type {boolean} Bandera de reconstrucción del buffer visible cuando cambia la colección */
     this._bufferDirty = true;
+
+    /** @type {SpatialGrid} Rejilla espacial general (128 px) para combate y separación O(1) */
+    this.spatialGrid = new SpatialGrid(128, 0);
+
+    /** @type {SpatialGrid} Rejilla espacial exclusiva de sólidos para PhysicsSystem O(1) */
+    this.solidGrid = new SpatialGrid(128, 1);
+
+    /** @type {number} Umbral a partir del cual las consultas cambian de arreglo plano a SpatialGrid */
+    this._spatialThreshold = 48;
+    /** @type {boolean} Indica si la posición dinámica en SpatialGrid quedó pendiente mientras `< 48` */
+    this._spatialPositionsStale = false;
   }
 
   /**
@@ -91,6 +121,10 @@ export class EntityManager {
         }
       }
     }
+    this.spatialGrid.insert(entity);
+    if (entity && typeof entity.hasTag === 'function' && entity.hasTag('solid')) {
+      this.solidGrid.insert(entity);
+    }
     this._solidsCache = null;
     this._tagCache.clear();
     this._sortedDirty = true;
@@ -98,22 +132,18 @@ export class EntityManager {
   }
 
   /**
-   * Remueve una entidad del gestor e invalida sus cachés sin dejar referencias huérfanas.
+   * Remueve una entidad del gestor en O(1) (swap-and-pop) y limpia sus rejillas espaciales.
    * @param {import('./Entity.js').Entity} entity
    */
   removeEntity(entity) {
-    const index = this.entities.indexOf(entity);
-    if (index > -1) {
-      this.entities.splice(index, 1);
-      const bufIdx = this._sortedBuffer.indexOf(entity);
-      if (bufIdx > -1) this._sortedBuffer.splice(bufIdx, 1);
-      const dynIdx = this._dynamicEntities.indexOf(entity);
-      if (dynIdx > -1) this._dynamicEntities.splice(dynIdx, 1);
+    if (swapPopRemove(this.entities, entity)) {
+      swapPopRemove(this._sortedBuffer, entity);
+      swapPopRemove(this._dynamicEntities, entity);
       for (let i = 0; i < INVARIANT_BUCKET_TAGS.length; i++) {
-        const arr = this._buckets[INVARIANT_BUCKET_TAGS[i]];
-        const bIdx = arr.indexOf(entity);
-        if (bIdx > -1) arr.splice(bIdx, 1);
+        swapPopRemove(this._buckets[INVARIANT_BUCKET_TAGS[i]], entity);
       }
+      this.spatialGrid.remove(entity);
+      this.solidGrid.remove(entity);
       this._solidsCache = null;
       this._tagCache.clear();
       this._sortedDirty = true;
@@ -122,7 +152,7 @@ export class EntityManager {
   }
 
   /**
-   * Actualiza exclusivamente las entidades dinámicas (omitiendo árboles, casas y barreras estáticas).
+   * Actualiza exclusivamente las entidades dinámicas y sincroniza sus celdas espaciales.
    * @param {Object|number} contextOrDt
    * @param {import('../core/InputManager.js').InputManager} [legacyInput]
    * @param {import('../systems/PhysicsSystem.js').PhysicsSystem} [legacyPhysics]
@@ -142,9 +172,83 @@ export class EntityManager {
       };
 
     const dyn = this._dynamicEntities;
-    for (let i = 0; i < dyn.length; i++) {
-      dyn[i].update(context);
+    if (this.entities.length < this._spatialThreshold) {
+      this._spatialPositionsStale = true;
+      for (let i = 0; i < dyn.length; i++) {
+        dyn[i].update(context);
+      }
+      return;
     }
+
+    const needFullSync = this._spatialPositionsStale;
+    this._spatialPositionsStale = false;
+    for (let i = 0; i < dyn.length; i++) {
+      const ent = dyn[i];
+      if (needFullSync) {
+        this.spatialGrid.updateEntity(ent);
+        if (ent.hasTag('solid')) {
+          this.solidGrid.updateEntity(ent);
+        }
+      }
+      ent.update(context);
+      this.spatialGrid.updateEntity(ent);
+      if (ent.hasTag('solid')) {
+        this.solidGrid.updateEntity(ent);
+      }
+    }
+  }
+
+  /**
+   * Sincroniza posiciones dinámicas si estuvieron en modo plano antes de consultar SpatialGrid.
+   * @private
+   */
+  _flushDynamicSpatialSync() {
+    if (!this._spatialPositionsStale) return;
+    this._spatialPositionsStale = false;
+    const dyn = this._dynamicEntities;
+    for (let i = 0; i < dyn.length; i++) {
+      const ent = dyn[i];
+      this.spatialGrid.updateEntity(ent);
+      if (ent && typeof ent.hasTag === 'function' && ent.hasTag('solid')) {
+        this.solidGrid.updateEntity(ent);
+      }
+    }
+  }
+
+  /**
+   * Consulta entidades cercanas de forma adaptativa: arreglo plano si `< _spatialThreshold`,
+   * o `SpatialGrid` O(1) cuando hay multitudes/hordas densas.
+   * @param {number} minX
+   * @param {number} minY
+   * @param {number} maxX
+   * @param {number} maxY
+   * @param {Array<Object>} outBuffer
+   * @returns {Array<import('./Entity.js').Entity>}
+   */
+  queryNearby(minX, minY, maxX, maxY, outBuffer) {
+    if (this.entities.length < this._spatialThreshold) {
+      return this.entities;
+    }
+    this._flushDynamicSpatialSync();
+    return this.spatialGrid.queryBounds(minX, minY, maxX, maxY, outBuffer);
+  }
+
+  /**
+   * Consulta sólidos cercanos de forma adaptativa para físicas sin overhead de hashing en mapas pequeños.
+   * @param {number} minX
+   * @param {number} minY
+   * @param {number} maxX
+   * @param {number} maxY
+   * @param {Array<Object>} outBuffer
+   * @returns {Array<import('./Entity.js').Entity>}
+   */
+  queryNearbySolids(minX, minY, maxX, maxY, outBuffer) {
+    const solids = this.getSolids();
+    if (solids.length < 36) {
+      return solids;
+    }
+    this._flushDynamicSpatialSync();
+    return this.solidGrid.queryBounds(minX, minY, maxX, maxY, outBuffer);
   }
 
   /**
@@ -290,10 +394,14 @@ export class EntityManager {
     for (let i = 0; i < INVARIANT_BUCKET_TAGS.length; i++) {
       this._buckets[INVARIANT_BUCKET_TAGS[i]].length = 0;
     }
+    this.spatialGrid.clear();
+    this.solidGrid.clear();
+    this._spatialPositionsStale = false;
     if (player) {
       this.entities.push(player);
       this._dynamicEntities.push(player);
       this._buckets.player.push(player);
+      this.spatialGrid.insert(player);
     }
     this._sortedBuffer.length = 0;
     this._solidsCache = null;

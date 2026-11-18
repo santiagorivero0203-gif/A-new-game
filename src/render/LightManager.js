@@ -253,12 +253,12 @@ export class LightManager {
     const camX = camera && camera.position ? camera.position.x : 0;
     const camY = camera && camera.position ? camera.position.y : 0;
     const zoom = (camera && camera.zoom) ? camera.zoom : 1;
-    const cameraMoved =
-      Math.abs(camX - this._lastCamX) >= 1.5 ||
-      Math.abs(camY - this._lastCamY) >= 1.5 ||
+    const largeJump =
+      Math.abs(camX - this._lastCamX) >= 14 ||
+      Math.abs(camY - this._lastCamY) >= 14 ||
       zoom !== this._lastZoom;
 
-    if (!this._dirty && !cameraMoved && this._renderCooldown > 0) {
+    if (!this._dirty && !largeJump && this._renderCooldown > 0) {
       return;
     }
 
