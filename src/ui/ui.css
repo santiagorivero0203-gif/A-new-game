@@ -214,15 +214,15 @@
   transform-origin: top left;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px 8px 8px;
-  background: linear-gradient(180deg, var(--cel-slate-top) 0%, var(--cel-slate-bot) 100%);
+  gap: 9px;
+  padding: 7px 11px 7px 7px;
+  background: linear-gradient(180deg, rgba(22, 26, 36, 0.94) 0%, rgba(11, 14, 21, 0.96) 100%);
   border: 2.5px solid var(--ink-black);
-  border-radius: 14px;
+  border-radius: 13px;
   box-shadow:
     0 4px 0 var(--ink-black),
-    inset 0 2px 0 rgba(255, 255, 255, 0.14),
-    inset 0 0 0 1px rgba(56, 189, 248, 0.18);
+    inset 0 1.5px 0 rgba(255, 245, 220, 0.14),
+    inset 0 0 0 1px rgba(212, 163, 73, 0.24);
   pointer-events: auto;
 }
 
@@ -238,14 +238,14 @@
 
 .rpg-crest-frame {
   position: relative;
-  width: 60px;
-  height: 60px;
-  border-radius: 14px;
-  background: #09101d;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: #0d0c10;
   border: 2.5px solid var(--ink-black);
   box-shadow:
     0 3px 0 var(--ink-black),
-    inset 0 0 0 1.5px rgba(250, 204, 21, 0.55);
+    inset 0 0 0 1.5px rgba(212, 163, 73, 0.52);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -293,18 +293,72 @@
   flex-shrink: 0;
 }
 
-/* Stack de las 3 Barras Cel-Shaded del Jugador */
+/* Stack Compacto de Barras Cel-Shaded del Jugador */
 .rpg-bars-stack {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 214px;
+  gap: 5px;
+  width: 186px;
 }
 
 .rpg-bar-row {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.rpg-bar-header.compact-header {
+  gap: 4px;
+}
+
+/* Micro-barras simplificadas y contextuales para Escudo (Égida) y Resistencia */
+.rpg-micro-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-height: 16px;
+  opacity: 0.52;
+  transition: opacity 0.18s ease, max-height 0.18s ease, margin 0.18s ease;
+}
+
+.rpg-micro-row.is-active,
+.rpg-micro-row.defending-active {
+  opacity: 1;
+}
+
+.rpg-micro-row.stamina-row.is-idle {
+  max-height: 0;
+  opacity: 0;
+  margin-top: -5px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.rpg-micro-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.rpg-micro-value {
+  font-family: 'Outfit', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  min-width: 30px;
+  text-align: right;
+  color: #cbd5e1;
+  text-shadow: 0 1px 0 var(--ink-black);
+  letter-spacing: 0.03em;
+}
+
+.rpg-bar-chassis.micro-chassis {
+  flex: 1;
+  height: 6px;
+  border-width: 1.5px;
+  clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 3px, 100% 100%, 4px 100%, 0 calc(100% - 3px));
+}
+
+.stamina-chassis.micro-chassis {
+  height: 5px;
 }
 
 .rpg-bar-header {
@@ -493,6 +547,10 @@
   background: linear-gradient(90deg, #16a34a 0%, #4ade80 100%);
 }
 
+.hud-energy-fill.energy-eter {
+  background: linear-gradient(90deg, #9333ea 0%, #c084fc 100%);
+}
+
 .hud-posture-fill {
   background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
 }
@@ -662,9 +720,81 @@
   right: var(--safe-right);
   transform-origin: top right;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
+  pointer-events: none;
+}
+
+.hud-top-right-buttons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   pointer-events: auto;
+}
+
+/* Minimapa Táctico Periférico Crisp (DOM Overlay sin distorsión de escala) */
+.hud-minimap-wrap {
+  position: relative;
+  transform-origin: top right;
+  padding: 4px;
+  background: linear-gradient(180deg, rgba(22, 24, 32, 0.94) 0%, rgba(10, 12, 18, 0.96) 100%);
+  border: 2.5px solid var(--ink-black);
+  border-radius: 10px;
+  box-shadow:
+    0 3.5px 0 var(--ink-black),
+    inset 0 0 0 1px rgba(212, 163, 73, 0.34);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.14s ease, border-color 0.15s ease, opacity 0.18s ease;
+}
+
+.hud-minimap-wrap:hover {
+  border-color: rgba(212, 163, 73, 0.85);
+}
+
+.hud-minimap-wrap canvas {
+  display: block;
+  width: 92px;
+  height: 92px;
+  border-radius: 6px;
+  border: 1.5px solid var(--ink-black);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.hud-minimap-badge {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(9, 10, 14, 0.88);
+  border: 1px solid rgba(212, 163, 73, 0.5);
+  color: #e7c97f;
+  font-family: 'Outfit', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.hud-minimap-wrap.is-collapsed {
+  padding: 5px 8px;
+}
+
+.hud-minimap-wrap.is-collapsed canvas {
+  display: none;
+}
+
+.hud-minimap-wrap.is-collapsed .hud-minimap-badge {
+  position: static;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 10.5px;
 }
 
 .essence-pill-btn,
@@ -725,22 +855,22 @@
 .objective-hud-tracker {
   position: absolute;
   top: var(--safe-top);
-  left: calc(var(--safe-left) + 324px);
-  right: calc(var(--safe-right) + 196px);
+  left: calc(var(--safe-left) + 276px);
+  right: calc(var(--safe-right) + 188px);
   width: auto;
-  max-width: 440px;
+  max-width: 420px;
   margin-inline: auto;
   transform-origin: top center;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 13px;
-  background: linear-gradient(180deg, rgba(24, 38, 62, 0.94) 0%, rgba(12, 20, 36, 0.96) 100%);
+  padding: 6px 12px;
+  background: linear-gradient(180deg, rgba(22, 23, 30, 0.92) 0%, rgba(11, 12, 17, 0.95) 100%);
   border: 2.5px solid var(--ink-black);
-  border-radius: 12px;
+  border-radius: 11px;
   box-shadow:
-    0 3.5px 0 var(--ink-black),
-    inset 0 1.5px 0 rgba(250, 204, 21, 0.25);
+    0 3px 0 var(--ink-black),
+    inset 0 1px 0 rgba(212, 163, 73, 0.28);
   pointer-events: none;
 }
 
@@ -824,6 +954,8 @@
 
 .boss-threat-status.shield { color: var(--cel-gold); }
 .boss-threat-status.vulnerable { color: var(--cel-emerald); }
+.boss-threat-status.armor { color: #38bdf8; }
+.boss-threat-status.phase2 { color: #f43f5e; text-shadow: 0 0 8px rgba(244, 63, 94, 0.55); }
 
 .boss-threat-track {
   width: 100%;
@@ -1173,7 +1305,7 @@ body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
 .hint-n { top: 3px; color: #fb923c; }
 .hint-e { right: 3px; color: #38bdf8; }
 .hint-s { bottom: 2.5px; color: #4ade80; }
-.hint-w { left: 3px; color: #94a3b8; }
+.hint-w { left: 3px; color: #c084fc; }
 
 /* ============================================================================
    2. HUB UNIFICADO DEL SANTUARIO (4 Pestañas + Fondo 2D Nano Banana Cel-Shaded)
@@ -1215,6 +1347,38 @@ body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
   background-image:
     linear-gradient(135deg, rgba(8, 13, 25, 0.90) 0%, rgba(13, 22, 40, 0.82) 50%, rgba(8, 13, 25, 0.93) 100%),
     url('/assets/ui/menu_sanctuary_bg.jpg');
+}
+
+/* Modo diferenciado: Ajustes Globales desde Menú Principal (oculta pestañas/recursos de partida) */
+.st-main-menu-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #f4d37a;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13.5px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.st-main-menu-header svg {
+  color: #d4a349;
+}
+
+#skill-tree-modal.is-main-menu-settings .st-sanctuary-window {
+  max-width: 960px;
+  height: auto;
+  max-height: min(88vh, 650px);
+}
+
+#skill-tree-modal.is-main-menu-settings .st-nav-tabs,
+#skill-tree-modal.is-main-menu-settings .st-resource-pill,
+#skill-tree-modal.is-main-menu-settings .st-footer-hints {
+  display: none !important;
+}
+
+#skill-tree-modal.is-main-menu-settings .st-main-menu-header {
+  display: inline-flex !important;
 }
 
 /* Top-Bar de Navegación por Pestañas */
@@ -1793,6 +1957,11 @@ body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
   box-shadow: inset 0 0 0 1.5px rgba(250, 204, 21, 0.65);
 }
 
+.st-world-card.is-locked {
+  opacity: 0.62;
+  filter: saturate(0.45);
+}
+
 .st-world-travel-btn {
   margin-top: auto;
   padding: 7px 10px;
@@ -1806,6 +1975,11 @@ body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
   cursor: pointer;
   clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
   transition: transform 75ms ease-out;
+}
+
+.st-world-travel-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .st-world-travel-btn:hover {
@@ -2249,11 +2423,12 @@ kbd {
   align-items: center;
   gap: 6px;
   padding: 4px 14px;
-  border-radius: 999px;
-  background: rgba(11, 19, 34, 0.9);
-  border: 1.5px solid rgba(250, 204, 21, 0.4);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-  color: var(--cel-gold);
+  border-radius: 4px;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%);
+  background: rgba(18, 14, 12, 0.9);
+  border: 1.5px solid rgba(212, 163, 73, 0.5);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+  color: #e9c26d;
   font-family: 'Outfit', sans-serif;
   font-size: 11px;
   font-weight: 800;
@@ -2265,11 +2440,11 @@ kbd {
   font-size: clamp(42px, 8vw, 76px);
   font-weight: 900;
   letter-spacing: clamp(2px, 0.35vw, 5px);
-  background: linear-gradient(90deg, #ff4500 0%, #ffd700 33%, #32cd32 66%, #00bfff 100%);
+  background: linear-gradient(180deg, #fff6d1 0%, #f5c85b 48%, #d47b24 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 2px #050811;
-  filter: drop-shadow(0px 8px 16px rgba(0, 0, 0, 0.95));
+  -webkit-text-stroke: 2px #0b0806;
+  filter: drop-shadow(0px 7px 12px rgba(0, 0, 0, 0.92));
   margin: 6px 0 2px 0;
 }
 
@@ -2278,24 +2453,23 @@ kbd {
   font-size: clamp(13px, 2.2vw, 18px);
   font-weight: 800;
   letter-spacing: 0.22em;
-  color: #fde047;
+  color: #f3dfb3;
   text-shadow: 0 2.5px 0 var(--ink-black), 0 4px 12px rgba(0, 0, 0, 0.9);
 }
 
-/* Tarjeta Glassmorphic Central Elegante */
+/* Tarjeta Central de Crónica (Obsidiana cálida y bronce antiguo, cero neón) */
 .menu-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   padding: clamp(22px, 3vh, 32px) clamp(24px, 4vw, 44px);
-  background: rgba(10, 6, 18, 0.92);
-  border: 1.5px solid rgba(168, 85, 247, 0.45);
-  border-radius: 24px;
+  background: rgba(16, 13, 12, 0.92);
+  border: 2px solid rgba(212, 163, 73, 0.45);
+  border-radius: 14px;
   box-shadow:
-    0 20px 50px -10px rgba(0, 0, 0, 0.95),
-    0 0 40px rgba(168, 85, 247, 0.18),
-    inset 0 1px 2px rgba(255, 255, 255, 0.18);
+    0 18px 42px -10px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 240, 200, 0.16);
   max-width: 92%;
   width: 420px;
   pointer-events: auto !important;
@@ -2307,11 +2481,10 @@ kbd {
 }
 
 .menu-card:hover {
-  border-color: rgba(168, 85, 247, 0.7);
+  border-color: rgba(212, 163, 73, 0.72);
   box-shadow:
-    0 24px 60px -10px rgba(0, 0, 0, 0.98),
-    0 0 50px rgba(168, 85, 247, 0.3),
-    inset 0 1px 2px rgba(255, 255, 255, 0.25);
+    0 22px 48px -10px rgba(0, 0, 0, 0.98),
+    inset 0 1px 0 rgba(255, 240, 200, 0.24);
 }
 
 .menu-card-header {
@@ -2469,13 +2642,13 @@ kbd {
 }
 
 /* ============================================================================
-   4. CAPA DE CINEMÁTICAS NARRATIVAS (Aislada Z-70, Cero Solapamientos de HUD)
+   4. CAPA DE CINEMÁTICAS NARRATIVAS (Estética Crónica de la Reliquia · Obsidiana y Bronce)
    ============================================================================ */
 .cinematic-overlay {
   position: absolute;
   inset: 0;
   z-index: 70;
-  background: #03060d;
+  background: radial-gradient(circle at center, #1a1410 0%, #090706 100%);
   pointer-events: auto;
   overflow: hidden;
 }
@@ -2486,6 +2659,20 @@ kbd {
   background-size: cover;
   background-position: center;
   will-change: transform;
+}
+
+.cinematic-img-el {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  opacity: 1;
+  transition: opacity 0.28s ease;
+}
+
+.cinematic-img-el.is-loading {
+  opacity: 0;
 }
 
 .camera-static { transform: scale(1.02); }
@@ -2513,101 +2700,220 @@ kbd {
   inset: 0;
   pointer-events: none;
   opacity: 0;
-  background: #03060d;
+  background: #090706;
   transition: opacity 0.45s ease;
+  z-index: 2;
 }
 
 .transition-clear { opacity: 0; }
-.transition-fade-black { opacity: 1; background: #03060d; }
-.transition-flash-white { opacity: 0.92; background: #ffffff; }
-.transition-crossfade { opacity: 0.55; background: #03060d; }
+.transition-fade-black { opacity: 1; background: #090706; }
+.transition-flash-white { opacity: 0.90; background: #fff7e6; }
+.transition-crossfade { opacity: 0.55; background: #0d0a08; }
 
 .cinematic-vignette {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(3, 6, 13, 0.32) 0%, transparent 40%, rgba(3, 6, 13, 0.88) 100%);
+  z-index: 2;
+  background:
+    radial-gradient(ellipse at center, transparent 48%, rgba(10, 7, 5, 0.56) 100%),
+    linear-gradient(180deg, rgba(12, 8, 6, 0.46) 0%, transparent 28%, transparent 56%, rgba(10, 8, 6, 0.92) 100%);
+}
+
+/* Bandas cinematográficas con filigrana de bronce envejecido */
+.cinematic-letterbox {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: clamp(10px, 2.2vh, 22px);
+  background: #090706;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.cinematic-letterbox.top {
+  top: 0;
+  border-bottom: 1px solid rgba(212, 163, 73, 0.34);
+}
+
+.cinematic-letterbox.bottom {
+  bottom: 0;
+  border-top: 1px solid rgba(212, 163, 73, 0.34);
 }
 
 .btn-skip-cinematic {
   position: absolute;
-  top: var(--safe-top);
+  top: calc(var(--safe-top) + 12px);
   right: var(--safe-right);
   transform-origin: top right;
-  z-index: 3;
+  z-index: 4;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 10px;
-  background: rgba(12, 20, 36, 0.88);
-  border: 2px solid var(--ink-black);
-  box-shadow: 0 3px 0 var(--ink-black);
-  color: #f8fafc;
+  gap: 7px;
+  padding: 8px 15px;
+  background: linear-gradient(180deg, rgba(30, 23, 18, 0.94) 0%, rgba(15, 11, 9, 0.96) 100%);
+  border: 2px solid #090706;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  box-shadow:
+    0 3.5px 0 #090706,
+    inset 0 0 0 1px rgba(212, 163, 73, 0.45);
+  color: #f4ead5;
   font-family: 'Outfit', sans-serif;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   cursor: pointer;
+  transition: transform 0.12s ease, color 0.15s ease;
 }
 
+.btn-skip-cinematic:hover {
+  transform: translateY(-1px);
+  color: #f7d98b;
+}
+
+.btn-skip-cinematic svg {
+  color: #d4a349;
+}
+
+/* Tablilla Narrativa Tallada — Estética Cel-Shaded de Reliquia (cero brillo neón) */
 .cinematic-caption-box {
+  --crest-accent: #d4a349;
+  --crest-text: #120d08;
   position: absolute;
-  bottom: calc(var(--safe-bottom) + 12px);
+  bottom: calc(var(--safe-bottom) + 18px);
   left: var(--safe-left);
   right: var(--safe-right);
   width: auto;
-  max-width: 760px;
+  max-width: 780px;
   margin-inline: auto;
   transform-origin: bottom center;
-  z-index: 3;
-  padding: 16px 22px;
-  background: linear-gradient(180deg, rgba(16, 26, 46, 0.94) 0%, rgba(8, 13, 25, 0.96) 100%);
-  border: 3px solid var(--ink-black);
-  border-radius: 16px;
+  z-index: 4;
+  padding: 15px 22px 13px 22px;
+  background: linear-gradient(180deg, rgba(25, 19, 15, 0.95) 0%, rgba(13, 10, 9, 0.97) 100%);
+  border: 3px solid #090706;
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
   box-shadow:
-    0 6px 0 var(--ink-black),
-    inset 0 0 0 1.5px rgba(250, 204, 21, 0.38);
+    0 6px 0 #090706,
+    inset 0 0 0 1.5px rgba(212, 163, 73, 0.44),
+    inset 0 2px 0 rgba(255, 241, 204, 0.12);
+}
+
+.cinematic-caption-box[data-speaker="santi"] {
+  --crest-accent: #e5a93c;
+  --crest-text: #130d06;
+}
+
+.cinematic-caption-box[data-speaker="tarak"] {
+  --crest-accent: #82b87c;
+  --crest-text: #0b140b;
+}
+
+.cinematic-caption-box[data-speaker="kragot"] {
+  --crest-accent: #c94c3c;
+  --crest-text: #fdf2ee;
+}
+
+.cinematic-caption-box[data-speaker="destino"] {
+  --crest-accent: #c89d54;
+  --crest-text: #130d06;
+}
+
+.cinematic-caption-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cinematic-crest-ornament {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--crest-accent);
+  flex-shrink: 0;
 }
 
 .cinematic-speaker {
   display: inline-block;
-  margin-bottom: 6px;
-  padding: 2px 9px;
-  border-radius: 6px;
-  background: var(--cel-gold);
-  color: var(--ink-black);
+  padding: 2px 11px;
+  background: var(--crest-accent);
+  color: var(--crest-text);
+  border: 1.5px solid #090706;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
   font-family: 'Outfit', sans-serif;
   font-size: 11px;
   font-weight: 900;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  flex-shrink: 0;
+}
+
+.cinematic-header-rule {
+  flex: 1;
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(212, 163, 73, 0.55) 0%, rgba(212, 163, 73, 0.08) 100%);
 }
 
 .cinematic-text {
-  font-size: clamp(14px, 2vw, 17px);
-  line-height: 1.5;
-  color: #f8fafc;
+  font-size: clamp(14px, 1.9vw, 17px);
+  line-height: 1.55;
+  color: #f5efe1;
   min-height: 2.8em;
+  text-shadow: 0 1.5px 0 #090706;
+}
+
+.cinematic-caption-footer {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(212, 163, 73, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cinematic-progress-pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cinematic-pip {
+  width: 7px;
+  height: 7px;
+  background: rgba(212, 163, 73, 0.22);
+  border: 1px solid rgba(212, 163, 73, 0.45);
+  transform: rotate(45deg);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.cinematic-pip.passed {
+  background: rgba(212, 163, 73, 0.58);
+}
+
+.cinematic-pip.active {
+  background: var(--crest-accent);
+  border-color: #fff6dc;
+  transform: rotate(45deg) scale(1.22);
 }
 
 .cinematic-prompt {
-  margin-top: 8px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 7px;
   font-family: 'Outfit', sans-serif;
   font-size: 11px;
   font-weight: 700;
-  color: #94a3b8;
+  letter-spacing: 0.04em;
+  color: #cbbda3;
 }
 
-.cinematic-prompt-dot {
+.cinematic-prompt-diamond {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background: var(--cel-gold);
-  animation: pulse-title-msg 1s ease-in-out infinite;
+  background: var(--crest-accent);
+  transform: rotate(45deg);
+  animation: pulse-title-msg 1.25s ease-in-out infinite;
 }
 
 /* ============================================================================
@@ -2622,21 +2928,26 @@ kbd {
     transform: scale(0.92);
   }
 
-  /* En 9:16 vertical, el panel central superior de misión baja debajo de Top-Left */
+  /* En 9:16 vertical, el panel central superior de misión baja debajo de Top-Left y respeta el Minimapa Top-Right */
   .objective-hud-tracker {
-    top: calc(var(--safe-top) + 104px);
+    top: calc(var(--safe-top) + 88px);
     left: var(--safe-left);
-    right: var(--safe-right);
-    max-width: 330px;
+    right: calc(var(--safe-right) + 88px);
+    max-width: 280px;
     margin-inline: 0;
     transform-origin: top left;
   }
 
+  .hud-minimap-wrap canvas {
+    width: 72px;
+    height: 72px;
+  }
+
   .boss-threat-bar {
-    top: calc(var(--safe-top) + 148px);
+    top: calc(var(--safe-top) + 132px);
     left: var(--safe-left);
-    right: var(--safe-right);
-    max-width: 330px;
+    right: calc(var(--safe-right) + 88px);
+    max-width: 280px;
     margin-inline: 0;
     transform-origin: top left;
   }

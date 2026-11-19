@@ -92,16 +92,12 @@
               </div>
             </div>
 
-            <!-- 3 Barras Cel-Shaded (Vitalidad, Energía Elemental y Égida) -->
+            <!-- Barras Cel-Shaded Simplificadas (Vitalidad, Energía y Micro-Barras Contextuales de Égida/Resistencia) -->
             <div class="rpg-bars-stack">
               <!-- BARRA 1: VITALIDAD -->
               <div class="rpg-bar-row vitality-row">
                 <div class="rpg-bar-header">
                   <div class="rpg-bar-title-group">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="rpg-stat-icon hp-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
-                    <span class="rpg-bar-label">VITALIDAD</span>
                     <div class="hud-hearts" id="hud-hearts" title="Cámaras de Esencia Vital"></div>
                   </div>
                   <span class="rpg-bar-value" id="hud-hp-text">3 / 3</span>
@@ -118,12 +114,12 @@
 
               <!-- BARRA 2: ENERGÍA ELEMENTAL -->
               <div class="rpg-bar-row energy-row">
-                <div class="rpg-bar-header">
+                <div class="rpg-bar-header compact-header">
                   <div class="rpg-bar-title-group">
                     <svg xmlns="http://www.w3.org/2000/svg" class="rpg-stat-icon energy-icon" id="hud-energy-stat-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
                       <polygon points="13 2 4 14 12 14 11 22 20 10 12 10 13 2" />
                     </svg>
-                    <span class="rpg-bar-label" id="gauge-power-abbr">RELIQUIA · DORMIDA</span>
+                    <span class="rpg-bar-label" id="gauge-power-abbr">DORMIDA</span>
                   </div>
                   <span class="rpg-bar-value" id="gauge-pct">100%</span>
                 </div>
@@ -131,55 +127,31 @@
                   <div id="hud-energy-ghost-fill" class="rpg-bar-ghost energy-ghost" style="transform: scaleX(1);"></div>
                   <div id="hud-energy-fill" class="rpg-bar-fill hud-energy-fill energy-dormant" style="transform: scaleX(1);">
                     <div class="rpg-bar-shine"></div>
-                    <div class="rpg-bar-edge-flare"></div>
-                  </div>
-                  <div class="rpg-bar-ticks">
-                    <span class="rpg-tick" style="left: 25%;"></span>
-                    <span class="rpg-tick" style="left: 50%;"></span>
-                    <span class="rpg-tick" style="left: 75%;"></span>
                   </div>
                 </div>
               </div>
 
-              <!-- BARRA 3: POSTURA / ÉGIDA -->
-              <div class="rpg-bar-row posture-row" id="hud-posture-wrap">
-                <div class="rpg-bar-header">
-                  <div class="rpg-bar-title-group">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="rpg-stat-icon posture-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                      <path d="M12 2L4 6.5v5.5c0 5.2 3.4 9.9 8 11 4.6-1.1 8-5.8 8-11V6.5L12 2z" />
-                    </svg>
-                    <span class="rpg-bar-label">ÉGIDA</span>
-                  </div>
-                  <span class="rpg-bar-value posture-state-label" id="hud-posture-text">100%</span>
-                </div>
-                <div class="rpg-bar-chassis posture-chassis">
+              <!-- BARRA 3 SIMPLIFICADA: ÉGIDA / ESCUDO (Micro-barra inline contextual) -->
+              <div class="rpg-micro-row posture-row" id="hud-posture-wrap" title="Postura de Égida (Escudo)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="rpg-micro-icon posture-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M12 2L4 6.5v5.5c0 5.2 3.4 9.9 8 11 4.6-1.1 8-5.8 8-11V6.5L12 2z" />
+                </svg>
+                <div class="rpg-bar-chassis posture-chassis micro-chassis">
                   <div id="hud-posture-ghost-fill" class="rpg-bar-ghost posture-ghost" style="transform: scaleX(1);"></div>
-                  <div id="hud-posture-fill" class="rpg-bar-fill hud-posture-fill" style="transform: scaleX(1);">
-                    <div class="rpg-bar-shine"></div>
-                    <div class="rpg-bar-edge-flare"></div>
-                  </div>
-                  <div class="rpg-bar-ticks">
-                    <span class="rpg-tick" style="left: 50%;"></span>
-                  </div>
+                  <div id="hud-posture-fill" class="rpg-bar-fill hud-posture-fill" style="transform: scaleX(1);"></div>
                 </div>
+                <span class="rpg-micro-value posture-state-label" id="hud-posture-text">100%</span>
               </div>
 
-              <!-- BARRA 4: RESISTENCIA / STAMINA -->
-              <div class="rpg-bar-row stamina-row" id="hud-stamina-wrap">
-                <div class="rpg-bar-header">
-                  <div class="rpg-bar-title-group">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="rpg-stat-icon stamina-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
-                      <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
-                    </svg>
-                    <span class="rpg-bar-label">RESISTENCIA</span>
-                  </div>
-                  <span class="rpg-bar-value" id="hud-stamina-text">100%</span>
+              <!-- BARRA 4 CONTEXTUAL: RESISTENCIA (Solo visible al correr o agotarse) -->
+              <div class="rpg-micro-row stamina-row is-idle" id="hud-stamina-wrap" title="Resistencia">
+                <svg xmlns="http://www.w3.org/2000/svg" class="rpg-micro-icon stamina-icon" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+                <div class="rpg-bar-chassis stamina-chassis micro-chassis">
+                  <div id="hud-stamina-fill" class="rpg-bar-fill hud-stamina-fill" style="transform: scaleX(1);"></div>
                 </div>
-                <div class="rpg-bar-chassis stamina-chassis">
-                  <div id="hud-stamina-fill" class="rpg-bar-fill hud-stamina-fill" style="transform: scaleX(1);">
-                    <div class="rpg-bar-shine"></div>
-                  </div>
-                </div>
+                <span class="rpg-micro-value" id="hud-stamina-text">100%</span>
               </div>
             </div>
           </div>
@@ -223,35 +195,50 @@
 
         <!-- ANCLA PERIFÉRICA TOP-RIGHT (Pivot: top right) -->
         <div class="hud-top-right-dock">
-          <!-- Botón de Retorno a la Forja de Niveles (Solo visible durante Playtest) -->
-          <button type="button" id="btn-editor-return" class="hud-btn-editor-return hidden" aria-label="Volver al Editor de Niveles" title="Finalizar Playtest y volver al Editor [F9]">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="5" y="5" width="14" height="14" rx="2" />
-            </svg>
-            <span>VOLVER AL EDITOR</span>
-          </button>
+          <div class="hud-top-right-buttons">
+            <!-- Botón de Retorno a la Forja de Niveles (Solo visible durante Playtest) -->
+            <button type="button" id="btn-editor-return" class="hud-btn-editor-return hidden" aria-label="Volver al Editor de Niveles" title="Finalizar Playtest y volver al Editor [F9]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="5" y="5" width="14" height="14" rx="2" />
+              </svg>
+              <span>VOLVER AL EDITOR</span>
+            </button>
 
-          <button id="btn-quick-talents" class="essence-pill-btn" aria-label="Santuario de Habilidades (Tecla U)" title="Santuario de Habilidades [U]">
-            <svg xmlns="http://www.w3.org/2000/svg" class="essence-star-svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
-              <polygon points="12,2 14.9,9.1 22,12 14.9,14.9 12,22 9.1,14.9 2,12 9.1,9.1" />
-            </svg>
-            <span id="hud-essence-val">0</span>
-            <span class="essence-hotkey">[U]</span>
-          </button>
+            <button id="btn-quick-talents" class="essence-pill-btn" aria-label="Santuario de Habilidades (Tecla U)" title="Santuario de Habilidades [U]">
+              <svg xmlns="http://www.w3.org/2000/svg" class="essence-star-svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
+                <polygon points="12,2 14.9,9.1 22,12 14.9,14.9 12,22 9.1,14.9 2,12 9.1,9.1" />
+              </svg>
+              <span id="hud-essence-val">0</span>
+              <span class="essence-hotkey">[U]</span>
+            </button>
 
-          <button id="btn-quick-arsenal" class="icon-pill-btn" aria-label="Arsenal y Reliquia (Tecla I)" title="Arsenal y Equipo [I]">
-            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <path d="M12 3l7 3.5v5c0 4.8-3 9.1-7 10.5-4-1.4-7-5.7-7-10.5v-5L12 3z" />
-              <path d="M9.5 12l2 2 3.5-3.5" />
-            </svg>
-          </button>
+            <button id="btn-quick-arsenal" class="icon-pill-btn" aria-label="Arsenal y Reliquia (Tecla I)" title="Arsenal y Equipo [I]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M12 3l7 3.5v5c0 4.8-3 9.1-7 10.5-4-1.4-7-5.7-7-10.5v-5L12 3z" />
+                <path d="M9.5 12l2 2 3.5-3.5" />
+              </svg>
+            </button>
 
-          <button id="btn-quick-pause" class="icon-pill-btn" aria-label="Menú del Santuario y Pausa (Esc)" title="Menú y Pausa [Esc]">
-            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
-              <rect x="6" y="5" width="4" height="14" rx="1.5" />
-              <rect x="14" y="5" width="4" height="14" rx="1.5" />
-            </svg>
-          </button>
+            <button id="btn-quick-pause" class="icon-pill-btn" aria-label="Menú del Santuario y Pausa (Esc)" title="Menú y Pausa [Esc]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
+                <rect x="6" y="5" width="4" height="14" rx="1.5" />
+                <rect x="14" y="5" width="4" height="14" rx="1.5" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Minimapa Táctico Periférico Crisp (Clic o [N] para plegar sin distorsionar sobre el lienzo pixel-art) -->
+          <div id="hud-minimap-wrap" class="hud-minimap-wrap" role="button" tabindex="0" aria-label="Alternar Minimapa Táctico" title="Minimapa Táctico (Clic o [N] para plegar)">
+            <canvas id="hud-minimap-canvas" width="96" height="96"></canvas>
+            <span class="hud-minimap-badge">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                <line x1="9" y1="3" x2="9" y2="18" />
+                <line x1="15" y1="6" x2="15" y2="21" />
+              </svg>
+              <span>N</span>
+            </span>
+          </div>
         </div>
 
         <!-- ANCLA SEPARADA (STRETCH) TOP-CENTER: Rumbo / Objetivo Activo (Baja bajo Top-Left en 9:16) -->
@@ -333,12 +320,11 @@
               </svg>
               <span>RAÍCES</span>
             </div>
-            <div class="radial-sector sector-west locked" data-index="3" data-power="Sellado">
-              <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <rect x="4" y="11" width="16" height="10" rx="2" />
-                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+            <div class="radial-sector sector-west locked" data-index="3" data-power="Éter">
+              <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
+                <polygon points="12,2 14.9,9.1 22,12 14.9,14.9 12,22 9.1,14.9 2,12 9.1,9.1" />
               </svg>
-              <span>SELLADO</span>
+              <span id="radial-west-label">ÉTER</span>
             </div>
           </div>
         </div>
@@ -417,8 +403,8 @@
               <span class="swipe-hint hint-s" title="Raíces">
                 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false"><path d="M17 8C9 10 6.5 15.5 4.5 20.5l2 .7c2-4 5-6.2 10.5-6.2 2.5 0 4-8 4-12-2 1.8-6 2.5-10 3.5V8c2-.4 4-.5 6 0z" /></svg>
               </span>
-              <span class="swipe-hint hint-w" title="Sellado">
-                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+              <span class="swipe-hint hint-w" title="Éter Magnético">
+                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false"><polygon points="12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9" /></svg>
               </span>
             </div>
 
@@ -461,6 +447,13 @@
 
           <!-- Barra Superior de Navegación Interactiva y Recursos -->
           <header class="st-top-bar">
+            <div id="st-main-menu-header" class="st-main-menu-header hidden">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <span>AJUSTES DEL JUEGO · MENÚ PRINCIPAL</span>
+            </div>
             <nav class="st-nav-tabs" aria-label="Secciones del Santuario">
               <button type="button" id="st-nav-prev" class="st-nav-key" title="Pestaña Anterior [Q]">Q</button>
 
@@ -611,9 +604,9 @@
           <div class="st-single-pane st-tab-pane hidden" data-sanctuary-pane="system">
             <div class="st-system-layout">
               <div class="st-system-left">
-                <div class="st-card-header-eyebrow">ESTADO DE PARTIDA</div>
-                <h3 class="st-pane-heading">PAUSA Y CONFIGURACIÓN</h3>
-                <p class="st-pane-sub">Ajusta el sintetizador de efectos, los controles táctiles en pantalla o consulta las técnicas del Guantelete.</p>
+                <div id="st-system-eyebrow" class="st-card-header-eyebrow">ESTADO DE PARTIDA</div>
+                <h3 id="st-system-heading" class="st-pane-heading">PAUSA Y CONFIGURACIÓN</h3>
+                <p id="st-system-sub" class="st-pane-sub">Ajusta el sintetizador de efectos, el minimapa táctico o los controles táctiles en pantalla.</p>
 
                 <div class="st-system-toggles">
                   <div class="st-setting-card">
@@ -650,17 +643,48 @@
                     </div>
                     <button type="button" id="btn-toggle-touch-hud" class="cel-action-btn secondary">AUTOMÁTICO</button>
                   </div>
+
+                  <div class="st-setting-card">
+                    <div class="st-setting-info">
+                      <div class="st-setting-svg-wrap">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                          <line x1="9" y1="3" x2="9" y2="18" />
+                          <line x1="15" y1="6" x2="15" y2="21" />
+                        </svg>
+                      </div>
+                      <div>
+                        <strong>Minimapa Táctico [N]</strong>
+                        <p>Muestra u oculta el radar del bioma y su niebla de guerra en la esquina superior derecha.</p>
+                      </div>
+                    </div>
+                    <button type="button" id="btn-toggle-minimap" class="cel-action-btn primary">VISIBLE</button>
+                  </div>
                 </div>
 
-                <div class="st-system-actions-row">
+                <!-- Acciones exclusivas de Partida en Curso (Pausa / In-Game) -->
+                <div id="st-ingame-actions" class="st-system-actions-row">
                   <button type="button" id="btn-resume" class="cel-action-btn primary">
                     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
                       <polygon points="6,4 20,12 6,20" />
                     </svg>
                     <span>REANUDAR AVENTURA</span>
                   </button>
+                  <button type="button" id="btn-reset-campaign" class="cel-action-btn secondary" title="Reiniciar núcleos, mundos desbloqueados y Karma de la partida actual">
+                    <span>REINICIAR CAMPAÑA</span>
+                  </button>
                   <button type="button" id="btn-to-main-menu" class="cel-action-btn danger">
                     <span>SALIR AL MENÚ PRINCIPAL</span>
+                  </button>
+                </div>
+
+                <!-- Acciones exclusivas del Menú Principal (Pre-Partida) -->
+                <div id="st-menu-settings-actions" class="st-system-actions-row hidden">
+                  <button type="button" id="btn-menu-back" class="cel-action-btn primary">
+                    <span>VOLVER AL TÍTULO</span>
+                  </button>
+                  <button type="button" id="btn-clear-save-data" class="cel-action-btn danger" title="Borra campaña, habilidades y equipo guardados en este dispositivo">
+                    <span>BORRAR PROGRESO GUARDADO</span>
                   </button>
                 </div>
               </div>
@@ -691,12 +715,16 @@
                     <span class="st-ctrl-desc">Canalizar Poder Elemental Rápido / Fuerte</span>
                   </div>
                   <div class="st-control-row">
-                    <span class="st-ctrl-keys"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> / <kbd>Tab</kbd></span>
+                    <span class="st-ctrl-keys"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> / <kbd>Tab</kbd></span>
                     <span class="st-ctrl-desc">Alternar engarce elemental o abrir Rueda Radial</span>
                   </div>
                   <div class="st-control-row">
                     <span class="st-ctrl-keys"><kbd>E</kbd> / <kbd>Enter</kbd></span>
                     <span class="st-ctrl-desc">Hablar con NPCs, activar Pedestales, Altares y Estelas</span>
+                  </div>
+                  <div class="st-control-row">
+                    <span class="st-ctrl-keys"><kbd>N</kbd></span>
+                    <span class="st-ctrl-desc">Mostrar u ocultar el Minimapa Táctico</span>
                   </div>
                   <div class="st-control-row">
                     <span class="st-ctrl-keys"><kbd>U</kbd> · <kbd>I</kbd> · <kbd>Esc</kbd></span>
@@ -757,27 +785,42 @@
       </div>
 
       <!-- =========================================================================
-           CAPA 4: SISTEMA DE CINEMÁTICAS NARRATIVAS (Capa Superior Aislada Z-60)
+           CAPA 4: SISTEMA DE CINEMÁTICAS NARRATIVAS (Estética Crónica de la Reliquia, Z-70)
            ========================================================================= -->
       <div id="cinematic-overlay" class="cinematic-overlay hidden">
-        <div id="cinematic-image" class="cinematic-image-layer"></div>
+        <div id="cinematic-image" class="cinematic-image-layer">
+          <img id="cinematic-img-el" class="cinematic-img-el" alt="" decoding="async" />
+        </div>
         <div id="cinematic-transition-layer" class="cinematic-transition-layer"></div>
         <div class="cinematic-vignette"></div>
+        <div class="cinematic-letterbox top" aria-hidden="true"></div>
+        <div class="cinematic-letterbox bottom" aria-hidden="true"></div>
 
         <button type="button" id="btn-skip-cinematic" class="btn-skip-cinematic" aria-label="Saltar cinemática">
-          <span>SALTAR</span>
+          <span>SALTAR PRÓLOGO</span>
           <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
             <polygon points="5,4 15,12 5,20" />
             <rect x="16" y="5" width="3" height="14" rx="1" />
           </svg>
         </button>
 
-        <div class="cinematic-caption-box">
-          <span id="cinematic-speaker" class="cinematic-speaker">LORE</span>
+        <div id="cinematic-caption-box" class="cinematic-caption-box" data-speaker="santi">
+          <div class="cinematic-caption-header">
+            <span class="cinematic-crest-ornament" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="12,2 15.2,8.8 22,12 15.2,15.2 12,22 8.8,15.2 2,12 8.8,8.8" />
+              </svg>
+            </span>
+            <span id="cinematic-speaker" class="cinematic-speaker">CRÓNICA</span>
+            <span class="cinematic-header-rule" aria-hidden="true"></span>
+          </div>
           <p id="cinematic-text" class="cinematic-text"></p>
-          <div id="cinematic-prompt" class="cinematic-prompt">
-            <span>Toca o presiona [Espacio] para continuar</span>
-            <span class="cinematic-prompt-dot"></span>
+          <div class="cinematic-caption-footer">
+            <div id="cinematic-progress-pips" class="cinematic-progress-pips" aria-hidden="true"></div>
+            <div id="cinematic-prompt" class="cinematic-prompt">
+              <span>Toca o pulsa [Espacio] para continuar</span>
+              <span class="cinematic-prompt-diamond" aria-hidden="true"></span>
+            </div>
           </div>
         </div>
       </div>

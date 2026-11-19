@@ -14,11 +14,13 @@ export const SCHEMA_VERSION = 2;
 /**
  * Calcula las coordenadas exactas de los árboles perimetrales a partir de `perimeterConfig`.
  * Reutilizado 1:1 por `LevelLoader` (instanciación) y `LevelEditor` (previsualización)
- * para garantizar paridad visual y física absoluta.
+ * para garantizar paridad visual y física absoluta. Cuando se dispone de `terrainGrid`,
+ * descarta automáticamente cualquier árbol cuyo tronco caiga sobre acantilados (`2`) o fluidos (`3`).
  * @param {Object} levelData - Nivel o borrador normalizado
+ * @param {Array<Array<number>>|null} [terrainGrid=null] - Matriz opcional de terreno `[rows][cols]`
  * @returns {Array<{ x: number, y: number }>} Posiciones top-left de cada árbol del perímetro
  */
-export function computePerimeterTrees(levelData) {
+export function computePerimeterTrees(levelData, terrainGrid = null) {
   if (!levelData || !levelData.perimeterConfig || levelData.perimeterConfig.enabled === false) {
     return [];
   }
@@ -31,6 +33,10 @@ export function computePerimeterTrees(levelData) {
   const mapWidth = cols * tileSize;
   const mapHeight = rows * tileSize;
 
+  const grid = Array.isArray(terrainGrid) && terrainGrid.length === rows
+    ? terrainGrid
+    : (Array.isArray(levelData.terrainGrid) && levelData.terrainGrid.length === rows ? levelData.terrainGrid : null);
+
   const step = Math.max(108, cfg.step || 108);
   const roadGap = Array.isArray(cfg.roadGapY) ? cfg.roadGapY : [560, 700];
   const streamGapX = Array.isArray(cfg.streamGapX) ? cfg.streamGapX : null;
@@ -38,15 +44,42 @@ export function computePerimeterTrees(levelData) {
 
   const isInsideCaveSafeZone = (tx, ty) => {
     if (!caveSafeZone) return false;
+    // Evaluar contra el contorno de tronco/copa del árbol para no superponerse con la boca de cueva
+    const ax1 = tx + 12;
+    const ay1 = ty + 16;
+    const ax2 = tx + 72;
+    const ay2 = ty + 96;
     return (
-      tx >= caveSafeZone.x &&
-      tx <= caveSafeZone.x + caveSafeZone.width &&
-      ty >= caveSafeZone.y &&
-      ty <= caveSafeZone.y + caveSafeZone.height
+      ax1 <= caveSafeZone.x + caveSafeZone.width &&
+      ax2 >= caveSafeZone.x &&
+      ay1 <= caveSafeZone.y + caveSafeZone.height &&
+      ay2 >= caveSafeZone.y
     );
   };
 
+  const isTrunkOnBlockedTile = (tx, ty) => {
+    if (!grid) return false;
+    // Hitbox canónica del tronco de Tree.js (offsetX: 30, offsetY: 78, w: 24, h: 18)
+    const minC = Math.floor((tx + 30) / tileSize);
+    const maxC = Math.floor((tx + 53.9) / tileSize);
+    const minR = Math.floor((ty + 78) / tileSize);
+    const maxR = Math.floor((ty + 95.9) / tileSize);
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        if (r < 0 || c < 0 || r >= rows || c >= cols) return true;
+        const tileId = grid[r]?.[c] ?? 0;
+        if (tileId === 2 || tileId === 3) return true;
+      }
+    }
+    return false;
+  };
+
   const trees = [];
+  const tryPushTree = (tx, ty) => {
+    if (isInsideCaveSafeZone(tx, ty)) return;
+    if (isTrunkOnBlockedTile(tx, ty)) return;
+    trees.push({ x: tx, y: ty });
+  };
 
   // Linderos Norte y Sur
   let colIdx = 0;
@@ -56,10 +89,8 @@ export function computePerimeterTrees(levelData) {
     if (streamGapX && x + 64 > streamGapX[0] && x < streamGapX[1]) {
       continue;
     }
-    if (!isInsideCaveSafeZone(x, staggerY)) {
-      trees.push({ x, y: staggerY });
-    }
-    trees.push({ x, y: mapHeight - 96 - staggerY });
+    tryPushTree(x, staggerY);
+    tryPushTree(x, mapHeight - 96 - staggerY);
   }
 
   // Linderos Oeste y Este
@@ -70,10 +101,8 @@ export function computePerimeterTrees(levelData) {
     if (cfg.hasOpenRoad && y > roadGap[0] && y < roadGap[1]) {
       continue;
     }
-    if (!isInsideCaveSafeZone(staggerX, y)) {
-      trees.push({ x: staggerX, y });
-    }
-    trees.push({ x: mapWidth - 96 - staggerX, y });
+    tryPushTree(staggerX, y);
+    tryPushTree(mapWidth - 96 - staggerX, y);
   }
 
   return trees;
@@ -190,9 +219,17 @@ export function normalizeLevel(raw, { generateMissingGrid = null } = {}) {
 
   const stealthZones = Array.isArray(raw.stealthZones) ? raw.stealthZones.map(z => ({ ...z })) : [];
   const lights = Array.isArray(raw.lights) ? raw.lights.map(l => ({ ...l })) : [];
-  const props = Array.isArray(raw.props) ? raw.props.map(p => ({ ...p })) : [];
+  const props = Array.isArray(raw.props)
+    ? raw.props.map((p) => ({
+      ...p,
+      sealedBy: Array.isArray(p.sealedBy) ? [...p.sealedBy] : undefined
+    }))
+    : [];
   const entities = Array.isArray(raw.entities)
-    ? raw.entities.map(e => ({ ...e, customTags: Array.isArray(e.customTags) ? [...e.customTags] : [] }))
+    ? raw.entities.map((e) => ({
+      ...e,
+      customTags: Array.isArray(e.customTags) ? [...e.customTags] : []
+    }))
     : [];
   const clearingTrees = Array.isArray(raw.clearingTrees) ? raw.clearingTrees.map(t => ({ ...t })) : [];
   const foliage = Array.isArray(raw.foliage) ? raw.foliage.map(f => ({ ...f })) : [];

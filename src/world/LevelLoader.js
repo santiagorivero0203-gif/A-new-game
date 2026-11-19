@@ -44,6 +44,7 @@ export class LevelLoader {
    * @param {import('../render/Camera.js').Camera} [deps.camera]
    * @param {import('../systems/PhysicsSystem.js').PhysicsSystem} [deps.physicsSystem]
    * @param {import('./ChunkManager.js').ChunkManager} [deps.chunkManager]
+   * @param {import('./Tilemap.js').Tilemap} [deps.tilemap]
    * @returns {{
    *   mapWidth: number,
    *   mapHeight: number,
@@ -53,7 +54,7 @@ export class LevelLoader {
    *   initialObjective: string|null
    * }}
    */
-  static loadLevel(levelData, { entityManager, foliageSystem = null, camera = null, physicsSystem = null, chunkManager = null }) {
+  static loadLevel(levelData, { entityManager, foliageSystem = null, camera = null, physicsSystem = null, chunkManager = null, tilemap = null }) {
     if (!levelData || !entityManager) {
       throw new Error('[LevelLoader] levelData y entityManager son requeridos.');
     }
@@ -117,11 +118,17 @@ export class LevelLoader {
           const npcConfig = {
             name: ent.name,
             variant: ent.variant || 'tarak',
-            rescueTag: ent.rescueTag || null
+            rescueTag: ent.rescueTag || null,
+            worldId: level.id,
+            karmaEventId: ent.karmaEventId || null,
+            rewardWeapon: ent.rewardWeapon || null,
+            rewardShield: ent.rewardShield,
+            rewardEssence: ent.rewardEssence || 6,
+            dialogues: ent.dialogues || null
           };
           if (chunkManager) {
             chunkManager.registerBlueprint({
-              uid: nextUid(`npc_${npcConfig.variant}`),
+              uid: ent.id || nextUid(`npc_${npcConfig.variant}`),
               kind: 'npc',
               x: ent.x,
               y: ent.y,
@@ -141,7 +148,15 @@ export class LevelLoader {
               name: ent.name,
               archetype: ent.archetype,
               hasWoodenShield: Boolean(ent.hasWoodenShield),
+              hasMetalArmor: Boolean(ent.hasMetalArmor),
               noRespawn: Boolean(ent.noRespawn),
+              bossId: ent.bossId || null,
+              linkId: ent.linkId || null,
+              worldSeal: Boolean(ent.worldSeal),
+              rewardWeapon: ent.rewardWeapon || null,
+              rewardShield: ent.rewardShield || null,
+              scaleWithRelicTier: Boolean(ent.scaleWithRelicTier),
+              canSplit: Boolean(ent.canSplit),
               customTags: ent.customTags || null
             });
           } else {
@@ -151,10 +166,25 @@ export class LevelLoader {
               enemy._initialWoodenShield = true;
               if (!enemy.tags.includes('wooden_shield')) enemy.tags.push('wooden_shield');
             }
+            if (ent.hasMetalArmor) {
+              if (typeof enemy.equipMetalArmor === 'function') {
+                enemy.equipMetalArmor(!ent.hasWoodenShield);
+              } else {
+                enemy.hasMetalArmor = true;
+                enemy._initialMetalArmor = true;
+                if (!enemy.tags.includes('metal_armor')) enemy.tags.push('metal_armor');
+              }
+            }
             if (ent.noRespawn) {
               enemy.noRespawn = true;
               enemy.tags.push('no_respawn');
             }
+            if (ent.bossId) enemy.bossId = ent.bossId;
+            if (ent.linkId) enemy.linkId = ent.linkId;
+            if (ent.worldSeal) enemy.worldSeal = true;
+            if (ent.rewardWeapon) enemy.rewardWeapon = ent.rewardWeapon;
+            if (ent.rewardShield) enemy.rewardShield = ent.rewardShield;
+            if (ent.canSplit) enemy.canSplit = true;
             if (Array.isArray(ent.customTags)) {
               for (const tag of ent.customTags) {
                 if (!enemy.tags.includes(tag)) enemy.tags.push(tag);
@@ -188,8 +218,9 @@ export class LevelLoader {
       }
     }
 
-    // 7. Perímetro Optimizado de Bosque (fórmula compartida con LevelEditor vía LevelSchema)
-    const perimeterTrees = computePerimeterTrees(level);
+    // 7. Perímetro Optimizado de Bosque (fórmula compartida con LevelEditor vía LevelSchema; filtra acantilados/fluidos)
+    const activeGrid = tilemap?.grid || physicsSystem?.tilemap?.grid || null;
+    const perimeterTrees = computePerimeterTrees(level, activeGrid);
     for (const pt of perimeterTrees) {
       if (chunkManager) {
         chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: pt.x, y: pt.y });

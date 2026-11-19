@@ -43,7 +43,7 @@ export class InteractableProp extends Entity {
     this.label = config.label || '';
     this.grantsElement = config.grantsElement || 'Fuego';
 
-    // Metadatos narrativos y de portales entre mundos
+    // Metadatos narrativos, enlaces lógicos, peligros ambientales y portales entre mundos
     this.biomeTint = config.biomeTint || 'forest';
     this.loreTitle = config.loreTitle || '';
     this.loreText = config.loreText || '';
@@ -53,6 +53,20 @@ export class InteractableProp extends Entity {
     this.targetSpawnId = config.targetSpawnId || null;
     this.worldLabel = config.worldLabel || 'Atlas de Mundos';
     this.essenceReward = Number(config.essenceReward || 0);
+    this.sealedBy = Array.isArray(config.sealedBy) ? [...config.sealedBy] : [];
+    this.sealedHint = config.sealedHint || '';
+    this.grantsWeapon = config.grantsWeapon || null;
+    this.grantsShield = config.grantsShield || null;
+    this.hazardKind = config.hazardKind || 'magma_geyser';
+    this.cycleTime = Math.max(1.5, Number(config.cycleTime) || 3.8);
+    this.activeTime = Math.max(0.3, Number(config.activeTime) || 0.75);
+    this.hazardRadius = Math.max(20, Number(config.hazardRadius) || 44);
+    this.lightColor = config.lightColor || null;
+    this._hazardTimer = Number(config.phaseOffset) || 0;
+    this._hazardPhase = 'idle';
+    this._hazardHitThisCycle = false;
+    this._addedLight = false;
+    this._isPortalSealed = this.sealedBy.length > 0;
 
     // Metadatos para objetos de ambiente personalizados (Forja de Zonas)
     this.customKey = config.customKey || 'objeto_personalizado';
@@ -107,11 +121,22 @@ export class InteractableProp extends Entity {
 
     // Si el obstáculo ya fue destruido/consumido, garantizar que no vuelva a bloquear paso ni interacciones
     if (this.isConsumed || this.isDead) {
-      if (this.propType === 'cracked_rock' || this.propType === 'burnable_vines') {
+      if (
+        this.propType === 'cracked_rock' ||
+        this.propType === 'burnable_vines' ||
+        this.propType === 'kinetic_barrier' ||
+        this.propType === 'runic_gate'
+      ) {
         this.isDead = true;
         this.active = false;
-        this.tags = this.tags.filter((t) => t !== 'solid' && t !== 'destructible_prop');
-      } else if (this.propType === 'starter_sword' || this.propType === 'relic_pedestal' || this.propType === 'broken_statue' || this.propType === 'rusted_greatsword') {
+        this.tags = this.tags.filter((t) => t !== 'solid' && t !== 'destructible_prop' && t !== 'interactable');
+      } else if (
+        this.propType === 'starter_sword' ||
+        this.propType === 'relic_pedestal' ||
+        this.propType === 'broken_statue' ||
+        this.propType === 'rusted_greatsword' ||
+        this.propType === 'weapon_shrine'
+      ) {
         this.tags = this.tags.filter((t) => t !== 'interactable');
       }
     }
@@ -154,6 +179,14 @@ export class InteractableProp extends Entity {
       case 'rusted_greatsword': return { w: 48, h: 56 };
       case 'runic_obelisk': return { w: 56, h: 88 };
       case 'world_portal': return { w: 76, h: 76 };
+      case 'elemental_brazier': return { w: 44, h: 52 };
+      case 'root_totem': return { w: 48, h: 64 };
+      case 'kinetic_barrier': return { w: 64, h: 60 };
+      case 'kinetic_pillar': return { w: 48, h: 68 };
+      case 'ether_pylon': return { w: 48, h: 76 };
+      case 'runic_gate': return { w: 72, h: 68 };
+      case 'weapon_shrine': return { w: 56, h: 68 };
+      case 'hazard_vent': return { w: 56, h: 44 };
       case 'custom_env_prop':
         return {
           w: Math.max(16, Math.min(384, Number(config?.width) || 64)),
@@ -249,6 +282,60 @@ export class InteractableProp extends Entity {
         this.hitbox = { offsetX: 18, offsetY: 28, width: 40, height: 26 };
         break;
 
+      case 'elemental_brazier':
+        this.tags.push('solid');
+        this.tags.push('destructible_prop');
+        this.hitbox = { offsetX: 8, offsetY: 22, width: 28, height: 24 };
+        break;
+
+      case 'root_totem':
+        this.tags.push('solid');
+        this.tags.push('destructible_prop');
+        this.tags.push('interactable');
+        this.hitbox = { offsetX: 10, offsetY: 36, width: 28, height: 22 };
+        break;
+
+      case 'kinetic_barrier':
+        this.tags.push('solid');
+        this.tags.push('destructible_prop');
+        this.tags.push('pared_falsa');
+        this.health = 40;
+        this.max_health = 40;
+        this.hitbox = { offsetX: 4, offsetY: 8, width: 56, height: 50 };
+        break;
+
+      case 'kinetic_pillar':
+        this.tags.push('solid');
+        this.tags.push('destructible_prop');
+        this.tags.push('interactable');
+        this.hitbox = { offsetX: 10, offsetY: 38, width: 28, height: 24 };
+        break;
+
+      case 'ether_pylon':
+        this.tags.push('solid');
+        this.tags.push('destructible_prop');
+        this.tags.push('interactable');
+        this.hitbox = { offsetX: 10, offsetY: 46, width: 28, height: 24 };
+        break;
+
+      case 'runic_gate':
+        this.tags.push('solid');
+        this.tags.push('destructible_prop');
+        this.tags.push('interactable');
+        this.hitbox = { offsetX: 6, offsetY: 10, width: 60, height: 54 };
+        break;
+
+      case 'weapon_shrine':
+        this.tags.push('solid');
+        this.tags.push('interactable');
+        this.hitbox = { offsetX: 10, offsetY: 38, width: 36, height: 24 };
+        break;
+
+      case 'hazard_vent':
+        this.tags.push('hazard_vent');
+        this.hitbox = { offsetX: 8, offsetY: 12, width: 40, height: 26 };
+        break;
+
       case 'custom_env_prop':
         if (this.isSolidProp) this.tags.push('solid');
         if (this.isInteractableProp) {
@@ -280,6 +367,85 @@ export class InteractableProp extends Entity {
 
     if (this.flashTimer > 0) {
       this.flashTimer = Math.max(0, this.flashTimer - dt);
+    }
+
+    // Sincronizar compuertas o portales sellados con ProgressionManager
+    if (this.sealedBy.length > 0 && context && context.progressionManager) {
+      const worldId = context.state ? context.state.get('current_world') : null;
+      if (worldId) {
+        const unlocked = context.progressionManager.areRequirementsMet(worldId, this.sealedBy);
+        if (this.propType === 'runic_gate' && unlocked) {
+          this.onSealBroken(context);
+          return;
+        }
+        if (this.propType === 'world_portal') {
+          this._isPortalSealed = !unlocked;
+          if (unlocked) this.isActivated = true;
+        }
+      }
+    }
+
+    // Respiraderos ambientales peligrosos (Esporas, Géiser de Magma, Bobina de Tormenta)
+    if (this.propType === 'hazard_vent') {
+      const player = context && context.player;
+      const cx = this.pos.x + this.width * 0.5;
+      const cy = this.pos.y + this.height * 0.5;
+      if (this.hazardKind === 'spore_pool') {
+        if (player && !player.isDead && !player.isDashing && !player.lowProfile) {
+          const px = player.pos.x + player.width * 0.5;
+          const py = player.pos.y + player.height * 0.5;
+          if ((px - cx) * (px - cx) + (py - cy) * (py - cy) <= this.hazardRadius * this.hazardRadius) {
+            player.applyEffect('enredado_espinas', 0.45);
+            player.stamina = Math.max(0, (player.stamina || 0) - 14 * dt);
+            if (context.vfxRenderer && Math.random() < 0.22) {
+              context.vfxRenderer.addParticle({
+                x: px, y: py + 6, vx: (Math.random() - 0.5) * 16, vy: -18, color: '#2dd4bf', size: 3, life: 0.35
+              });
+            }
+          }
+        }
+      } else {
+        this._hazardTimer = (this._hazardTimer + dt) % this.cycleTime;
+        const activeStart = Math.max(0.5, this.cycleTime - this.activeTime);
+        const telegraphStart = Math.max(0, activeStart - 0.95);
+        const prevPhase = this._hazardPhase;
+        if (this._hazardTimer >= activeStart) {
+          this._hazardPhase = 'active';
+          if (prevPhase !== 'active') {
+            this._hazardHitThisCycle = false;
+            if (context && context.audioManager && typeof context.audioManager.playHazardErupt === 'function') {
+              context.audioManager.playHazardErupt(this.hazardKind);
+            }
+            if (context && context.vfxRenderer) {
+              context.vfxRenderer.spawnImpact(
+                this.hazardKind === 'storm_coil' ? 'ether_arc' : 'fire_burst',
+                cx,
+                cy,
+                { radius: this.hazardRadius, duration: 0.42 }
+              );
+            }
+          }
+          if (!this._hazardHitThisCycle && player && !player.isDead && !player.hasTag('iframe') && !player.isDashing) {
+            const canLowEvade = this.hazardKind === 'storm_coil' && player.lowProfile;
+            if (!canLowEvade) {
+              const px = player.pos.x + player.width * 0.5;
+              const py = player.pos.y + player.height * 0.5;
+              if ((px - cx) * (px - cx) + (py - cy) * (py - cy) <= this.hazardRadius * this.hazardRadius) {
+                this._hazardHitThisCycle = true;
+                if (typeof player.takeDamage === 'function') {
+                  player.takeDamage(1, { heartDamage: 1, hitbox: { x: cx - 16, y: cy - 16, width: 32, height: 32 } }, context);
+                }
+              }
+            }
+          }
+        } else if (this._hazardTimer >= telegraphStart) {
+          this._hazardPhase = 'telegraph';
+        } else {
+          this._hazardPhase = 'idle';
+          this._hazardHitThisCycle = false;
+        }
+      }
+      return;
     }
 
     // Proceso de combustión cuando las Zarzas Gigantes reciben Fuego
@@ -410,6 +576,201 @@ export class InteractableProp extends Entity {
           context.state.set('level_objective', 'Sigue el rastro ígneo hacia la ribera sur y reclama el Núcleo de Brasa');
         }
       }
+      return;
+    }
+
+    const cx = this.pos.x + this.width * 0.5;
+    const cy = this.pos.y + this.height * 0.5;
+    const worldId = context && context.state ? context.state.get('current_world') : null;
+
+    // Caso 3: Brasero Elemental (`elemental_brazier`) — requiere Fuego
+    if (this.propType === 'elemental_brazier') {
+      if (attackElem === 'fuego') {
+        if (!this.isActivated) {
+          this.isActivated = true;
+          this.flashTimer = 0.2;
+          if (context && context.audioManager) context.audioManager.playAbility('fuego', false);
+          if (context && context.vfxRenderer) {
+            context.vfxRenderer.spawnImpact('fire_burst', cx, cy, { radius: 34, duration: 0.35 });
+          }
+          if (context && context.lightManager && !this._addedLight) {
+            this._addedLight = true;
+            context.lightManager.addLight({ x: cx, y: cy, radius: 170, color: this.lightColor || '#fb923c', intensity: 0.8, flickerSpeed: 2.6 });
+          }
+          if (context && context.progressionManager && worldId) {
+            context.progressionManager.registerLinkEvent(worldId, this.propId, context, { x: cx, y: cy });
+          }
+        }
+      } else {
+        this.flashTimer = 0.14;
+        if (context && context.audioManager) context.audioManager.playHitImpact('shield_bounce');
+        if (context && context.state) {
+          context.state.set('active_dialogue', {
+            speaker: 'SANTI',
+            text: 'Brasero apagado: debo encenderlo con Fuego [Clic Der / K].',
+            timer: 2.8
+          });
+        }
+      }
+      return;
+    }
+
+    // Caso 4: Tótem Silvestre (`root_totem`) — responde a Raíces / Plantas
+    if (this.propType === 'root_totem') {
+      if (attackElem === 'plantas' || attackElem === 'tierra' || attackElem === 'raices') {
+        if (!this.isActivated) {
+          this.isActivated = true;
+          this.flashTimer = 0.2;
+          if (context && context.audioManager) context.audioManager.playAbility('plantas', false);
+          if (context && context.vfxRenderer) {
+            context.vfxRenderer.spawnImpact('earth_root', cx, cy, { radius: 38, duration: 0.4 });
+          }
+          if (context && context.skillTreeManager) context.skillTreeManager.addEssence(4);
+          if (context && context.progressionManager && worldId) {
+            context.progressionManager.registerLinkEvent(worldId, this.propId, context, { x: cx, y: cy });
+          }
+        }
+      } else {
+        this.flashTimer = 0.14;
+        if (context && context.audioManager) context.audioManager.playHitImpact('shield_bounce');
+        if (context && context.state) {
+          context.state.set('active_dialogue', {
+            speaker: 'SANTI',
+            text: 'Las runas piden fuerza silvestre: usa Raíces para anclar este tótem.',
+            timer: 2.8
+          });
+        }
+      }
+      return;
+    }
+
+    // Caso 5: Barrera de Basalto Cinético (`kinetic_barrier`) — cede ante Cinética o Éter
+    if (this.propType === 'kinetic_barrier') {
+      if (attackElem === 'kinetic' || attackElem === 'eter' || (attack && attack.damageType === 'armor_break')) {
+        this.health -= Math.max(amount * 2.5, 40);
+        this.flashTimer = 0.16;
+        if (this.health <= 0) {
+          this._destroyObstacle(context, '¡Muralla de basalto demolida con impacto cinético!', 4);
+        }
+      } else {
+        this.flashTimer = 0.14;
+        if (context && context.audioManager) context.audioManager.playHitImpact('resisted', 'stone');
+        if (context && context.state) {
+          context.state.set('active_dialogue', {
+            speaker: 'SANTI',
+            text: 'Basalto demasiado denso para mi espada... Necesita Embestida Cinética o Éter.',
+            timer: 3.0
+          });
+        }
+      }
+      return;
+    }
+
+    // Caso 6: Pilar Cinético (`kinetic_pillar`) — responde a Embestida / Cinética
+    if (this.propType === 'kinetic_pillar') {
+      if (attackElem === 'kinetic') {
+        if (!this.isActivated) {
+          this.isActivated = true;
+          this.flashTimer = 0.2;
+          if (context && context.audioManager) context.audioManager.playAbility('kinetic', false);
+          if (context && context.vfxRenderer) {
+            context.vfxRenderer.spawnImpact('plasma_pulse', cx, cy, { radius: 40, duration: 0.36 });
+          }
+          if (context && context.progressionManager && worldId) {
+            context.progressionManager.registerLinkEvent(worldId, this.propId, context, { x: cx, y: cy });
+          }
+        }
+      } else {
+        this.flashTimer = 0.14;
+        if (context && context.audioManager) context.audioManager.playHitImpact('shield_bounce');
+        if (context && context.state) {
+          context.state.set('active_dialogue', {
+            speaker: 'SANTI',
+            text: 'El mecanismo requiere un golpe de Embestida Cinética para activarse.',
+            timer: 2.8
+          });
+        }
+      }
+      return;
+    }
+
+    // Caso 7: Pilón Voltaico (`ether_pylon`) — responde a Éter Magnético
+    if (this.propType === 'ether_pylon') {
+      if (attackElem === 'eter' || attackElem === 'astral') {
+        if (!this.isActivated) {
+          this.isActivated = true;
+          this.flashTimer = 0.2;
+          if (context && context.audioManager) context.audioManager.playAbility('eter', false);
+          if (context && context.vfxRenderer) {
+            context.vfxRenderer.spawnImpact('ether_arc', cx, cy, { radius: 42, duration: 0.36 });
+          }
+          if (context && context.lightManager && !this._addedLight) {
+            this._addedLight = true;
+            context.lightManager.addLight({ x: cx, y: cy, radius: 185, color: '#c084fc', intensity: 0.85, flickerSpeed: 2.1 });
+          }
+          if (context && context.progressionManager && worldId) {
+            context.progressionManager.registerLinkEvent(worldId, this.propId, context, { x: cx, y: cy });
+          }
+        }
+      } else {
+        this.flashTimer = 0.14;
+        if (context && context.audioManager) context.audioManager.playHitImpact('shield_bounce');
+        if (context && context.state) {
+          context.state.set('active_dialogue', {
+            speaker: 'SANTI',
+            text: 'Este pilón astral solo responde a pulsos de Éter Magnético.',
+            timer: 2.8
+          });
+        }
+      }
+      return;
+    }
+
+    // Caso 8: Compuerta Rúnica (`runic_gate`)
+    if (this.propType === 'runic_gate') {
+      this.flashTimer = 0.14;
+      if (context && context.audioManager) context.audioManager.playHitImpact('shield_bounce');
+      if (context && context.state) {
+        context.state.set('active_dialogue', {
+          speaker: 'SELLO RÚNICO',
+          text: this.sealedHint || 'Esta compuerta rúnica está sellada por mecanismos de la zona.',
+          timer: 3.2
+        });
+      }
+    }
+  }
+
+  /**
+   * Ejecuta la apertura de compuerta o liberación visual de portal cuando se cumplen sus `sealedBy`.
+   * @param {Object} context
+   */
+  onSealBroken(context) {
+    if (this.propType === 'runic_gate' && !this.isDead) {
+      this._destroyObstacle(
+        context,
+        this.label ? `¡${this.label} desbloqueada!` : '¡El sello de la compuerta rúnica se ha quebrado!',
+        0
+      );
+      return;
+    }
+    if (this.propType === 'world_portal') {
+      this._isPortalSealed = false;
+      if (!this.isActivated) {
+        this.isActivated = true;
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('parry_spark', this.pos.x + this.width * 0.5, this.pos.y + this.height * 0.5, {
+            radius: 48,
+            duration: 0.48
+          });
+        }
+        if (context && context.state) {
+          context.state.set('active_dialogue', {
+            speaker: 'RELIQUIA',
+            text: `¡Los sellos hacia ${this.worldLabel} resuenan abiertos!`,
+            timer: 3.5
+          });
+        }
+      }
     }
   }
 
@@ -419,7 +780,8 @@ export class InteractableProp extends Entity {
    */
   _destroyObstacle(context, message = null, essenceReward = 0) {
     this.isDead = true;
-    this.tags = this.tags.filter(t => t !== 'solid' && t !== 'destructible_prop');
+    this.isConsumed = true;
+    this.tags = this.tags.filter(t => t !== 'solid' && t !== 'destructible_prop' && t !== 'interactable');
 
     if (context) {
       if (context.audioManager) context.audioManager.playExplosion();
@@ -504,86 +866,132 @@ export class InteractableProp extends Entity {
 
     if (this.propType === 'relic_pedestal') {
       if (this.isConsumed) {
-        return 'El pedestal ya entregó su Núcleo de Brasa a tu Guantelete.';
+        return `El pedestal ya entregó el Núcleo de ${this.grantsElement || 'Fuego'} a tu Guantelete.`;
       }
       this.isConsumed = true;
-      const pedestalEssence = 4;
+      const pedestalEssence = this.essenceReward > 0 ? this.essenceReward : 6;
       if (context && context.skillTreeManager) {
         context.skillTreeManager.addEssence(pedestalEssence);
       } else if (stateManager) {
         const curEssence = stateManager.get('player_essence') ?? 0;
         stateManager.set('player_essence', curEssence + pedestalEssence);
       }
+
+      const rawElem = this.grantsElement || 'Fuego';
+      const normElem = player && typeof player._normalizeElementName === 'function'
+        ? player._normalizeElementName(rawElem)
+        : rawElem;
+      const displayElem = normElem === 'Plantas' ? 'Raíces' : normElem;
+
+      if (context && context.progressionManager) {
+        context.progressionManager.unlockElement(normElem, player, stateManager);
+      } else {
+        if (player) {
+          player.unlockElement(normElem);
+          player.equipAbility(normElem);
+        }
+        if (stateManager) {
+          stateManager.set('gauntlet_tier', Math.max(1, stateManager.get('gauntlet_tier') || 0));
+          stateManager.set('equipped_power', displayElem);
+        }
+      }
+
+      if (player) {
+        player.health = player.max_health;
+        player.energy = player.max_energy || 100;
+      }
+      if (context && context.input && typeof context.input.setPower === 'function') {
+        context.input.setPower(displayElem);
+      }
+
       const isMobile = context?.inputManager?.shouldShowTouchControls || (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active'));
-      if (stateManager) {
-        stateManager.set('gauntlet_tier', Math.max(1, stateManager.get('gauntlet_tier') || 0));
-        stateManager.set('equipped_power', 'Fuego');
-        stateManager.set('intro_stage', 2);
-        stateManager.set(
-          'level_objective',
-          formatControlPrompts('Usa Fuego [Clic Der / K] para quemar las Zarzas del Puente', isMobile)
-        );
-        stateManager.set('horde_victory_announcement', {
+      const coreMeta = {
+        Fuego: {
           title: 'NÚCLEO DE FUEGO DESPERTADO',
-          rewardText: formatControlPrompts(`Ceniza Ígnea activa • Pulsa [Clic Der / K] para lanzar proyectiles de fuego (+${pedestalEssence} ✦)`, isMobile)
+          objective: 'Usa Fuego [Clic Der / K] para quemar las Zarzas del Puente y el Brasero',
+          sub: `Ceniza Ígnea activa • Pulsa [Clic Der / K] (+${pedestalEssence} ✦)`
+        },
+        Raíces: {
+          title: 'NÚCLEO DE RAÍCES DESPERTADO',
+          objective: 'Ancla los Tótems Inestables con Raíces [Clic Der / K] y abre la Compuerta',
+          sub: `Látigo y Prisión Silvestre activos • Alterna con [R] / [3] (+${pedestalEssence} ✦)`
+        },
+        Embestida: {
+          title: 'NÚCLEO CINÉTICO DESPERTADO',
+          objective: 'Demuele la Muralla de Basalto y activa los Pilares Cinéticos con [Clic Der / K]',
+          sub: `Embestida Rompedora y Taladro activos • Alterna con [R] / [2] (+${pedestalEssence} ✦)`
+        },
+        Éter: {
+          title: 'NÚCLEO DE ÉTER MAGNÉTICO DESPERTADO',
+          objective: 'Sincroniza los Pilones Voltaicos con Éter [Clic Der / K] para abrir el Cenit',
+          sub: `Pulso de Polaridad y Singularidad activos • Alterna con [R] / [4] (+${pedestalEssence} ✦)`
+        }
+      }[displayElem] || {
+        title: `NÚCLEO DE ${displayElem.toUpperCase()} DESPERTADO`,
+        objective: `Domina ${displayElem} [Clic Der / K] para superar los sellos del bioma`,
+        sub: `Nuevo conducto activo (+${pedestalEssence} ✦)`
+      };
+
+      if (stateManager) {
+        stateManager.set('intro_stage', Math.max(2, stateManager.get('intro_stage') || 0));
+        stateManager.set('level_objective', formatControlPrompts(coreMeta.objective, isMobile));
+        stateManager.set('horde_victory_announcement', {
+          title: coreMeta.title,
+          rewardText: formatControlPrompts(coreMeta.sub, isMobile)
+        });
+        stateManager.set('core_awakened', {
+          element: displayElem,
+          x: this.pos.x + this.width * 0.5,
+          y: this.pos.y + this.height * 0.5,
+          ts: Date.now()
         });
       }
-      if (player) {
-        player.unlockElement('Fuego');
-        player.equipAbility('Fuego');
-        player.health = player.max_health;
-        player.energy = 100;
+      if (context && context.audioManager) {
+        if (typeof context.audioManager.playCoreAwakening === 'function') {
+          context.audioManager.playCoreAwakening(displayElem);
+        } else {
+          context.audioManager.playHeal();
+        }
       }
-      if (context && context.audioManager) context.audioManager.playHeal();
-      if (context && context.camera) context.camera.shake(0.35, 0.25);
-      return '¡El Núcleo de Brasa se funde con el Guantelete! El calor recorre tu brazo: ahora puedes incinerar las zarzas del puente.';
+      if (context && context.camera) context.camera.shake(0.38, 0.25);
+      return `¡El Núcleo de ${displayElem} se funde con el Guantelete!`;
     }
 
     if (this.propType === 'sanctuary_altar') {
       const isMobile = context?.inputManager?.shouldShowTouchControls || (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active'));
       if (stateManager) {
-        const prevTier = stateManager.get('gauntlet_tier') || 0;
-        stateManager.set('gauntlet_tier', 3);
-        stateManager.set('intro_stage', 4);
+        stateManager.set('intro_stage', Math.max(4, stateManager.get('intro_stage') || 0));
         stateManager.set(
           'level_objective',
-          formatControlPrompts('Santuario Armonizado • Mejora tus talentos [U] o activa la Estela de Hordas', isMobile)
+          formatControlPrompts('Santuario Armonizado • Mejora talentos [U] o desafía al Guardián de la región', isMobile)
         );
         if (player) {
-          player.unlockAllElements();
           player.spawnX = Math.round(this.pos.x);
           player.spawnY = Math.round(this.pos.y + 42);
           player.health = player.max_health;
-          player.energy = 100;
+          player.energy = player.max_energy || 100;
+          player.guard_meter = player.max_guard || 100;
           stateManager.set('player_health', player.health);
           stateManager.set('player_energy', player.energy);
         }
-        if (prevTier < 3) {
-          stateManager.set('horde_victory_announcement', {
-            title: 'RESONANCIA ANCESTRAL COMPLETA',
-            rewardText: formatControlPrompts('Fuego, Embestida Cinética y Raíces desbloqueados • Pulsa [1][2][3] o [R] para alternar', isMobile)
-          });
-        }
-        // Solicitar apertura limpia del Santuario de Habilidades si se invocó con [E]
+        if (context && context.audioManager) context.audioManager.playHeal();
         const openHook = stateManager.get('open_sanctuary_hook');
         if (typeof openHook === 'function') {
           openHook('skills');
           return null;
         }
       }
-      return 'El Altar de Resonancia restaura tu vitalidad y despierta los conductos de Embestida y Raíces.';
+      return 'El Altar de Resonancia restaura tu vitalidad, postura y energía elemental.';
     }
 
     if (this.propType === 'horde_totem') {
       if (context && context.waveManager) {
         if (!context.waveManager.isStarted) {
           if (player) {
-            player.unlockAllElements();
             player.spawnX = Math.round(this.pos.x);
             player.spawnY = Math.round(this.pos.y + 42);
           }
           if (stateManager) {
-            stateManager.set('gauntlet_tier', 3);
             stateManager.set('level_objective', 'Supera las Oleadas del Santuario Ancestral');
           }
           context.waveManager.startHorde(context);
@@ -652,7 +1060,61 @@ export class InteractableProp extends Entity {
       return this.loreText || 'El obelisco resuena en armonía con tu Guantelete.';
     }
 
+    if (this.propType === 'weapon_shrine') {
+      if (this.isConsumed) {
+        return 'El relicario ya entregó su armamento ancestral.';
+      }
+      this.isConsumed = true;
+      let unlockedName = this.label || 'Reliquia Forjada';
+      if (context && context.equipmentManager) {
+        if (this.grantsWeapon) {
+          context.equipmentManager.unlockWeapon(this.grantsWeapon);
+          context.equipmentManager.equipWeapon(this.grantsWeapon);
+          unlockedName = context.equipmentManager.getWeapon()?.name || unlockedName;
+        }
+        if (this.grantsShield) {
+          context.equipmentManager.unlockShield(this.grantsShield);
+          context.equipmentManager.equipShield(this.grantsShield);
+          unlockedName = context.equipmentManager.getShield()?.name || unlockedName;
+        }
+      }
+      if (context && context.audioManager) {
+        if (typeof context.audioManager.playCoreAwakening === 'function') context.audioManager.playCoreAwakening('Éter');
+        else context.audioManager.playHeal();
+      }
+      if (context && context.vfxRenderer) {
+        context.vfxRenderer.spawnImpact('parry_spark', this.pos.x + this.width * 0.5, this.pos.y + 24, { radius: 42, duration: 0.45 });
+      }
+      return `¡Has consagrado y equipado ${unlockedName}! Revisa el Arsenal [I] cuando quieras.`;
+    }
+
+    if (this.propType === 'root_totem') {
+      return this.isActivated
+        ? 'El tótem silvestre resuena con tus raíces.'
+        : 'Tótem inestable: golpéalo con el poder de Raíces [Clic Der / K] para anclarlo.';
+    }
+    if (this.propType === 'kinetic_pillar') {
+      return this.isActivated
+        ? 'El pilar cinético vibra en sintonía.'
+        : 'Pilar dormido: impáctalo con Embestida Cinética [Clic Der / K] para activarlo.';
+    }
+    if (this.propType === 'ether_pylon') {
+      return this.isActivated
+        ? 'El pilón voltaico canaliza corriente astral.'
+        : 'Pilón apagado: energízalo con Éter Magnético [Clic Der / K] para completar el circuito.';
+    }
+    if (this.propType === 'runic_gate') {
+      return this.sealedHint || 'Esta compuerta rúnica está sellada por mecanismos de la zona.';
+    }
+
     if (this.propType === 'world_portal') {
+      if (stateManager && this.sealedBy.length > 0 && context && context.progressionManager) {
+        const currentWorld = stateManager.get('current_world');
+        if (currentWorld && !context.progressionManager.areRequirementsMet(currentWorld, this.sealedBy)) {
+          if (context.audioManager) context.audioManager.playHitImpact('resisted');
+          return this.sealedHint || `Portal sellado. Derrota al Guardián de esta región para liberar el paso hacia ${this.worldLabel}.`;
+        }
+      }
       if (stateManager) {
         const loadWorldHook = stateManager.get('load_world_hook');
         if (this.targetWorld && typeof loadWorldHook === 'function') {
@@ -745,16 +1207,72 @@ export class InteractableProp extends Entity {
       }
     } else if (this.propType === 'world_portal') {
       const spr = CelSpriteAtlas.getWorldPortalSprite(this.portalColor);
+      if (spr) {
+        ctx.save();
+        if (this._isPortalSealed) ctx.globalAlpha = 0.55;
+        ctx.drawImage(spr, x, y);
+        ctx.restore();
+      }
+      if (this._isPortalSealed) {
+        ctx.save();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + 16, y + 18);
+        ctx.lineTo(x + 60, y + 58);
+        ctx.moveTo(x + 60, y + 18);
+        ctx.lineTo(x + 16, y + 58);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        const pulse = 0.22 + Math.sin(this.animClock * 1.6) * 0.1;
+        ctx.save();
+        ctx.strokeStyle = this.portalColor;
+        ctx.globalAlpha = pulse;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(x + 38, y + 40, Math.round(29 + Math.sin(this.animClock) * 2), 19, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else if (this.propType === 'elemental_brazier') {
+      const spr = CelSpriteAtlas.getBrazierSprite(this.isActivated);
       if (spr) ctx.drawImage(spr, x, y);
-      const pulse = 0.22 + Math.sin(this.animClock * 1.6) * 0.1;
-      ctx.save();
-      ctx.strokeStyle = this.portalColor;
-      ctx.globalAlpha = pulse;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(x + 38, y + 40, Math.round(29 + Math.sin(this.animClock) * 2), 19, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+    } else if (this.propType === 'root_totem') {
+      const spr = CelSpriteAtlas.getRootTotemSprite(this.isActivated);
+      if (spr) ctx.drawImage(spr, x, y);
+    } else if (this.propType === 'kinetic_barrier') {
+      const spr = CelSpriteAtlas.getKineticBarrierSprite(this.flashTimer > 0);
+      if (spr) ctx.drawImage(spr, x, y);
+      return;
+    } else if (this.propType === 'kinetic_pillar') {
+      const spr = CelSpriteAtlas.getKineticPillarSprite(this.isActivated);
+      if (spr) ctx.drawImage(spr, x, y);
+    } else if (this.propType === 'ether_pylon') {
+      const spr = CelSpriteAtlas.getEtherPylonSprite(this.isActivated);
+      if (spr) ctx.drawImage(spr, x, y);
+    } else if (this.propType === 'runic_gate') {
+      const spr = CelSpriteAtlas.getRunicGateSprite(this.runeColor || '#38bdf8');
+      if (spr) ctx.drawImage(spr, x, y);
+    } else if (this.propType === 'weapon_shrine') {
+      const spr = CelSpriteAtlas.getWeaponShrineSprite(this.isConsumed, this.runeColor || '#facc15');
+      if (spr) ctx.drawImage(spr, x, y);
+    } else if (this.propType === 'hazard_vent') {
+      const spr = CelSpriteAtlas.getHazardVentSprite(this.hazardKind, this._hazardPhase);
+      if (spr) ctx.drawImage(spr, x, y);
+      if (this._hazardPhase === 'telegraph') {
+        const cx = x + this.width * 0.5;
+        const cy = y + this.height * 0.5;
+        ctx.save();
+        ctx.strokeStyle = this.hazardKind === 'storm_coil' ? '#e879f9' : '#fb923c';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, this.hazardRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+      return;
     } else if (this.propType === 'cracked_rock') {
       this._drawCrackedRock(ctx, x, y);
       return;
@@ -825,14 +1343,23 @@ export class InteractableProp extends Entity {
     });
     ctx.drawImage(baseSprite, Math.round(x), Math.round(y));
 
-    // Si aún no ha sido absorbido, dibujar faro vertical ígneo + Orbe de Fuego flotando
+    // Si aún no ha sido absorbido, dibujar faro vertical cromático + Orbe Elemental flotando
     if (!this.isConsumed) {
+      const elemKey = String(this.grantsElement || 'Fuego').toLowerCase();
+      const isRoots = elemKey.includes('raí') || elemKey.includes('rai') || elemKey.includes('plant');
+      const isKin = elemKey.includes('embest') || elemKey.includes('kinet') || elemKey.includes('cin');
+      const isEther = elemKey.includes('éter') || elemKey.includes('eter') || elemKey.includes('astral');
+      const beamRgba = isRoots ? '74, 222, 128' : isKin ? '56, 189, 248' : isEther ? '192, 132, 252' : '251, 146, 60';
+      const orbMain = isRoots ? '#22c55e' : isKin ? '#06b6d4' : isEther ? '#a855f7' : '#f97316';
+      const orbHi = isRoots ? '#86efac' : isKin ? '#67e8f9' : isEther ? '#e879f9' : '#fb923c';
+      const orbKey = `prop_relic_orb_${isRoots ? 'roots' : isKin ? 'kin' : isEther ? 'ether' : 'fire'}_v2`;
+
       const rx = Math.round(x);
       const ry = Math.round(y);
       const pulse = 0.24 + Math.sin(this.animClock * 1.8) * 0.10;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = `rgba(251, 146, 60, ${pulse})`;
+      ctx.fillStyle = `rgba(${beamRgba}, ${pulse})`;
       ctx.fillRect(rx + 18, ry - 92, 20, 108);
       ctx.fillStyle = `rgba(254, 240, 138, ${pulse * 0.85})`;
       ctx.fillRect(rx + 25, ry - 86, 6, 100);
@@ -841,14 +1368,14 @@ export class InteractableProp extends Entity {
         const lift = ((this.animClock * 16 + i * 28) % 84);
         const sx = rx + 22 + ((i * 7) % 13);
         const sy = Math.round(ry + 10 - lift);
-        ctx.fillStyle = i % 2 === 0 ? '#fde047' : '#fb923c';
+        ctx.fillStyle = i % 2 === 0 ? '#fef08a' : orbHi;
         ctx.fillRect(sx, sy, 2, 2);
       }
       ctx.restore();
 
-      const orbSprite = CelSpriteAtlas.getOrBake('prop_relic_orb_fire_v2', 24, 24, (octx) => {
-        CelSpriteAtlas._inkEllipse(octx, 12, 12, 9, 9, '#f97316', '#050811', 1);
-        octx.fillStyle = '#fb923c';
+      const orbSprite = CelSpriteAtlas.getOrBake(orbKey, 24, 24, (octx) => {
+        CelSpriteAtlas._inkEllipse(octx, 12, 12, 9, 9, orbMain, '#050811', 1);
+        octx.fillStyle = orbHi;
         octx.fillRect(7, 7, 7, 7);
         octx.fillStyle = '#fef08a';
         octx.fillRect(9, 8, 4, 4);
@@ -980,7 +1507,12 @@ export class InteractableProp extends Entity {
     else if (this.propType === 'broken_statue') action = 'ESTATUA';
     else if (this.propType === 'rusted_greatsword') action = 'ESPADÓN';
     else if (this.propType === 'runic_obelisk') action = 'OBELISCO';
-    else if (this.propType === 'world_portal') action = this.worldLabel.toUpperCase();
+    else if (this.propType === 'weapon_shrine') action = 'RELICARIO';
+    else if (this.propType === 'runic_gate') action = 'SELLADO';
+    else if (this.propType === 'root_totem') action = 'TÓTEM';
+    else if (this.propType === 'kinetic_pillar') action = 'PILAR';
+    else if (this.propType === 'ether_pylon') action = 'PILÓN';
+    else if (this.propType === 'world_portal') action = this._isPortalSealed ? 'SELLADO 🔒' : this.worldLabel.toUpperCase();
     const label = `${prefix} ${action}`;
     ctx.save();
     ctx.font = '800 9px Outfit, sans-serif';

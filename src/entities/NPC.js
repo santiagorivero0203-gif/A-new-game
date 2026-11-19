@@ -27,10 +27,24 @@ export class NPC extends Entity {
       this.name = configOrName.name || (configOrName.variant === 'valerio' ? 'Valerio el Viajero' : 'Sabio Tarak');
       this.variant = configOrName.variant || 'tarak';
       this.rescueTag = configOrName.rescueTag || null;
+      this.worldId = configOrName.worldId || null;
+      this.karmaEventId = configOrName.karmaEventId || (this.rescueTag ? 'valerio_m1' : null);
+      this.rewardWeapon = configOrName.rewardWeapon || null;
+      this.rewardShield = configOrName.rewardShield !== undefined
+        ? configOrName.rewardShield
+        : (this.rescueTag === 'ambush_valerio' ? 'iron_pavise' : null);
+      this.rewardEssence = Number(configOrName.rewardEssence) || 6;
+      this.dialogues = configOrName.dialogues || null;
     } else {
       this.name = configOrName || 'Sabio Tarak';
       this.variant = variant || (String(this.name).toLowerCase().includes('valerio') ? 'valerio' : 'tarak');
       this.rescueTag = this.variant === 'valerio' ? 'ambush_valerio' : null;
+      this.worldId = null;
+      this.karmaEventId = this.rescueTag ? 'valerio_m1' : null;
+      this.rewardWeapon = null;
+      this.rewardShield = this.rescueTag === 'ambush_valerio' ? 'iron_pavise' : null;
+      this.rewardEssence = 6;
+      this.dialogues = null;
     }
 
     this.playerNearby = false;
@@ -141,15 +155,33 @@ export class NPC extends Entity {
     this.rescueCompleted = true;
     this.isUnderThreat = false;
 
-    const rescueEssence = 6;
-    if (stateManager) {
+    const rescueEssence = this.rewardEssence || 6;
+    if (context && context.progressionManager && this.karmaEventId) {
+      context.progressionManager.recordKarmaEvent(this.karmaEventId, 1, stateManager);
+    } else if (stateManager) {
       const curKarma = stateManager.get('karma_level') || 0;
       stateManager.set('karma_level', curKarma + 1);
-      stateManager.set('valerio_rescued', true);
+    }
+
+    let rewardLabel = '';
+    if (context && context.equipmentManager) {
+      if (this.rewardWeapon && context.equipmentManager.unlockWeapon(this.rewardWeapon)) {
+        rewardLabel = ` y desbloquea nueva arma en tu Arsenal [I]`;
+      }
+      if (this.rewardShield && context.equipmentManager.unlockShield(this.rewardShield)) {
+        rewardLabel = rewardLabel ? `${rewardLabel} y nuevo escudo` : ` y revisa tu nuevo escudo en el Arsenal [I]`;
+      }
+    }
+
+    if (stateManager) {
+      if (this.karmaEventId === 'valerio_m1') {
+        stateManager.set('valerio_rescued', true);
+      }
+      const customText = this.dialogues && this.dialogues.rescueComplete;
       stateManager.set('active_dialogue', {
         speaker: this.name.toUpperCase(),
-        text: `¡Me salvaste de esas bestias! Toma estos cristales (+${rescueEssence} Esencia) y revisa mi Broquel Templado en el Arsenal.`,
-        timer: 4.5
+        text: customText || `¡Gracias por acudir en mi auxilio! Toma estos cristales (+${rescueEssence} Esencia)${rewardLabel}.`,
+        timer: 4.6
       });
     }
 
@@ -237,15 +269,40 @@ export class NPC extends Entity {
    */
   interact(stateManager, context = null) {
     this.interacted = true;
+    const karma = stateManager ? (stateManager.get('karma_level') || 0) : 0;
 
-    // Caso A: Valerio el Viajero Herbolario (Encuentro del Sendero Norte - Fase 'Ten')
+    if (this.rescueTag && this.isUnderThreat) {
+      return (this.dialogues && this.dialogues.underThreat)
+        || '¡Cuidado con el Esporífero! ¡Usa Guardia [Shift] justo al recibir su espora para devolvérsela!';
+    }
+
+    if (this.rescueTag && !this.rescueCompleted) {
+      this._completeInvisibleKarmaRescue(stateManager, context);
+    }
+
+    // Diálogos declarativos definidos en el JSON del nivel con respuesta orgánica al Karma
+    if (this.dialogues) {
+      if (karma < 0 && this.dialogues.lowKarma) {
+        return this.dialogues.lowKarma;
+      }
+      if (karma >= 2 && this.dialogues.highKarma) {
+        return this.dialogues.highKarma;
+      }
+      if (Array.isArray(this.dialogues)) {
+        this._tipIndex = ((this._tipIndex ?? -1) + 1) % this.dialogues.length;
+        return this.dialogues[this._tipIndex];
+      }
+      if (Array.isArray(this.dialogues.lines) && this.dialogues.lines.length > 0) {
+        this._tipIndex = ((this._tipIndex ?? -1) + 1) % this.dialogues.lines.length;
+        return this.dialogues.lines[this._tipIndex];
+      }
+      if (typeof this.dialogues.default === 'string') {
+        return this.dialogues.default;
+      }
+    }
+
+    // Caso A: Valerio el Viajero Herbolario (Encuentro del Sendero Norte)
     if (this.variant === 'valerio') {
-      if (this.isUnderThreat) {
-        return '¡Cuidado con el Esporífero! ¡Usa Guardia [Shift] justo al recibir su espora para devolvérsela!';
-      }
-      if (!this.rescueCompleted) {
-        this._completeInvisibleKarmaRescue(stateManager, context);
-      }
       const vLines = [
         'Gracias a ti sigo con vida, portador del Guantelete. Sabio Tarak te aguarda al sur, frente a su cabaña.',
         'Consejo de viajero: si abres el Santuario [U] y entras en ARSENAL, podrás equipar armas y escudos distintos.'
@@ -254,8 +311,7 @@ export class NPC extends Entity {
       return vLines[this._tipIndex];
     }
 
-    // Caso B: Sabio Guardián Tarak en el Claro del Santuario (Reacciona orgánicamente al Karma Invisible)
-    const karma = stateManager ? (stateManager.get('karma_level') || 0) : 0;
+    // Caso B: Sabio Guardián Tarak (Reacciona orgánicamente al Karma Invisible)
     const rescuedValerio = stateManager ? !!stateManager.get('valerio_rescued') : false;
 
     if (karma < 0) {
@@ -267,9 +323,9 @@ export class NPC extends Entity {
       teachings.push('Valerio me habló de tu valentía en el paso norte. La Reliquia resuena con más nobleza en tus manos.');
     }
     teachings.push(
-      'Bienvenido al Claro del Santuario, Santi. Toca el Monolito de Resonancia [E] para despertar todos tus elementos y mejorar talentos.',
+      'Bienvenido al Claro del Santuario, Santi. Toca el Monolito de Resonancia [E] para descansar y mejorar talentos.',
       'El Centinela Pavés porta un escudo de roble macizo: incinéralo con Fuego [Clic Der / K] para quebrar su defensa para siempre.',
-      'Cuando estés listo para poner a prueba todas tus mecánicas, activa la Estela de Desafío al este para invocar las 5 Oleadas.'
+      'Cuando estés listo para poner a prueba tus reflejos, activa la Estela de Desafío al este o desafía al Guardián de la región.'
     );
 
     this._tipIndex = ((this._tipIndex ?? -1) + 1) % teachings.length;

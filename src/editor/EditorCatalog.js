@@ -92,7 +92,7 @@ export const PROP_CATALOG = [
     editableFields: [
       { key: 'id', label: 'ID Único', type: 'text' },
       { key: 'label', label: 'Nombre en Pantalla', type: 'text' },
-      { key: 'grantsElement', label: 'Poder que Otorga', type: 'select', options: ['Fuego', 'Embestida', 'Raíces', 'Sellado', 'All'] }
+      { key: 'grantsElement', label: 'Poder que Otorga', type: 'select', options: ['Fuego', 'Embestida', 'Raíces', 'Éter', 'Sellado', 'All'] }
     ]
   },
   {
@@ -185,6 +185,133 @@ export const PROP_CATALOG = [
     editableFields: [
       { key: 'id', label: 'ID Único', type: 'text' },
       { key: 'label', label: 'Nombre en Pantalla', type: 'text' }
+    ]
+  },
+  {
+    type: 'elemental_brazier',
+    name: 'Brasero Elemental (Fuego)',
+    width: 44,
+    height: 52,
+    defaultConfig: {
+      id: 'brazier_01',
+      label: 'Brasero Antiguo',
+      lightColor: '#fb923c'
+    },
+    editableFields: [
+      { key: 'id', label: 'ID Único', type: 'text' },
+      { key: 'label', label: 'Nombre en Pantalla', type: 'text' },
+      { key: 'lightColor', label: 'Color de Llama', type: 'color' }
+    ]
+  },
+  {
+    type: 'root_totem',
+    name: 'Tótem Silvestre (Raíces)',
+    width: 48,
+    height: 64,
+    defaultConfig: {
+      id: 'root_totem_01',
+      label: 'Tótem Inestable'
+    },
+    editableFields: [
+      { key: 'id', label: 'ID Único', type: 'text' },
+      { key: 'label', label: 'Nombre en Pantalla', type: 'text' }
+    ]
+  },
+  {
+    type: 'kinetic_barrier',
+    name: 'Muralla de Basalto (Cinética)',
+    width: 64,
+    height: 60,
+    defaultConfig: {
+      id: 'kinetic_barrier_01',
+      label: 'Muralla de Basalto'
+    },
+    editableFields: [
+      { key: 'id', label: 'ID Único', type: 'text' },
+      { key: 'label', label: 'Nombre en Pantalla', type: 'text' }
+    ]
+  },
+  {
+    type: 'kinetic_pillar',
+    name: 'Pilar Cinético (Embestida)',
+    width: 48,
+    height: 68,
+    defaultConfig: {
+      id: 'kinetic_pillar_01',
+      label: 'Pilar de Impacto'
+    },
+    editableFields: [
+      { key: 'id', label: 'ID Único', type: 'text' },
+      { key: 'label', label: 'Nombre en Pantalla', type: 'text' }
+    ]
+  },
+  {
+    type: 'ether_pylon',
+    name: 'Pilón Voltaico (Éter)',
+    width: 48,
+    height: 76,
+    defaultConfig: {
+      id: 'ether_pylon_01',
+      label: 'Pilón Voltaico'
+    },
+    editableFields: [
+      { key: 'id', label: 'ID Único', type: 'text' },
+      { key: 'label', label: 'Nombre en Pantalla', type: 'text' }
+    ]
+  },
+  {
+    type: 'runic_gate',
+    name: 'Compuerta Rúnica Sellada',
+    width: 72,
+    height: 68,
+    defaultConfig: {
+      id: 'runic_gate_01',
+      label: 'Compuerta Rúnica',
+      runeColor: '#38bdf8',
+      sealedBy: [],
+      sealedHint: 'Busca los interruptores vinculados para abrir el sello.'
+    },
+    editableFields: [
+      { key: 'id', label: 'ID Único', type: 'text' },
+      { key: 'label', label: 'Nombre en Pantalla', type: 'text' },
+      { key: 'runeColor', label: 'Color de Sello', type: 'color' },
+      { key: 'sealedHint', label: 'Pista si está Sellada', type: 'text' }
+    ]
+  },
+  {
+    type: 'weapon_shrine',
+    name: 'Relicario de Armamento',
+    width: 56,
+    height: 68,
+    defaultConfig: {
+      id: 'weapon_shrine_01',
+      label: 'Relicario Forjado',
+      grantsWeapon: 'thorn_saber',
+      runeColor: '#4ade80'
+    },
+    editableFields: [
+      { key: 'id', label: 'ID Único', type: 'text' },
+      { key: 'label', label: 'Nombre en Pantalla', type: 'text' },
+      { key: 'grantsWeapon', label: 'ID Arma Otorgada', type: 'text' },
+      { key: 'grantsShield', label: 'ID Escudo Otorgado', type: 'text' }
+    ]
+  },
+  {
+    type: 'hazard_vent',
+    name: 'Respiradero Ambiental',
+    width: 56,
+    height: 44,
+    defaultConfig: {
+      id: 'hazard_vent_01',
+      hazardKind: 'magma_geyser',
+      cycleTime: 3.8,
+      activeTime: 0.75,
+      hazardRadius: 44
+    },
+    editableFields: [
+      { key: 'hazardKind', label: 'Tipo', type: 'select', options: ['spore_pool', 'magma_geyser', 'storm_coil'] },
+      { key: 'cycleTime', label: 'Ciclo (s)', type: 'number' },
+      { key: 'hazardRadius', label: 'Radio (px)', type: 'number' }
     ]
   },
   {

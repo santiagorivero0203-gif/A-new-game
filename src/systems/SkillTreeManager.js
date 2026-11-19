@@ -37,7 +37,7 @@ export class SkillTreeManager {
     this.state = stateManager;
 
     /** @type {number} Esencia Antigua disponible para invertir en el Santuario */
-    this.essence = 150;
+    this.essence = 40;
 
     /** @type {Record<string, number>} Mapa de rangos adquiridos por `skillId` */
     this.skillRanks = {};
@@ -826,7 +826,19 @@ export class SkillTreeManager {
   }
 
   /**
-   * Calcula el coste en Esencia para el siguiente rango de un nodo.
+   * Calcula el multiplicador económico invisible derivado del Karma acumulado.
+   * @private
+   * @returns {number}
+   */
+  _getKarmaMultiplier() {
+    const karma = this.state ? (this.state.get('karma_level') || 0) : 0;
+    if (karma >= 2) return 0.85;
+    if (karma <= -2) return 1.15;
+    return 1.0;
+  }
+
+  /**
+   * Calcula el coste en Esencia para el siguiente rango de un nodo, ajustado por Karma Invisible.
    * @param {string} skillId
    * @returns {number}
    */
@@ -835,7 +847,8 @@ export class SkillTreeManager {
     if (!sk) return 9999;
     const rank = this.getSkillRank(skillId);
     const scale = sk.costScale || 1.45;
-    return Math.round(sk.cost * Math.pow(scale, rank));
+    const raw = sk.cost * Math.pow(scale, rank);
+    return Math.max(1, Math.round(raw * this._getKarmaMultiplier()));
   }
 
   /**
@@ -948,12 +961,13 @@ export class SkillTreeManager {
    */
   reset() {
     let refunded = 0;
+    const karmaMult = this._getKarmaMultiplier();
     for (const [id, rank] of Object.entries(this.skillRanks)) {
       const sk = this.skills[id];
       if (!sk || rank <= 0) continue;
       const scale = sk.costScale || 1.45;
       for (let r = 0; r < rank; r++) {
-        refunded += Math.round(sk.cost * Math.pow(scale, r));
+        refunded += Math.max(1, Math.round(sk.cost * Math.pow(scale, r) * karmaMult));
       }
     }
 
@@ -970,5 +984,20 @@ export class SkillTreeManager {
       this.state.set('skill_ranks', {});
     }
     return refunded;
+  }
+
+  /**
+   * Reinicia por completo el progreso del árbol y la esencia a su valor de campaña nueva.
+   */
+  resetCampaign() {
+    this.skillRanks = {};
+    this.unlockedSkills.clear();
+    this.essence = 40;
+    this.saveProgress();
+    if (this.state) {
+      this.state.set('player_essence', this.essence);
+      this.state.set('unlocked_skills', []);
+      this.state.set('skill_ranks', {});
+    }
   }
 }

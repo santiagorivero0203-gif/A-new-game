@@ -1,218 +1,266 @@
 {
+  "schemaVersion": 2,
   "id": "cave_exit_intro",
-  "name": "Umbral de la Cueva Hendida",
-  "layoutPreset": "cave_exit_intro",
+  "worldId": "cave_exit_intro",
+  "zoneId": "cave_exit_intro",
+  "zoneOrder": 1,
+  "isRootZone": true,
+  "name": "El Claro de la Reliquia",
+  "worldTitle": "Prólogo · El Umbral de la Cueva Hendida",
   "biome": "cave_exit_intro",
-  "worldTitle": "Mundo 1 · Claro de las Reliquias",
+  "layoutPreset": "cave_exit_intro",
   "weather": "pollen",
+  "cols": 56,
+  "rows": 38,
+  "tileSize": 32,
   "startDormant": true,
-  "initialObjective": "Empuña la Espada del Alba frente a la cueva [E / Clic Izq]",
-  "arenaCenter": { "x": 1344, "y": 720 },
-  "map": {
-    "cols": 56,
-    "rows": 38,
-    "tileSize": 32
+  "enableStealth": false,
+  "ambientColor": "rgba(10, 16, 26, 0.24)",
+  "initialObjective": "Empuña la Espada del Alba [E], despeja el derrumbe [Clic Izq / J] y reclama el Núcleo de Fuego",
+  "playerSpawn": { "x": 248, "y": 208 },
+  "spawnPoints": [
+    { "id": "default", "label": "Salida de la Cueva", "x": 248, "y": 208 },
+    { "id": "east_sanctuary", "label": "Santuario del Este", "x": 1344, "y": 580 }
+  ],
+  "arenaCenter": { "x": 1344, "y": 672 },
+  "perimeterConfig": {
+    "enabled": true,
+    "step": 108,
+    "hasOpenRoad": true,
+    "roadGapY": [540, 680],
+    "streamGapX": [690, 860],
+    "caveSafeZone": { "x": 0, "y": 0, "width": 540, "height": 390 }
   },
-  "playerSpawn": {
-    "x": 248,
-    "y": 208
-  },
-  "solidColliders": [
-    { "x": 736, "y": 0, "width": 96, "height": 544 },
-    { "x": 736, "y": 640, "width": 96, "height": 576 }
+  "solidColliders": [],
+  "stealthZones": [],
+  "lights": [
+    { "x": 248, "y": 212, "radius": 195, "color": "#38bdf8", "intensity": 0.72, "flickerSpeed": 1.7 },
+    { "x": 464, "y": 868, "radius": 240, "color": "#fb923c", "intensity": 0.78, "flickerSpeed": 2.3 },
+    { "x": 666, "y": 538, "radius": 165, "color": "#f97316", "intensity": 0.68, "flickerSpeed": 2.6 },
+    { "x": 1136, "y": 284, "radius": 175, "color": "#38bdf8", "intensity": 0.55, "flickerSpeed": 1.8 },
+    { "x": 1344, "y": 524, "radius": 250, "color": "#fde047", "intensity": 0.74, "flickerSpeed": 1.9 },
+    { "x": 1412, "y": 672, "radius": 210, "color": "#4ade80", "intensity": 0.56, "flickerSpeed": 1.6 },
+    { "x": 1600, "y": 592, "radius": 190, "color": "#2dd4bf", "intensity": 0.75, "flickerSpeed": 2.1 }
   ],
   "props": [
-    { "propType": "cave_mouth", "x": 168, "y": 96, "id": "intro_cave_mouth" },
+    { "id": "m1_cave_mouth", "propType": "cave_mouth", "x": 168, "y": 96 },
+    { "id": "m1_starter_sword", "propType": "starter_sword", "x": 240, "y": 268, "label": "Espada del Alba" },
+    { "id": "m1_cave_crystal_l", "propType": "crystal_rock", "x": 132, "y": 176 },
+    { "id": "m1_cave_crystal_r", "propType": "crystal_rock", "x": 364, "y": 176 },
     {
-      "propType": "starter_sword",
-      "x": 240,
-      "y": 268,
-      "id": "cave_threshold_sword",
-      "label": "Espada del Alba"
-    },
-    { "propType": "crystal_rock", "x": 132, "y": 176 },
-    { "propType": "crystal_rock", "x": 364, "y": 176 },
-    {
+      "id": "m1_broken_statue",
       "propType": "broken_statue",
       "x": 376,
-      "y": 212,
+      "y": 236,
       "biomeTint": "forest",
       "loreTitle": "Centinela Caído del Claro",
       "loreText": "El antiguo guardián custodia el umbral: «Quien empuñe la Reliquia deberá restaurar los cuatro Sellos.»",
       "essenceReward": 18
     },
-    { "propType": "cliff_rock", "x": 382, "y": 336 },
+    { "id": "m1_barricade_l", "propType": "cliff_rock", "x": 382, "y": 336 },
+    { "id": "m1_cracked_rock_1", "propType": "cracked_rock", "x": 448, "y": 336, "label": "Roca Mineral Agrietada" },
+    { "id": "m1_barricade_r", "propType": "cliff_rock", "x": 514, "y": 336 },
+    { "id": "m1_cliff_guard_l", "propType": "cliff_rock", "x": 368, "y": 692 },
+    { "id": "m1_cracked_rock_2", "propType": "cracked_rock", "x": 424, "y": 700 },
+    { "id": "m1_pedestal_crystal_l", "propType": "crystal_rock", "x": 352, "y": 852 },
     {
-      "propType": "cracked_rock",
-      "x": 448,
-      "y": 336,
-      "id": "tutorial_cracked_barricade",
-      "label": "Roca Mineral Agrietada"
-    },
-    { "propType": "cliff_rock", "x": 514, "y": 336 },
-
-    { "propType": "crystal_rock", "x": 352, "y": 852 },
-    {
+      "id": "m1_relic_fuego",
       "propType": "relic_pedestal",
-      "x": 436,
-      "y": 844,
-      "id": "ember_core_pedestal",
+      "grantsElement": "Fuego",
+      "essenceReward": 35,
       "label": "Pedestal del Núcleo de Brasa",
-      "grantsElement": "Fuego"
+      "x": 436,
+      "y": 844
     },
-    { "propType": "crystal_rock", "x": 524, "y": 852 },
-
+    { "id": "m1_pedestal_crystal_r", "propType": "crystal_rock", "x": 524, "y": 852 },
     {
-      "propType": "burnable_vines",
-      "x": 768,
-      "y": 544,
-      "id": "bridge_thorn_gate",
-      "label": "Zarzas Espinosas del Puente"
-    },
-
-    {
-      "propType": "rusted_greatsword",
-      "x": 920,
-      "y": 500,
-      "loreTitle": "Hoja de los Caballeros del Alba",
-      "loreText": "Grabado en la guarda: «Ninguna horda quebró este acero hasta la noche en que cayeron las esporas.»",
-      "essenceReward": 15
-    },
-    {
+      "id": "m1_obelisk_south",
       "propType": "runic_obelisk",
-      "x": 1004,
-      "y": 420,
-      "runeColor": "#38bdf8",
+      "essenceReward": 25,
+      "runeColor": "#fb923c",
       "loreTitle": "Obelisco del Despertar",
-      "loreText": "Las runas vibran con tu Guantelete, recordando la senda hacia el Pantano de Esporas.",
-      "essenceReward": 25
+      "loreText": "El fuego interior no solo calcina madera: purifica las corruptas zarzas de la Reliquia.",
+      "x": 556,
+      "y": 748
     },
     {
-      "propType": "sanctuary_altar",
-      "x": 1344,
-      "y": 620,
-      "id": "sacred_resonance_monolith",
-      "label": "Altar de Resonancia Sagrada",
-      "grantsElement": "All"
+      "id": "m1_bridge_brazier",
+      "propType": "elemental_brazier",
+      "label": "Brasero del Puente",
+      "lightColor": "#fb923c",
+      "x": 644,
+      "y": 512
+    },
+    { "id": "m1_bridge_vines", "propType": "burnable_vines", "x": 704, "y": 544 },
+    { "id": "m1_bridge_cap_n", "propType": "cliff_rock", "x": 776, "y": 524 },
+    {
+      "id": "m1_bridge_gate",
+      "propType": "runic_gate",
+      "sealedBy": ["m1_bridge_brazier"],
+      "runeColor": "#fb923c",
+      "label": "Compuerta del Brasero",
+      "sealedHint": "Enciende el Brasero de Fuego junto al puente occidental [Clic Der / K] para abrir esta compuerta.",
+      "x": 772,
+      "y": 568
     },
     {
-      "propType": "horde_totem",
-      "x": 1440,
-      "y": 720,
-      "id": "sanctuary_horde_totem",
-      "label": "Estela de Desafío de Hordas"
+      "id": "m1_rusted_greatsword",
+      "propType": "rusted_greatsword",
+      "essenceReward": 16,
+      "loreText": "Un antiguo blasón de vanguardia. Graba esta máxima: el Fuego destruye los escudos de madera.",
+      "x": 912,
+      "y": 496
     },
+    { "id": "m1_sanctuary_altar", "propType": "sanctuary_altar", "x": 1316, "y": 484 },
+    { "id": "m1_horde_totem", "propType": "horde_totem", "x": 1244, "y": 772 },
     {
+      "id": "m1_portal_to_marsh",
       "propType": "world_portal",
-      "x": 1568,
-      "y": 576,
-      "portalColor": "#2dd4bf",
       "targetWorld": "marsh_of_spores",
-      "worldLabel": "Pantano de Esporas"
+      "targetSpawnId": "default",
+      "worldLabel": "Pantano de Esporas",
+      "portalColor": "#2dd4bf",
+      "sealedBy": ["boss_m1"],
+      "sealedHint": "El sello del Pantano resiste mientras el Guardián Zarza custodie la Gran Plaza.",
+      "x": 1568,
+      "y": 568
     }
   ],
   "entities": [
+    { "type": "house", "x": 1192, "y": 356 },
+    {
+      "type": "npc",
+      "id": "valerio_m1_npc",
+      "name": "Valerio el Escudero",
+      "variant": "valerio",
+      "rescueTag": "ambush_valerio",
+      "karmaEventId": "valerio_m1",
+      "rewardShield": "iron_pavise",
+      "rewardEssence": 18,
+      "x": 1136,
+      "y": 276,
+      "dialogues": {
+        "underThreat": "¡Cuidado! Estas bestias me acorralaron tras el puente. ¡Limpia la emboscada!",
+        "rescueComplete": "¡Gracias por acudir! Toma este Pavés de Hierro (revísalo en el Arsenal [I]): detiene impactos mucho mejor que la madera.",
+        "highKarma": "Tu compasión ya resuena en todo el valle, Santi. Ese Pavés de Hierro honra tu guardia.",
+        "lowKarma": "Sobreviví por poco... Usa bien el Pavés de Hierro antes de desafiar al Guardián Zarza.",
+        "lines": [
+          "El Guardián Zarza protege el portal oriental tras su escudo de roble. Quémalo con Fuego [Clic Der / K].",
+          "En el Santuario [U] puedes reforzar tu vitalidad y maestría elemental con la Esencia."
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "tarak_m1_npc",
+      "name": "Sabio Tarak",
+      "variant": "tarak",
+      "x": 1228,
+      "y": 532,
+      "dialogues": {
+        "highKarma": "Ayudaste a Valerio en el claro norte. La Reliquia responde con claridad a quien no olvida a los vulnerables.",
+        "lowKarma": "El poder crece rápido cuando se camina sin mirar atrás, Santi, mas la Reliquia guarda memoria de cada paso.",
+        "lines": [
+          "Has despertado el primer núcleo: Fuego. Cada región custodia un poder hermano dormido.",
+          "Armoniza tus talentos en el Altar [E] o desafía ya al Guardián Zarza en la Gran Plaza."
+        ]
+      }
+    },
     {
       "type": "enemy",
+      "id": "m1_slime_north",
+      "archetype": "slime",
+      "element": "plantas",
+      "name": "Baba de Musgo",
+      "x": 436,
+      "y": 492
+    },
+    {
+      "type": "enemy",
+      "id": "m1_hound_ruin_1",
       "archetype": "hound",
       "element": "plantas",
       "name": "Sabueso de Zarzas",
-      "x": 384,
-      "y": 548,
-      "noRespawn": true
+      "x": 392,
+      "y": 768
     },
     {
       "type": "enemy",
+      "id": "m1_hound_ruin_2",
       "archetype": "hound",
       "element": "plantas",
-      "name": "Sabueso Acechador",
-      "x": 480,
-      "y": 740,
-      "noRespawn": true
-    },
-
-    {
-      "type": "npc",
-      "variant": "valerio",
-      "name": "Valerio el Viajero",
-      "rescueTag": "ambush_valerio",
-      "x": 1136,
-      "y": 256
+      "name": "Sabueso de Zarzas",
+      "x": 500,
+      "y": 792
     },
     {
       "type": "enemy",
+      "id": "m1_artillery_bank",
       "archetype": "artillery",
       "element": "plantas",
-      "name": "Esporífero Emboscador",
-      "x": 1056,
-      "y": 332,
-      "noRespawn": true,
-      "customTags": ["ambush_valerio"]
+      "name": "Esporífero de Ribera",
+      "x": 632,
+      "y": 636
     },
     {
       "type": "enemy",
+      "id": "m1_valerio_ambush_1",
       "archetype": "hound",
       "element": "plantas",
-      "name": "Sabueso Alfa",
-      "x": 1216,
-      "y": 332,
-      "noRespawn": true,
-      "customTags": ["ambush_valerio"]
+      "name": "Acechador del Norte",
+      "customTags": ["ambush_valerio"],
+      "x": 1068,
+      "y": 292
     },
-
     {
       "type": "enemy",
+      "id": "m1_valerio_ambush_2",
+      "archetype": "artillery",
+      "element": "plantas",
+      "name": "Tirador de Esporas",
+      "customTags": ["ambush_valerio"],
+      "x": 1192,
+      "y": 312
+    },
+    {
+      "type": "enemy",
+      "id": "m1_tank_approach",
       "archetype": "tank",
       "element": "plantas",
-      "name": "Centinela Pavés del Umbral",
-      "x": 1140,
-      "y": 600,
+      "name": "Centinela Pavés",
       "hasWoodenShield": true,
-      "noRespawn": true
-    },
-
-    {
-      "type": "house",
-      "x": 1410,
-      "y": 370
+      "x": 1044,
+      "y": 600
     },
     {
-      "type": "npc",
-      "variant": "tarak",
-      "name": "Sabio Tarak",
-      "x": 1248,
-      "y": 560
+      "type": "enemy",
+      "id": "m1_boss_bramble",
+      "archetype": "boss_bramble",
+      "element": "plantas",
+      "name": "Guardián Zarza",
+      "bossId": "boss_m1",
+      "worldSeal": true,
+      "hasWoodenShield": true,
+      "noRespawn": true,
+      "scaleWithRelicTier": true,
+      "x": 1396,
+      "y": 664
     }
   ],
   "clearingTrees": [
-    { "x": 588, "y": 248 },
-    { "x": 592, "y": 428 },
-    { "x": 180, "y": 460 },
-    { "x": 190, "y": 760 },
-    { "x": 620, "y": 820 },
-    { "x": 900, "y": 248 },
-    { "x": 1600, "y": 320 },
-    { "x": 920, "y": 840 },
-    { "x": 1060, "y": 980 },
-    { "x": 1580, "y": 920 }
+    { "x": 144, "y": 416 },
+    { "x": 544, "y": 224 },
+    { "x": 288, "y": 820 },
+    { "x": 560, "y": 912 },
+    { "x": 984, "y": 360 },
+    { "x": 1112, "y": 844 },
+    { "x": 1492, "y": 828 }
   ],
   "foliage": [
-    { "x": 544, "y": 488 },
-    { "x": 648, "y": 512 },
-    { "x": 648, "y": 672 },
-    { "x": 312, "y": 712 },
-    { "x": 580, "y": 936 },
-    { "x": 920, "y": 688 },
-    { "x": 1296, "y": 344 },
-    { "x": 1168, "y": 496 },
-    { "x": 1592, "y": 720 },
-    { "x": 1220, "y": 944 },
-    { "x": 1492, "y": 944 }
-  ],
-  "perimeterConfig": {
-    "step": 76,
-    "hasOpenRoad": false,
-    "streamGapX": [716, 844],
-    "caveSafeZone": { "x": 0, "y": 0, "width": 540, "height": 390 }
-  }
+    { "x": 296, "y": 324 },
+    { "x": 496, "y": 644 },
+    { "x": 900, "y": 440 },
+    { "x": 1176, "y": 640 },
+    { "x": 1468, "y": 512 }
+  ]
 }

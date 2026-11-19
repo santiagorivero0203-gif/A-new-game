@@ -618,9 +618,11 @@ export class CelSpriteAtlas {
    * @returns {HTMLCanvasElement}
    */
   static getEnemySprite(archetype = 'hound', element = 'plantas', isHurt = false) {
+    const isBoss = typeof archetype === 'string' && archetype.startsWith('boss_');
+    const spriteSize = isBoss ? 56 : 44;
     const key = `enemy_v4_${archetype}_${element}_${isHurt ? 1 : 0}`;
-    return CelSpriteAtlas.getOrBake(key, 44, 44, (ctx) => {
-      const cx = 22;
+    return CelSpriteAtlas.getOrBake(key, spriteSize, spriteSize, (ctx) => {
+      const cx = Math.floor(spriteSize / 2);
       const ox = INK;
       const pal = ELEMENT_PALETTES[element] || ELEMENT_PALETTES.plantas;
       const fillBase = isHurt ? '#ffffff' : pal.base;
@@ -830,6 +832,90 @@ export class CelSpriteAtlas {
           ctx.fillRect(cx + 10 + d, 25 - d, 2, 2);
           ctx.fillRect(cx - 11 - d, 26 - d, 2, 2);
         }
+      } else if (archetype === 'sentinel_ether') {
+        // Autómata Astral flotante con núcleo voltaico y anillos magnéticos
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 12, 20, 22, 5, isHurt ? '#ffffff' : '#312e81', ox, 1);
+        ctx.fillStyle = isHurt ? '#fef08a' : '#1e1b4b';
+        ctx.fillRect(cx - 8, 26, 16, 6);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 10, 7, 5, isHurt ? '#ffffff' : '#4338ca', ox, 1);
+        ctx.fillStyle = isHurt ? '#f97316' : '#38bdf8';
+        ctx.fillRect(cx - 4, 9, 8, 3);
+        // Núcleo central rúnico
+        CelSpriteAtlas._inkEllipse(ctx, cx, 21, 5, 5, isHurt ? '#ffffff' : '#c084fc', ox, 1);
+        ctx.fillStyle = '#f5d0fe';
+        ctx.fillRect(cx - 2, 19, 4, 4);
+        // Hombreras flotantes
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 14, 5, 11, 2, fillBase, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 11, 14, 5, 11, 2, fillBase, ox, 1);
+      } else if (archetype === 'boss_bramble') {
+        // Guardián Cortezaferro (56x56): coloso de madera viva y espinas doradas
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 14, 38, 10, 13, 2, '#3f2e1d', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 4, 38, 10, 13, 2, '#3f2e1d', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 16, 32, 26, 5, isHurt ? '#ffffff' : '#14532d', ox, 1);
+        ctx.fillStyle = isHurt ? '#fef08a' : '#15803d';
+        ctx.fillRect(cx - 13, 18, 26, 8);
+        // Corona de astas y espinas
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 8, 20, 13, 4, isHurt ? '#ffffff' : '#78350f', ox, 1);
+        ctx.fillStyle = ox;
+        ctx.fillRect(cx - 15, 4, 5, 8);
+        ctx.fillRect(cx + 10, 4, 5, 8);
+        ctx.fillStyle = '#4ade80';
+        ctx.fillRect(cx - 14, 5, 3, 6);
+        ctx.fillRect(cx + 11, 5, 3, 6);
+        // Ojos y núcleo ámbar
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(cx - 6, 13, 4, 3);
+        ctx.fillRect(cx + 2, 13, 4, 3);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 29, 6, 6, isHurt ? '#ffffff' : '#fb923c', ox, 1);
+      } else if (archetype === 'boss_spore') {
+        // Matriarca de Esporas (56x56): gran hongo bioluminiscente turquesa/púrpura
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 12, 34, 9, 16, 2, '#312e81', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 34, 9, 16, 2, '#312e81', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 32, 15, 11, isHurt ? '#ffffff' : '#0f766e', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 16, 22, 12, isHurt ? '#ffffff' : '#7e22ce', ox, 1);
+        ctx.fillStyle = '#3b0764';
+        ctx.fillRect(cx - 18, 21, 36, 4);
+        ctx.fillStyle = '#5eead4';
+        ctx.fillRect(cx - 13, 10, 5, 4);
+        ctx.fillRect(cx + 7, 11, 6, 4);
+        ctx.fillRect(cx - 2, 7, 5, 3);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(cx - 7, 29, 4, 3);
+        ctx.fillRect(cx + 3, 29, 4, 3);
+      } else if (archetype === 'boss_forge') {
+        // Titán del Crisol (56x56): gólem de hierro oscuro y vetas de magma
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 15, 38, 11, 14, 2, '#1e293b', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 4, 38, 11, 14, 2, '#1e293b', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 18, 14, 36, 28, 5, isHurt ? '#ffffff' : '#334155', ox, 1);
+        ctx.fillStyle = isHurt ? '#fef08a' : '#ea580c';
+        ctx.fillRect(cx - 14, 24, 28, 3);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 28, 6, 6, '#f97316', ox, 1);
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(cx - 2, 26, 4, 4);
+        // Yelmo yunque con cuernos de obsidiana
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 5, 20, 12, 3, isHurt ? '#ffffff' : '#1e293b', ox, 1);
+        ctx.fillStyle = '#fb923c';
+        ctx.fillRect(cx - 6, 10, 4, 3);
+        ctx.fillRect(cx + 2, 10, 4, 3);
+      } else if (archetype === 'boss_astral') {
+        // Heraldo de Obsidiana (56x56): caballero astral con corona estelar y manto cósmico
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 17, 32, 32, 6, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
+        ctx.fillStyle = isHurt ? '#fef08a' : '#4338ca';
+        ctx.fillRect(cx - 10, 19, 20, 26);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 12, 16, 24, 18, 4, isHurt ? '#ffffff' : '#312e81', ox, 1);
+        // Corona estelar
+        CelSpriteAtlas._inkEllipse(ctx, cx, 11, 10, 7, isHurt ? '#ffffff' : '#0f172a', ox, 1);
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(cx - 7, 3, 3, 5);
+        ctx.fillRect(cx - 1, 1, 2, 6);
+        ctx.fillRect(cx + 4, 3, 3, 5);
+        // Visor y núcleo astral
+        ctx.fillStyle = '#e879f9';
+        ctx.fillRect(cx - 6, 10, 5, 3);
+        ctx.fillRect(cx + 1, 10, 5, 3);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 24, 5, 5, '#c084fc', ox, 1);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(cx - 2, 22, 4, 4);
       } else {
         // Slime Elemental gelatinoso con base plana y núcleo rúnico
         CelSpriteAtlas._inkEllipse(ctx, cx, 26, 13, 11, fillBase, ox, 1);
@@ -1469,6 +1555,162 @@ export class CelSpriteAtlas {
   }
 
   /**
+   * Brasero rúnico elemental encendible con Fuego (`44x52`).
+   * @param {boolean} [lit=false]
+   * @returns {HTMLCanvasElement}
+   */
+  static getBrazierSprite(lit = false) {
+    return CelSpriteAtlas.getOrBake(`prop_brazier_${lit ? 'lit' : 'off'}`, 44, 52, (ctx) => {
+      CelSpriteAtlas._inkRoundRect(ctx, 10, 32, 24, 14, 3, '#475569', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 8, 22, 28, 12, 3, '#334155', INK, 1);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(10, 23, 24, 2);
+      ctx.fillStyle = lit ? '#fb923c' : '#1e293b';
+      ctx.fillRect(12, 18, 20, 6);
+      if (lit) {
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(14, 10, 16, 10);
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(18, 6, 8, 10);
+      }
+    });
+  }
+
+  /**
+   * Tótem silvestre anclable con Raíces (`48x64`).
+   * @param {boolean} [anchored=false]
+   * @returns {HTMLCanvasElement}
+   */
+  static getRootTotemSprite(anchored = false) {
+    return CelSpriteAtlas.getOrBake(`prop_root_totem_${anchored ? 'on' : 'off'}`, 48, 64, (ctx) => {
+      CelSpriteAtlas._inkEllipse(ctx, 24, 52, 16, 7, '#334155', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 14, 14, 20, 40, 5, '#475569', INK, 1);
+      ctx.fillStyle = anchored ? '#4ade80' : '#64748b';
+      ctx.fillRect(21, 22, 6, 22);
+      if (anchored) {
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(10, 44, 28, 6);
+        ctx.fillStyle = '#86efac';
+        ctx.fillRect(13, 45, 22, 2);
+      }
+    });
+  }
+
+  /**
+   * Barrera de Basalto Cinético destructible solo con Embestida o Éter (`64x60`).
+   * @param {boolean} [isHit=false]
+   * @returns {HTMLCanvasElement}
+   */
+  static getKineticBarrierSprite(isHit = false) {
+    return CelSpriteAtlas.getOrBake(`prop_kinetic_barrier_${isHit ? 'hit' : 'idle'}`, 64, 60, (ctx) => {
+      CelSpriteAtlas._inkRoundRect(ctx, 4, 12, 56, 42, 6, isHit ? '#bae6fd' : '#1e293b', INK, 1);
+      ctx.fillStyle = isHit ? '#ffffff' : '#334155';
+      ctx.fillRect(8, 16, 48, 12);
+      ctx.fillStyle = isHit ? '#facc15' : '#38bdf8';
+      ctx.fillRect(16, 26, 32, 4);
+      ctx.fillRect(28, 18, 8, 26);
+    });
+  }
+
+  /**
+   * Pilar de Impacto Cinético activable con Embestida (`48x68`).
+   * @param {boolean} [activated=false]
+   * @returns {HTMLCanvasElement}
+   */
+  static getKineticPillarSprite(activated = false) {
+    return CelSpriteAtlas.getOrBake(`prop_kinetic_pillar_${activated ? 'on' : 'off'}`, 48, 68, (ctx) => {
+      CelSpriteAtlas._inkEllipse(ctx, 24, 56, 16, 7, '#334155', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 13, 12, 22, 44, 4, '#475569', INK, 1);
+      ctx.fillStyle = activated ? '#38bdf8' : '#0f172a';
+      ctx.fillRect(17, 20, 14, 22);
+      ctx.fillStyle = activated ? '#e0f2fe' : '#64748b';
+      ctx.fillRect(21, 24, 6, 14);
+    });
+  }
+
+  /**
+   * Pilón Voltaico sincronizable con Éter Magnético (`48x76`).
+   * @param {boolean} [activated=false]
+   * @returns {HTMLCanvasElement}
+   */
+  static getEtherPylonSprite(activated = false) {
+    return CelSpriteAtlas.getOrBake(`prop_ether_pylon_${activated ? 'on' : 'off'}`, 48, 76, (ctx) => {
+      CelSpriteAtlas._inkEllipse(ctx, 24, 64, 16, 7, '#1e1b4b', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 15, 16, 18, 48, 4, '#312e81', INK, 1);
+      CelSpriteAtlas._inkEllipse(ctx, 24, 12, 8, 8, activated ? '#c084fc' : '#475569', INK, 1);
+      ctx.fillStyle = activated ? '#f5d0fe' : '#64748b';
+      ctx.fillRect(21, 9, 6, 6);
+      ctx.fillStyle = activated ? '#38bdf8' : '#1e293b';
+      ctx.fillRect(21, 26, 6, 26);
+    });
+  }
+
+  /**
+   * Compuerta Rúnica sellada por enlaces lógicos (`72x68`).
+   * @param {string} [color='#38bdf8']
+   * @returns {HTMLCanvasElement}
+   */
+  static getRunicGateSprite(color = '#38bdf8') {
+    return CelSpriteAtlas.getOrBake(`prop_runic_gate_${color}`, 72, 68, (ctx) => {
+      CelSpriteAtlas._inkRoundRect(ctx, 4, 8, 14, 54, 3, '#334155', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 54, 8, 14, 54, 3, '#334155', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 16, 14, 40, 44, 4, '#1e1b4b', INK, 1);
+      ctx.fillStyle = color;
+      ctx.fillRect(20, 22, 32, 4);
+      ctx.fillRect(20, 42, 32, 4);
+      ctx.fillRect(34, 18, 4, 34);
+    });
+  }
+
+  /**
+   * Relicario de Arma o Escudo (`56x68`).
+   * @param {boolean} [isConsumed=false]
+   * @param {string} [accentColor='#facc15']
+   * @returns {HTMLCanvasElement}
+   */
+  static getWeaponShrineSprite(isConsumed = false, accentColor = '#facc15') {
+    return CelSpriteAtlas.getOrBake(`prop_weapon_shrine_${isConsumed ? 'empty' : 'full'}_${accentColor}`, 56, 68, (ctx) => {
+      CelSpriteAtlas._inkRoundRect(ctx, 8, 46, 40, 14, 3, '#475569', INK, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, 16, 30, 24, 18, 2, '#64748b', INK, 1);
+      if (!isConsumed) {
+        ctx.fillStyle = INK;
+        ctx.fillRect(25, 8, 6, 24);
+        ctx.fillRect(20, 22, 16, 5);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(26, 9, 4, 21);
+        ctx.fillStyle = accentColor;
+        ctx.fillRect(21, 23, 14, 3);
+      }
+    });
+  }
+
+  /**
+   * Respiradero ambiental (`spore_pool` | `magma_geyser` | `storm_coil`) (`56x44`).
+   * @param {string} [kind='magma_geyser']
+   * @param {'idle'|'telegraph'|'active'} [phase='idle']
+   * @returns {HTMLCanvasElement}
+   */
+  static getHazardVentSprite(kind = 'magma_geyser', phase = 'idle') {
+    return CelSpriteAtlas.getOrBake(`prop_hazard_${kind}_${phase}`, 56, 44, (ctx) => {
+      if (kind === 'spore_pool') {
+        CelSpriteAtlas._inkEllipse(ctx, 28, 22, 23, 15, '#134e4a', INK, 1);
+        CelSpriteAtlas._inkEllipse(ctx, 28, 22, 16, 10, '#2dd4bf', null, 0);
+        ctx.fillStyle = '#a855f7';
+        ctx.fillRect(19, 18, 4, 4);
+        ctx.fillRect(33, 23, 5, 4);
+      } else if (kind === 'storm_coil') {
+        CelSpriteAtlas._inkEllipse(ctx, 28, 26, 20, 11, '#1e1b4b', INK, 1);
+        const col = phase === 'active' ? '#f5d0fe' : (phase === 'telegraph' ? '#e879f9' : '#6366f1');
+        CelSpriteAtlas._inkEllipse(ctx, 28, 20, 9, 9, col, INK, 1);
+      } else {
+        CelSpriteAtlas._inkEllipse(ctx, 28, 25, 22, 12, '#292524', INK, 1);
+        const core = phase === 'active' ? '#fde047' : (phase === 'telegraph' ? '#fb923c' : '#9a3412');
+        CelSpriteAtlas._inkEllipse(ctx, 28, 25, 13, 7, core, INK, 1);
+      }
+    });
+  }
+
+  /**
    * Obtiene o pre-hornea sprites Flyweight de proyectiles y conos compactos
    * para renderizado en lote (batching) sin asignaciones ni gradientes por frame.
    * @param {string} key - 'fire_orb'|'enemy_fire_orb'|'poison_orb'|'kinetic_bolt'|'reflected_gold'|'blade_wave'|'cone_patrol'|'cone_alert'
@@ -1515,6 +1757,8 @@ export class CelSpriteAtlas {
       enemy_fire_orb: { size: 28, core: '#fff7ed', mid: '#fb923c', edge: 'rgba(239, 68, 68, 0.75)', fade: 'rgba(239, 68, 68, 0)', dot: 3.5 },
       poison_orb: { size: 28, core: '#f0fdf4', mid: '#4ade80', edge: 'rgba(168, 85, 247, 0.72)', fade: 'rgba(168, 85, 247, 0)', dot: 3.5 },
       kinetic_bolt: { size: 28, core: '#ffffff', mid: '#38bdf8', edge: 'rgba(14, 165, 233, 0.72)', fade: 'rgba(14, 165, 233, 0)', dot: 3.6 },
+      ether_orb: { size: 30, core: '#f5d0fe', mid: '#c084fc', edge: 'rgba(56, 189, 248, 0.76)', fade: 'rgba(56, 189, 248, 0)', dot: 3.8 },
+      astral_orb: { size: 30, core: '#ffffff', mid: '#e879f9', edge: 'rgba(168, 85, 247, 0.80)', fade: 'rgba(168, 85, 247, 0)', dot: 4.0 },
       reflected_gold: { size: 32, core: '#ffffff', mid: '#facc15', edge: 'rgba(250, 204, 21, 0.75)', fade: 'rgba(250, 204, 21, 0)', dot: 5.5 }
     };
     const cfg = orbPalettes[key] || orbPalettes.fire_orb;

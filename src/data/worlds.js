@@ -125,42 +125,46 @@ export const WORLDS_CATALOG = {
   cave_exit_intro: {
     id: 'cave_exit_intro',
     index: 1,
+    coreElement: 'Fuego',
     name: 'Claro de las Reliquias',
     subtitle: 'Mundo 1 · Valle del Despertar',
     biome: 'cave_exit_intro',
     weather: 'pollen',
     accentColor: '#4ade80',
-    description: 'Praderas verdes, ruinas musgosas y la cueva donde Santi empuña el Guantelete Elemental por primera vez.'
+    description: 'Praderas musgosas y la Cueva Hendida donde Santi empuña la Espada del Alba y despierta el Núcleo de Fuego.'
   },
   marsh_of_spores: {
     id: 'marsh_of_spores',
     index: 2,
+    coreElement: 'Raíces',
     name: 'Pantano de Esporas',
     subtitle: 'Mundo 2 · Marismas Bioluminiscentes',
     biome: 'marsh_of_spores',
     weather: 'spores',
     accentColor: '#2dd4bf',
-    description: 'Lagos turquesa iluminados por esporas flotantes, pasarelas antiguas y slimes mutados.'
+    description: 'Islas cenagosas con charcos tóxicos, tótems druídicos y el Núcleo de Raíces custodiado por la Matriarca.'
   },
   ash_caldera: {
     id: 'ash_caldera',
     index: 3,
+    coreElement: 'Embestida',
     name: 'Caldera de Ceniza',
     subtitle: 'Mundo 3 · Forja Volcánica',
     biome: 'ash_caldera',
     weather: 'embers',
     accentColor: '#fb923c',
-    description: 'Ríos de magma incandescente, ceniza ardiente y guardianes blindados de Fuego y Cinética.'
+    description: 'Ríos de magma, géiseres ardientes, colosos acorazados y el Yunque del Núcleo Cinético.'
   },
   astral_citadel: {
     id: 'astral_citadel',
     index: 4,
+    coreElement: 'Éter',
     name: 'Ciudadela Astral',
     subtitle: 'Mundo 4 · Santuario del Cenit',
     biome: 'astral_citadel',
     weather: 'stardust',
     accentColor: '#c084fc',
-    description: 'Terrazas de cuarzo suspendidas sobre éter estelar donde convergen los obeliscos primordiales.'
+    description: 'Terrazas suspendidas sobre el vacío estelar donde aguarda el Éter Magnético y el Heraldo de Obsidiana.'
   }
 };
 

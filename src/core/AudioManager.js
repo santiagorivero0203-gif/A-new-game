@@ -488,10 +488,42 @@ export class AudioManager {
     } else if (elem === 'plantas' || elem === 'tierra') {
       this._playTone({ type: 'triangle', freqStart: 320, freqEnd: 580, duration: isStrong ? 0.24 : 0.14, gain: 0.18 });
       this._playNoiseBurst({ duration: 0.14, filterType: 'bandpass', freqStart: 1400, freqEnd: 650, q: 2.0, gain: 0.14 });
+    } else if (elem === 'eter' || elem === 'astral') {
+      this._playTone({ type: 'sine', freqStart: isStrong ? 420 : 880, freqEnd: isStrong ? 180 : 1640, duration: isStrong ? 0.28 : 0.15, gain: 0.18 });
+      this._playTone({ type: 'triangle', freqStart: 1240, freqEnd: 620, duration: 0.14, gain: 0.10, delay: 0.02 });
+      this._playNoiseBurst({ duration: 0.12, filterType: 'highpass', freqStart: 2800, freqEnd: 1100, q: 1.8, gain: 0.14 });
     } else {
       // Kinetic / Embestida
       this._playTone({ type: 'sine', freqStart: 640, freqEnd: 1380, duration: isStrong ? 0.22 : 0.13, gain: 0.17 });
       this._playNoiseBurst({ duration: 0.11, filterType: 'highpass', freqStart: 2200, freqEnd: 900, q: 1.6, gain: 0.15 });
+    }
+  }
+
+  /** Acorde épico ascendente al despertar un Núcleo Elemental del Brazalete */
+  playCoreAwakening(element = 'Fuego') {
+    if (!this._canPlay()) return;
+    const base = element === 'Éter' ? 523.25 : element === 'Embestida' ? 440.0 : element === 'Raíces' || element === 'Plantas' ? 392.0 : 349.23;
+    this._playTone({ type: 'sine', freqStart: base, freqEnd: base * 1.5, duration: 0.45, gain: 0.18, delay: 0 });
+    this._playTone({ type: 'triangle', freqStart: base * 1.25, freqEnd: base * 2.0, duration: 0.50, gain: 0.14, delay: 0.08 });
+    this._playTone({ type: 'sine', freqStart: base * 2.0, freqEnd: base * 2.5, duration: 0.55, gain: 0.12, delay: 0.16 });
+  }
+
+  /** Desbloqueo armónico de compuerta rúnica o portal sellado */
+  playGateUnlock() {
+    if (!this._canPlay()) return;
+    this._playTone({ type: 'triangle', freqStart: 392.0, freqEnd: 587.33, duration: 0.26, gain: 0.16, delay: 0 });
+    this._playTone({ type: 'sine', freqStart: 783.99, freqEnd: 1174.66, duration: 0.36, gain: 0.14, delay: 0.07 });
+  }
+
+  /** Efecto acústico de peligro ambiental (géiser de magma / bobina de tormenta) */
+  playHazardErupt(kind = 'magma_geyser') {
+    if (!this._canPlay()) return;
+    if (kind === 'storm_coil') {
+      this._playTone({ type: 'sine', freqStart: 1200, freqEnd: 340, duration: 0.20, gain: 0.14 });
+      this._playNoiseBurst({ duration: 0.14, filterType: 'highpass', freqStart: 2600, freqEnd: 900, q: 1.5, gain: 0.14 });
+    } else {
+      this._playTone({ type: 'sawtooth', freqStart: 130, freqEnd: 48, duration: 0.28, gain: 0.18 });
+      this._playNoiseBurst({ duration: 0.24, filterType: 'lowpass', freqStart: 1100, freqEnd: 180, q: 1.2, gain: 0.20 });
     }
   }
 

@@ -85,19 +85,24 @@ export class CinematicManager {
     // Elementos del DOM Overlay
     this.overlay = document.getElementById('cinematic-overlay');
     this.imageLayer = document.getElementById('cinematic-image');
+    this.imageEl = document.getElementById('cinematic-img-el');
     this.transitionLayer = document.getElementById('cinematic-transition-layer');
+    this.captionBox = document.getElementById('cinematic-caption-box');
     this.speakerEl = document.getElementById('cinematic-speaker');
     this.textEl = document.getElementById('cinematic-text');
+    this.progressPipsEl = document.getElementById('cinematic-progress-pips');
     this.btnSkip = document.getElementById('btn-skip-cinematic');
-    
+
     this.currentSequence = null;
     this.currentSlideIndex = 0;
     this.currentDialogueIndex = 0;
-    
+
     this.isPlaying = false;
     this.onCompleteCallback = null;
     this.isTyping = false;
     this._transitionPending = false;
+    this._endTimeoutId = null;
+    this._slideRequestToken = 0;
     /** @type {Function|null} Callback opcional para despertar el bucle de Engine al interactuar */
     this.onWake = null;
 
@@ -135,29 +140,45 @@ export class CinematicManager {
   }
 
   /**
+   * Normaliza una ruta de imagen cinemática codificando espacios de forma segura (`encodeURI`).
+   * @private
+   * @param {string} url
+   * @returns {string}
+   */
+  _safeUrl(url) {
+    if (!url) return '';
+    try {
+      return encodeURI(decodeURI(url));
+    } catch {
+      return encodeURI(url);
+    }
+  }
+
+  /**
    * Pre-carga una única imagen cinemática sin bloquear el hilo principal.
    * @private
    */
   _preloadSlideUrl(url) {
     return new Promise((resolve) => {
-      if (!url) return resolve();
-      if (this.imageCache.has(url)) return resolve();
+      const safe = this._safeUrl(url);
+      if (!safe) return resolve(null);
+      if (this.imageCache.has(safe)) return resolve(this.imageCache.get(safe));
 
       const img = new Image();
       img.decoding = 'async';
-      img.src = url;
       img.onload = () => {
-        this.imageCache.set(url, img);
+        this.imageCache.set(safe, img);
         if (typeof img.decode === 'function') {
-          img.decode().catch(() => {}).finally(resolve);
+          img.decode().catch(() => {}).finally(() => resolve(img));
         } else {
-          resolve();
+          resolve(img);
         }
       };
       img.onerror = () => {
-        console.warn(`[CinematicManager] No se pudo pre-cargar: ${url}`);
-        resolve();
+        console.warn(`[CinematicManager] No se pudo pre-cargar: ${safe}`);
+        resolve(null);
       };
+      img.src = safe;
     });
   }
 
@@ -168,6 +189,9 @@ export class CinematicManager {
     this.imageCache.clear();
     if (this.imageLayer) {
       this.imageLayer.style.backgroundImage = 'none';
+    }
+    if (this.imageEl) {
+      this.imageEl.removeAttribute('src');
     }
   }
 
@@ -237,8 +261,28 @@ export class CinematicManager {
       this.transitionLayer.className = 'cinematic-transition-layer transition-clear';
     }
 
+    // Construir diamantes indicadores de progreso de escena
+    if (this.progressPipsEl) {
+      this.progressPipsEl.innerHTML = sequence.slides
+        .map((_, idx) => `<span class="cinematic-pip${idx === 0 ? ' active' : ''}" data-slide-pip="${idx}"></span>`)
+        .join('');
+    }
+
     if (typeof this.onWake === 'function') this.onWake();
     this._renderSlide(this.currentSlideIndex);
+  }
+
+  /**
+   * Sincroniza los indicadores rúnicos de escena activa.
+   * @private
+   */
+  _syncProgressPips(activeIndex) {
+    if (!this.progressPipsEl) return;
+    const pips = this.progressPipsEl.children;
+    for (let i = 0; i < pips.length; i++) {
+      pips[i].classList.toggle('active', i === activeIndex);
+      pips[i].classList.toggle('passed', i < activeIndex);
+    }
   }
 
   _renderSlide(index) {
@@ -246,26 +290,43 @@ export class CinematicManager {
     if (!slide) return;
 
     this.currentDialogueIndex = 0;
+    this._syncProgressPips(index);
 
     // Mantener en RAM únicamente la escena actual y la inmediatamente siguiente
     const nextSlide = this.currentSequence?.slides?.[index + 1];
-    const keepUrlA = slide.imagen_bg || '';
-    const keepUrlB = nextSlide?.imagen_bg || '';
+    const keepUrlA = this._safeUrl(slide.imagen_bg || '');
+    const keepUrlB = this._safeUrl(nextSlide?.imagen_bg || '');
     for (const cachedUrl of this.imageCache.keys()) {
       if (cachedUrl !== keepUrlA && cachedUrl !== keepUrlB) {
         this.imageCache.delete(cachedUrl);
       }
     }
 
-    // --- Manejo de la Cámara y Background ---
-    if (this.imageLayer) {
-      this.imageLayer.style.backgroundImage = `url('${slide.imagen_bg}')`;
-      this.imageLayer.className = 'cinematic-image-layer'; // reset classes
-      
-      void this.imageLayer.offsetWidth; // force reflow
-
+    // --- Manejo seguro de carga, decodificación y animación de cámara ---
+    const reqToken = ++this._slideRequestToken;
+    const applyLoadedVisual = () => {
+      if (!this.isPlaying || reqToken !== this._slideRequestToken || !this.imageLayer) return;
+      if (this.imageEl) {
+        this.imageEl.src = keepUrlA;
+        this.imageEl.classList.remove('is-loading');
+      } else {
+        this.imageLayer.style.backgroundImage = `url("${keepUrlA}")`;
+      }
+      this.imageLayer.className = 'cinematic-image-layer';
+      void this.imageLayer.offsetWidth;
       const camClass = this._getCameraClass(slide.movimiento_camara);
       if (camClass) this.imageLayer.classList.add(camClass);
+    };
+
+    if (this.imageCache.has(keepUrlA)) {
+      applyLoadedVisual();
+    } else {
+      if (this.imageEl) {
+        this.imageEl.classList.add('is-loading');
+      }
+      this._preloadSlideUrl(slide.imagen_bg).then(() => {
+        applyLoadedVisual();
+      });
     }
 
     // Pre-cargar bajo demanda únicamente la siguiente escena mientras el usuario lee
@@ -331,11 +392,15 @@ export class CinematicManager {
     }
 
     const dialogueData = slide.dialogos[this.currentDialogueIndex];
-    
+    const speakerName = dialogueData.speaker || 'CRÓNICA';
+
     if (this.speakerEl) {
-      this.speakerEl.textContent = dialogueData.speaker || 'LORE';
+      this.speakerEl.textContent = speakerName;
     }
-    
+    if (this.captionBox) {
+      this.captionBox.dataset.speaker = speakerName.toLowerCase();
+    }
+
     if (this.textEl) {
       this._typewriterEffect(dialogueData.text);
     }
@@ -393,20 +458,27 @@ export class CinematicManager {
   }
 
   _triggerEndSequence() {
+    if (this._transitionPending) return;
     this._transitionPending = true;
     // Fade a Negro rápido y cinematográfico (450ms) al culminar
     if (this.transitionLayer) {
       this.transitionLayer.style.transition = 'opacity 0.45s ease';
       this.transitionLayer.className = 'cinematic-transition-layer transition-fade-black';
     }
-    
-    setTimeout(() => {
+
+    this._endTimeoutId = setTimeout(() => {
+      this._endTimeoutId = null;
       this._transitionPending = false;
       this.end();
     }, 450);
   }
 
   end() {
+    if (this._endTimeoutId !== null) {
+      clearTimeout(this._endTimeoutId);
+      this._endTimeoutId = null;
+    }
+    this._slideRequestToken++;
     this.isPlaying = false;
     this.isTyping = false;
     this._transitionPending = false;

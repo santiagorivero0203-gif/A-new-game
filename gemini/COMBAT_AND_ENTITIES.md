@@ -74,7 +74,9 @@ stateDiagram-v2
 | **`artillery` (Esporífero Artillero)** | 70 HP | 86 px/s | 250 px | 0.48s | 22 | Kiting (mantiene distancia mínima 110 px), proyectiles deflectables con Parry. |
 | **`tank` (Centinela Pavés)** | 135 HP | 62 px/s | 56 px | 0.56s | 48 | Escudo de roble frontal (`wooden_shield`) que anula ataques débiles. Vulnerable a Fuego. |
 | **`duelist` (Duelista Implacable)** | 110 HP | 104 px/s | 128 px | 0.42s | 32 | Esgrima con amagues orbitales, estocada relámpago a 365 px/s para castigar parries tardíos. |
-| **`slime` (Babosa Primordial)** | 80 HP | 82 px/s | 85 px | 0.45s | 20 | Desplazamiento con compresión procedural elástica. |
+| **`slime` (Babosa Primordial)** | 80 HP | 82 px/s | 76 px | 0.45s | 20 | Desplazamiento con compresión procedural; soporta `canSplit` en el Pantano de Esporas. |
+| **`sentinel_ether` (Centinela de Éter)** | 115 HP | 92 px/s | 185 px | 0.46s | 26 | Kiting a media/larga distancia; dispara orbes astrales altos (`altitude: 'high'`). |
+| **`boss_bramble` / `boss_spore` / `boss_forge` / `boss_astral`** | 340–520 HP | 74–108 px/s | 76–205 px | 0.44–0.58s | 34–50 | Guardianes Regionales (`44×44`, `56×56` sprite). Transicionan a **Fase II** al caer a `<= 50% HP` y liberan `worldSeal` + `bossId`. |
 
 ---
 
@@ -122,7 +124,15 @@ Cualquier ataque (físico, mágico, proyectil o trampa) se registra llamando a:
      * Se remueve el efecto de inmovilización.
      * Se genera una explosión en área de 58 px de radio.
      * Causa daño masivo adicional, pausa *HitStop* (45ms), screen shake y número de daño crítico flotante naranja.
-3. **⚡ Cinética (Embestida / Repulsión):**
-   * Refleja proyectiles enemigos en pleno vuelo.
-   * Empuja y arrastra enemigos agrupándolos para remates de espada en abanico.
+3. **⚡ Cinética (Embestida / Repulsión) y Coraza Volcánica:**
+   * Demuele `kinetic_barrier` y activa `kinetic_pillar`.
+   * Destruye la **Coraza Volcánica (`hasMetalArmor`)** (`equipMetalArmor()` / `shatterMetalArmor()`), que de otro modo mitiga el `50%` del daño físico/fuego y resiste embates simples.
+4. **✨ Éter Magnético (`EtherAbility.js`) y sus 3 Sinergias Cruzadas:**
+   * **Débil (*Pulso de Polaridad*):** Refleja proyectiles hostiles cercanos (radio 84 px), emite pulso frontal con `sobrecarga_eter`, encadena arcos eléctricos y dispara un orbe `ether_orb`.
+   * **Fuerte (*Singularidad Magnética*):** Vórtice gravitacional (2.3 s) que atrae enemigos al centro aplicando `sobrecarga_eter` + `armor_break` antes de detonar `staggered`.
+   * **Sinergias Cruzadas (`CombatManager.js`):**
+     * **Éter + Fuego (`triggerPlasmaOverload`):** Explosión de Sobrecarga de Plasma sobre enemigos quemados.
+     * **Cinética + Éter (`triggerMagneticAccelerator`):** Acelerador Magnético sobre enemigos sobrecargados.
+     * **Éter + Raíces (`triggerBioElectricStorm`):** Tormenta Bioeléctrica sobre enemigos enredados.
+
 

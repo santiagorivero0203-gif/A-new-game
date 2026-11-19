@@ -1,13 +1,15 @@
 import { WEAPONS } from '../data/weapons.js';
 import { SHIELDS } from '../data/shields.js';
 
+const EQUIPMENT_STORAGE_KEY = 'be_a_legend_equipment';
+
 /**
  * @module EquipmentManager
- * @description Gestor data-driven de equipamiento del jugador.
+ * @description Gestor data-driven de equipamiento del jugador con persistencia en `localStorage`.
  * Administra los slots activos de arma principal (espada) y escudo defensivo,
  * permitiendo inyección de estadísticas, mitigación de postura y sinergias RPG.
  * @author Be a Legend Team
- * @version 2.0.0
+ * @version 2.1.0
  */
 export class EquipmentManager {
   constructor() {
@@ -19,16 +21,75 @@ export class EquipmentManager {
 
     /**
      * @type {Set<string>} Armas descubiertas y desbloqueadas en el inventario.
-     * Al inicio el jugador solo posee el arma básica de práctica; las armas de siguiente
-     * nivel (ej. relic_blade) deben ser descubiertas en la progresión.
      */
     this.unlockedWeapons = new Set(['training_sword']);
 
     /**
      * @type {Set<string>} Escudos desbloqueados en el inventario.
-     * Solo el escudo de roble básico está disponible al inicio.
      */
     this.unlockedShields = new Set(['wooden_shield']);
+
+    this._loadFromStorage();
+  }
+
+  /**
+   * Carga equipamiento y desbloqueos guardados en `localStorage`.
+   * @private
+   */
+  _loadFromStorage() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(EQUIPMENT_STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== 'object') return;
+
+      if (Array.isArray(data.unlockedWeapons)) {
+        for (const id of data.unlockedWeapons) {
+          if (WEAPONS[id]) this.unlockedWeapons.add(id);
+        }
+      }
+      if (Array.isArray(data.unlockedShields)) {
+        for (const id of data.unlockedShields) {
+          if (SHIELDS[id]) this.unlockedShields.add(id);
+        }
+      }
+      if (data.weaponId && this.unlockedWeapons.has(data.weaponId) && WEAPONS[data.weaponId]) {
+        this.equippedWeapon = { ...WEAPONS[data.weaponId] };
+      }
+      if (data.shieldId && this.unlockedShields.has(data.shieldId) && SHIELDS[data.shieldId]) {
+        this.equippedShield = { ...SHIELDS[data.shieldId] };
+      }
+    } catch (_) {
+      // Ignorar errores de acceso en modo estricto
+    }
+  }
+
+  /**
+   * Guarda el estado del inventario y equipo activo en `localStorage`.
+   * @private
+   */
+  _saveToStorage() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(EQUIPMENT_STORAGE_KEY, JSON.stringify({
+        weaponId: this.equippedWeapon ? this.equippedWeapon.id : 'training_sword',
+        shieldId: this.equippedShield ? this.equippedShield.id : 'wooden_shield',
+        unlockedWeapons: Array.from(this.unlockedWeapons),
+        unlockedShields: Array.from(this.unlockedShields)
+      }));
+    } catch (_) {}
+  }
+
+  /**
+   * Reinicia el arsenal desbloqueado al equipamiento básico de campaña nueva.
+   */
+  reset() {
+    this.unlockedWeapons = new Set(['training_sword']);
+    this.unlockedShields = new Set(['wooden_shield']);
+    this.equippedWeapon = { ...WEAPONS.training_sword };
+    this.equippedShield = { ...SHIELDS.wooden_shield };
+    this._saveToStorage();
   }
 
   // --- Progresión y Desbloqueos de Inventario ---
@@ -50,8 +111,10 @@ export class EquipmentManager {
    */
   unlockWeapon(weaponId) {
     if (WEAPONS[weaponId]) {
+      const isNew = !this.unlockedWeapons.has(weaponId);
       this.unlockedWeapons.add(weaponId);
-      return true;
+      if (isNew) this._saveToStorage();
+      return isNew;
     }
     return false;
   }
@@ -73,8 +136,10 @@ export class EquipmentManager {
    */
   unlockShield(shieldId) {
     if (SHIELDS[shieldId]) {
+      const isNew = !this.unlockedShields.has(shieldId);
       this.unlockedShields.add(shieldId);
-      return true;
+      if (isNew) this._saveToStorage();
+      return isNew;
     }
     return false;
   }
@@ -84,6 +149,11 @@ export class EquipmentManager {
     return this.equippedWeapon;
   }
 
+  /**
+   * Equipa un arma desbloqueada por ID u objeto de configuración.
+   * @param {string|Object} weaponIdOrConfig
+   * @returns {boolean}
+   */
   equipWeapon(weaponIdOrConfig) {
     let targetId = null;
     let targetConfig = null;
@@ -105,6 +175,7 @@ export class EquipmentManager {
 
     if (targetConfig) {
       this.equippedWeapon = targetConfig;
+      this._saveToStorage();
     }
     if (typeof window !== 'undefined' && window.DEBUG_MODE) {
       console.log(`[EquipmentManager] Arma equipada: ${this.equippedWeapon.name}`);
@@ -117,6 +188,11 @@ export class EquipmentManager {
     return this.equippedShield;
   }
 
+  /**
+   * Equipa un escudo desbloqueado por ID u objeto de configuración.
+   * @param {string|Object} shieldIdOrConfig
+   * @returns {boolean}
+   */
   equipShield(shieldIdOrConfig) {
     let targetId = null;
     let targetConfig = null;
@@ -138,6 +214,7 @@ export class EquipmentManager {
 
     if (targetConfig) {
       this.equippedShield = targetConfig;
+      this._saveToStorage();
     }
     if (typeof window !== 'undefined' && window.DEBUG_MODE) {
       console.log(`[EquipmentManager] Escudo equipado: ${this.equippedShield ? this.equippedShield.name : 'Ninguno'}`);

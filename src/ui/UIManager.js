@@ -120,7 +120,9 @@ export class UIManager {
       'Fuego': '#fb923c',
       'Embestida': '#38bdf8',
       'Plantas': '#4ade80',
-      'Raíces': '#4ade80'
+      'Raíces': '#4ade80',
+      'Éter': '#c084fc',
+      'Eter': '#c084fc'
     };
 
     // --- Dirty-Checking Cache para 60 FPS sin Reflows Redundantes ---
@@ -146,7 +148,7 @@ export class UIManager {
     this._lastComboTimerPct = -1;
     this._lastThreatName = '';
     this._lastThreatPct = -1;
-    this._lastThreatShield = null;
+    this._lastThreatStatusKey = null;
     this._lastWaveNumber = -1;
     this._lastEnemiesRemaining = -1;
     this._lastIntermission = null;
@@ -304,7 +306,7 @@ export class UIManager {
           this.gaugeIcon.innerHTML = '<polygon points="12,3 19,12 12,21 5,12" />';
         }
         if (this.gaugePowerAbbr) {
-          this.gaugePowerAbbr.textContent = 'RELIQUIA · LATENTE';
+          this.gaugePowerAbbr.textContent = 'LATENTE';
           this.gaugePowerAbbr.style.color = dormantColor;
         }
         if (this.touchSwitchLabel) {
@@ -315,6 +317,7 @@ export class UIManager {
         const themeColor = this.powerColors[equippedPower] || '#facc15';
         let normName = (equippedPower || 'Fuego').toLowerCase();
         if (normName === 'raíces' || normName === 'raices') normName = 'plantas';
+        if (normName === 'éter' || normName === 'eter' || normName === 'astral') normName = 'eter';
 
         if (this.hudPowerName) this.hudPowerName.textContent = displayPower;
 
@@ -339,14 +342,22 @@ export class UIManager {
             this.gaugeIcon.innerHTML = '<path d="M12 2C8 6 6 9 6 13a6 6 0 0 0 12 0c0-4-2-7-6-11zm0 15a3 3 0 0 1-3-3c0-2 1-3 3-5 2 2 3 3 3 5a3 3 0 0 1-3 3z" />';
           } else if (normName === 'embestida') {
             this.gaugeIcon.innerHTML = '<polygon points="13 2 4 14 12 14 11 22 20 10 12 10 13 2" />';
+          } else if (normName === 'eter') {
+            this.gaugeIcon.innerHTML = '<polygon points="12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9" />';
           } else {
             this.gaugeIcon.innerHTML = '<path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.22V8c0 .24 0 .47.03.7 4.12-.92 9.07-1.4 12.97-.7z" />';
           }
         }
 
-        const abbr = equippedPower === 'Embestida' ? 'EMB' : (equippedPower === 'Plantas' || equippedPower === 'Raíces') ? 'RAÍ' : 'FUE';
+        const abbr = normName === 'embestida'
+          ? 'EMB'
+          : normName === 'plantas'
+            ? 'RAÍ'
+            : normName === 'eter'
+              ? 'ÉTE'
+              : 'FUE';
         if (this.gaugePowerAbbr) {
-          this.gaugePowerAbbr.textContent = `ENERGÍA · ${abbr}`;
+          this.gaugePowerAbbr.textContent = displayPower;
           this.gaugePowerAbbr.style.color = themeColor;
         }
         if (this.touchSwitchLabel) {
@@ -377,6 +388,7 @@ export class UIManager {
 
       if (this.hudPostureWrap) {
         this.hudPostureWrap.classList.toggle('defending-active', isDefending);
+        this.hudPostureWrap.classList.toggle('is-active', isDefending || clampedPosture < 99);
       }
 
       if (this.hudPostureGhostFill) {
@@ -398,10 +410,10 @@ export class UIManager {
 
       if (this.hudPostureText) {
         if (clampedPosture < 25) {
-          this.hudPostureText.textContent = '¡PELIGRO!';
+          this.hudPostureText.textContent = '¡BAJA!';
           this.hudPostureText.style.color = '#f87171';
         } else if (isDefending) {
-          this.hudPostureText.textContent = 'GUARDIA';
+          this.hudPostureText.textContent = 'GUARD';
           this.hudPostureText.style.color = '#7dd3fc';
         } else {
           this.hudPostureText.textContent = `${Math.round(clampedPosture)}%`;
@@ -489,12 +501,17 @@ export class UIManager {
       const clampedStamina = Math.max(0, Math.min(maxStamina, stamina));
       const staminaRatio = maxStamina > 0 ? (clampedStamina / maxStamina) : 1;
 
+      const isStaminaIdle = !staminaExhausted && staminaRatio >= 0.99;
+      if (this.hudStaminaWrap) {
+        this.hudStaminaWrap.classList.toggle('is-idle', isStaminaIdle);
+        this.hudStaminaWrap.classList.toggle('is-active', !isStaminaIdle);
+      }
       if (this.hudStaminaFill) {
         this.hudStaminaFill.style.transform = `scaleX(${staminaRatio})`;
         this.hudStaminaFill.classList.toggle('exhausted', staminaExhausted);
       }
       if (this.hudStaminaText) {
-        this.hudStaminaText.textContent = staminaExhausted ? 'AGOTADO' : `${Math.round(staminaRatio * 100)}%`;
+        this.hudStaminaText.textContent = staminaExhausted ? 'AGOT.' : `${Math.round(staminaRatio * 100)}%`;
         this.hudStaminaText.style.color = staminaExhausted ? '#f87171' : '#7dd3fc';
       }
     }
@@ -605,6 +622,10 @@ export class UIManager {
       this.radialSectors.forEach((sector, idx) => {
         const powerName = sector.dataset.power;
         const isLocked = powerName === 'Sellado' || (player && typeof player.hasElement === 'function' && !player.hasElement(powerName));
+        if (sector.classList.contains('sector-west')) {
+          const lbl = sector.querySelector('#radial-west-label') || sector.querySelector('span');
+          if (lbl) lbl.textContent = isLocked ? 'SELLADO' : 'ÉTER';
+        }
         sector.classList.toggle('locked', isLocked);
         sector.classList.toggle('active', idx === selectedIdx && !isLocked);
       });
@@ -791,9 +812,17 @@ export class UIManager {
       this.bossThreatName.textContent = threat.name.toUpperCase();
     }
 
-    if (threat.hasShield !== this._lastThreatShield && this.bossThreatStatus) {
-      this._lastThreatShield = threat.hasShield;
-      if (threat.hasShield) {
+    const statusKey = `${threat.isBoss ? 'B' : 'E'}_${threat.phase || 1}_${Boolean(threat.hasMetalArmor)}_${Boolean(threat.hasShield)}`;
+    if (statusKey !== this._lastThreatStatusKey && this.bossThreatStatus) {
+      this._lastThreatStatusKey = statusKey;
+      if (threat.isBoss && threat.phase >= 2) {
+        const defSuffix = threat.hasMetalArmor ? ' · CORAZA' : threat.hasShield ? ' · ESCUDO' : '';
+        this.bossThreatStatus.textContent = `FASE II · FURIA${defSuffix}`;
+        this.bossThreatStatus.className = 'boss-threat-status phase2';
+      } else if (threat.hasMetalArmor) {
+        this.bossThreatStatus.textContent = 'CORAZA VOLCÁNICA';
+        this.bossThreatStatus.className = 'boss-threat-status armor';
+      } else if (threat.hasShield) {
         this.bossThreatStatus.textContent = 'ESCUDO DE ROBLE';
         this.bossThreatStatus.className = 'boss-threat-status shield';
       } else {
@@ -1003,18 +1032,22 @@ export class UIManager {
     const weaponCardsHtml = Object.values(WEAPONS).map((w) => {
       const isUnlocked = equipmentManager ? equipmentManager.isWeaponUnlocked(w.id) : w.id === 'training_sword';
       const isEq = w.id === currentWeaponId;
+      const finisherChip = w.finisherEffect
+        ? `<span class="st-stat-chip">REMATE: ${w.finisherEffect.tag === 'armor_break' ? 'ROMPE-ARMADURA' : 'SANGRADO'}</span>`
+        : '';
       return `
         <div class="st-equip-card ${isEq ? 'equipped' : ''} ${!isUnlocked ? 'locked' : ''}">
           <div class="st-equip-info">
             <div class="st-equip-title-row">
               <h4>${w.name}</h4>
-              ${!isUnlocked ? '<span class="st-lock-pill">NIVEL SIGUIENTE 🔒</span>' : ''}
+              ${!isUnlocked ? '<span class="st-lock-pill">BLOQUEADA 🔒</span>' : ''}
             </div>
-            <p>${!isUnlocked ? 'Arma arcana de siguiente nivel. Requiere avanzar en la historia o encontrarla en el mundo.' : w.description}</p>
+            <p>${!isUnlocked ? (w.unlockHint || 'Arma arcana oculta en el mundo o tras rescates heroicos.') : w.description}</p>
             <div class="st-equip-stats">
               <span class="st-stat-chip">DAÑO ${w.damage}</span>
               <span class="st-stat-chip">AVANCE ${w.lungeForce}</span>
               <span class="st-stat-chip">+${w.energyOnHit} ENERGÍA/GOLPE</span>
+              ${finisherChip}
             </div>
           </div>
           ${!isUnlocked
@@ -1036,9 +1069,9 @@ export class UIManager {
           <div class="st-equip-info">
             <div class="st-equip-title-row">
               <h4>${sh.name}</h4>
-              ${!isUnlocked ? '<span class="st-lock-pill">NIVEL SIGUIENTE 🔒</span>' : ''}
+              ${!isUnlocked ? '<span class="st-lock-pill">BLOQUEADO 🔒</span>' : ''}
             </div>
-            <p>${!isUnlocked ? 'Escudo templado de nivel superior. Requiere progreso en la crónica.' : sh.description}</p>
+            <p>${!isUnlocked ? (sh.unlockHint || 'Escudo templado de nivel superior. Requiere progreso en la crónica.') : sh.description}</p>
             <div class="st-equip-stats">
               <span class="st-stat-chip">MITIGACIÓN ${mitigation >= 0 ? `+${mitigation}%` : `${mitigation}%`}</span>
               <span class="st-stat-chip">${sh.elemental_weakness ? `VULNERABLE A ${sh.elemental_weakness.toUpperCase()}` : 'IGNÍFUGO'}</span>
@@ -1056,18 +1089,19 @@ export class UIManager {
 
     const conduits = [
       { id: 'Fuego', title: 'Engarce Ígneo (Fuego)', desc: 'Dispara Bolas de Fuego que incineran zarzas gigantes y quiebran escudos de madera.' },
-      { id: 'Embestida', title: 'Engarce Cinético (Embestida)', desc: 'Canaliza impulsos de alta velocidad y ondas de choque que aturden líneas enemigas.' },
-      { id: 'Raíces', title: 'Engarce Silvestre (Raíces)', desc: 'Invoca raíces ancestrales que inmovilizan manadas y habilitan detonaciones ígneas.' }
+      { id: 'Embestida', title: 'Engarce Cinético (Embestida)', desc: 'Canaliza impulsos de alta velocidad y ondas de choque que parten coraza volcánica y basalto.' },
+      { id: 'Raíces', title: 'Engarce Silvestre (Raíces)', desc: 'Invoca raíces ancestrales que inmovilizan manadas, anclan tótems y habilitan detonaciones.' },
+      { id: 'Éter', title: 'Engarce Astral (Éter Magnético)', desc: 'Emite Pulsos de Polaridad que reflejan proyectiles y Singularidades que agrupan y sobrecargan enemigos.' }
     ];
 
     const conduitCardsHtml = conduits.map((c) => {
-      const unlocked = player && typeof player.hasElement === 'function' ? player.hasElement(c.id) : true;
-      const isActive = unlocked && equippedPower === c.id;
+      const unlocked = player && typeof player.hasElement === 'function' ? player.hasElement(c.id) : false;
+      const isActive = unlocked && (equippedPower === c.id || (c.id === 'Raíces' && equippedPower === 'Plantas'));
       return `
         <div class="st-equip-card ${isActive ? 'equipped' : ''}">
           <div class="st-equip-info">
             <h4>${c.title}</h4>
-            <p>${unlocked ? c.desc : 'Conducto dormido. Explora los pedestales y el Altar del Santuario para despertarlo.'}</p>
+            <p>${unlocked ? c.desc : 'Conducto dormido. Explora su mundo correspondiente y reclama el Pedestal del Núcleo.'}</p>
           </div>
           <button type="button" class="cel-action-btn ${isActive ? 'equipped-badge' : unlocked ? 'secondary' : ''}" data-equip-element="${c.id}" ${(!unlocked || isActive) ? 'disabled' : ''}>
             ${isActive ? 'ACTIVO' : unlocked ? 'CANALIZAR' : 'DORMIDO'}
@@ -1078,7 +1112,7 @@ export class UIManager {
 
     const isMobile = this._isMobileActive();
     const switchHint = formatControlPrompts(
-      'Alterna rápidamente en combate con las teclas [1], [2], [3], la rueda del ratón o manteniendo [Tab].',
+      'Alterna rápidamente en combate con las teclas [1], [2], [3], [4], la rueda del ratón o manteniendo [Tab].',
       isMobile
     );
 
@@ -1142,23 +1176,26 @@ export class UIManager {
    */
   renderCodexTab(deps = {}) {
     if (!this.codexContainer) return;
-    const { stateManager, waveManager, onTriggerHorde } = deps;
+    const { stateManager, waveManager, progressionManager, onTriggerHorde } = deps;
 
-    const introStage = stateManager?.get('intro_stage') || 0;
-    const gauntletTier = stateManager?.get('gauntlet_tier') ?? 0;
-    const vinesBurned = introStage >= 3 || !!(stateManager?.get('bridge_vines_burned'));
-    const player = stateManager?.get('player');
-    const exitedCave = introStage >= 1 || !!(player && player.pos.x > 460) || gauntletTier >= 1;
-    const sanctuaryHarmonized = introStage >= 4 || gauntletTier >= 3;
+    const currentWorldId = stateManager?.get('current_world') || 'cave_exit_intro';
+    const currentWorldInfo = WORLDS_LIST.find((w) => w.id === currentWorldId) || WORLDS_LIST[0];
     const hordeRunning = !!(waveManager && waveManager.isStarted && waveManager.state !== 'VICTORY');
+
+    const hasFire = progressionManager ? progressionManager.unlockedElements.has('Fuego') : ((stateManager?.get('gauntlet_tier') || 0) >= 1);
+    const hasRoots = progressionManager ? progressionManager.unlockedElements.has('Plantas') : false;
+    const hasKinetic = progressionManager ? progressionManager.unlockedElements.has('Embestida') : false;
+    const hasEther = progressionManager ? progressionManager.unlockedElements.has('Éter') : false;
+    const worldConquered = Boolean(progressionManager && progressionManager.completedWorlds.has(currentWorldId));
 
     const checkSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="20 6 9 17 4 12" /></svg>`;
 
     const milestones = [
-      { done: exitedCave, text: 'Abrir brecha en la roca agrietada a la salida de la Cueva Hendida.' },
-      { done: gauntletTier >= 1, text: 'Despertar el Engarce Ígneo en el Pedestal del Risco Sur.' },
-      { done: vinesBurned, text: 'Incinerar las Zarzas Espinosas con Fuego y cruzar el Puente del Arroyo.' },
-      { done: sanctuaryHarmonized, text: 'Reunirte con el Sabio Tarak y armonizar el Altar del Santuario.' }
+      { done: hasFire, text: 'Mundo I · Despertar el Núcleo de Fuego y liberar la salida del Claro.' },
+      { done: hasRoots, text: 'Mundo II · Dominar las Raíces en el Pantano de Esporas.' },
+      { done: hasKinetic, text: 'Mundo III · Forjar la Embestida Cinética y demoler basaltos en la Caldera.' },
+      { done: hasEther, text: 'Mundo IV · Sintonizar el Éter Magnético en la Ciudadela Astral.' },
+      { done: worldConquered, text: `Región Actual (${currentWorldInfo?.name || 'Bioma'}) · Derrotar a su Guardián Regional.` }
     ];
 
     const milestonesHtml = milestones.map((m) => `
@@ -1168,17 +1205,23 @@ export class UIManager {
       </div>
     `).join('');
 
-    const currentWorldId = stateManager?.get('current_world') || 'cave_exit_intro';
-    const currentWorldInfo = WORLDS_LIST.find((w) => w.id === currentWorldId) || WORLDS_LIST[0];
     const worldsHtml = WORLDS_LIST.map((w) => {
       const isCurrent = w.id === currentWorldId;
+      const isUnlocked = !progressionManager || progressionManager.isWorldUnlocked(w.id);
+      const isCompleted = Boolean(progressionManager && progressionManager.completedWorlds.has(w.id));
+      const coreLabel = w.coreElement ? `Núcleo: ${w.coreElement}` : '';
+      const statusPill = isCompleted ? 'CONQUISTADO ✓' : (!isUnlocked ? 'SELLADO 🔒' : coreLabel);
+
       return `
-        <div class="st-world-card ${isCurrent ? 'is-active' : ''}" style="border-left: 4px solid ${w.accentColor};">
-          <div style="font-size:10px;font-weight:900;letter-spacing:0.08em;color:${w.accentColor};">${w.subtitle}</div>
+        <div class="st-world-card ${isCurrent ? 'is-active' : ''} ${!isUnlocked ? 'is-locked' : ''}" style="border-left: 4px solid ${w.accentColor};">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+            <span style="font-size:10px;font-weight:900;letter-spacing:0.08em;color:${w.accentColor};">${w.subtitle}</span>
+            ${statusPill ? `<span style="font-size:9px;font-weight:800;color:${isCompleted ? '#4ade80' : '#94a3b8'};">${statusPill}</span>` : ''}
+          </div>
           <h4 style="margin:0;font-size:13px;font-weight:900;color:#f8fafc;">${w.name}</h4>
           <p style="margin:0;font-size:11px;line-height:1.35;color:#cbd5e1;">${w.description}</p>
-          <button type="button" class="st-world-travel-btn ${isCurrent ? 'is-current' : ''}" data-travel-world="${w.id}" ${isCurrent ? 'disabled' : ''}>
-            ${isCurrent ? 'BIOMA ACTUAL' : 'VIAJAR AQUÍ'}
+          <button type="button" class="st-world-travel-btn ${isCurrent ? 'is-current' : ''}" data-travel-world="${w.id}" ${(isCurrent || !isUnlocked) ? 'disabled' : ''}>
+            ${isCurrent ? 'BIOMA ACTUAL' : !isUnlocked ? 'DERROTA AL GUARDIÁN PREVIO' : 'VIAJAR AQUÍ'}
           </button>
         </div>
       `;
@@ -1247,7 +1290,15 @@ export class UIManager {
           </div>
           <div class="st-bestiary-card">
             <h4>Slime Elemental (Mutágeno)</h4>
-            <p>Cuerpo gelatinoso elástico que absorbe golpes contundentes con chapoteos viscosos y se divide al recibir saturación elemental.</p>
+            <p>Cuerpo gelatinoso elástico que se divide en dos brotes en el Pantano de Esporas si no se neutraliza rápidamente.</p>
+          </div>
+          <div class="st-bestiary-card">
+            <h4>Centinela de Éter (Astral)</h4>
+            <p>Proyecta descargas magnéticas a distancia. Devuelve sus orbes con Pulso de Polaridad o desarma a los acorazados con Embestida/Éter.</p>
+          </div>
+          <div class="st-bestiary-card">
+            <h4>Guardianes Regionales (Jefes de 2 Fases)</h4>
+            <p>Al caer bajo el 50% de vida entran en Fase II furiosa. Rompe sus escudos o corazas volcánicas para abrir ventana crítica.</p>
           </div>
         </div>
       </div>

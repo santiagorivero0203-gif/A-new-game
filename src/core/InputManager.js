@@ -22,6 +22,7 @@ export const KEYBINDINGS = {
   POWER_1: ['Digit1'],
   POWER_2: ['Digit2'],
   POWER_3: ['Digit3'],
+  POWER_4: ['Digit4'],
   POWER_CYCLE: ['KeyR'],
   RADIAL_MENU: ['Tab'],
   TALENTS: ['KeyU', 'KeyB'],
@@ -142,6 +143,8 @@ export class InputManager {
     this._onSkillEquippedCallback = null;
     this._onPauseCallback = null;
     this._onTalentsCallback = null;
+    /** @type {((powerName: string) => boolean)|null} Filtro opcional para ciclar solo poderes desbloqueados */
+    this._canSelectPowerFn = null;
 
     this._bindEvents();
 
@@ -198,8 +201,16 @@ export class InputManager {
   }
 
   /**
+   * Registra un predicado opcional que filtra qué poderes pueden seleccionarse al ciclar.
+   * @param {((powerName: string) => boolean)|null} fn
+   */
+  setPowerFilter(fn) {
+    this._canSelectPowerFn = typeof fn === 'function' ? fn : null;
+  }
+
+  /**
    * Establece directamente el poder elemental activo y dispara el callback.
-   * @param {string} powerName - 'Fuego' | 'Embestida' | 'Raíces'
+   * @param {string} powerName - 'Fuego' | 'Embestida' | 'Raíces' | 'Éter'
    */
   setPower(powerName) {
     if (!powerName || powerName === 'Sellado') return;
@@ -210,17 +221,21 @@ export class InputManager {
   }
 
   /**
-   * Cicla de forma circular entre los poderes elementales disponibles.
+   * Cicla de forma circular entre los poderes elementales disponibles (respetando filtro si existe).
    * Ideal para la rueda del ratón y botones de cambio rápido.
    * @param {number} [direction=1] - 1 para avanzar, -1 para retroceder
    * @returns {string} Poder recién equipado
    */
   cyclePower(direction = 1) {
-    const availablePowers = ['Fuego', 'Embestida', 'Raíces'];
-    let idx = availablePowers.indexOf(this.currentPower || 'Fuego');
+    const allPowers = ['Fuego', 'Raíces', 'Embestida', 'Éter'];
+    const filtered = this._canSelectPowerFn
+      ? allPowers.filter((p) => this._canSelectPowerFn(p))
+      : allPowers;
+    const pool = filtered.length > 0 ? filtered : allPowers;
+    let idx = pool.indexOf(this.currentPower || pool[0]);
     if (idx === -1) idx = 0;
-    idx = (idx + direction + availablePowers.length) % availablePowers.length;
-    const nextPower = availablePowers[idx];
+    idx = (idx + direction + pool.length) % pool.length;
+    const nextPower = pool[idx];
     this.setPower(nextPower);
     return nextPower;
   }
@@ -364,6 +379,7 @@ export class InputManager {
       if (KEYBINDINGS.POWER_1.includes(e.code)) this.setPower('Fuego');
       if (KEYBINDINGS.POWER_2.includes(e.code)) this.setPower('Embestida');
       if (KEYBINDINGS.POWER_3.includes(e.code)) this.setPower('Raíces');
+      if (KEYBINDINGS.POWER_4.includes(e.code)) this.setPower('Éter');
 
       if (KEYBINDINGS.POWER_CYCLE.includes(e.code)) {
         this.cyclePower(1);
@@ -756,7 +772,7 @@ export class InputManager {
 
   /**
    * Calcula el cuadrante de swipe para habilidades basándose en el ángulo del vector.
-   * Norte: Fuego | Este: Embestida | Sur: Raíces | Oeste: Sellado (4to elemento por descubrir)
+   * Norte: Fuego | Este: Embestida | Sur: Raíces | Oeste: Éter
    * @private
    * @param {number} dx
    * @param {number} dy
@@ -769,8 +785,7 @@ export class InputManager {
     if (angleDeg >= -135 && angleDeg < -45) return 'Fuego';
     if (angleDeg >= -45 && angleDeg < 45) return 'Embestida';
     if (angleDeg >= 45 && angleDeg < 135) return 'Raíces';
-    // Oeste está reservado para el 4to elemento futuro aún sin despertar
-    return null;
+    return 'Éter';
   }
 
   /**

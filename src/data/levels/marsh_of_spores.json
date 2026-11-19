@@ -1,86 +1,314 @@
 {
+  "schemaVersion": 2,
   "id": "marsh_of_spores",
-  "name": "Mundo 2 · Pantano de Esporas",
-  "worldTitle": "Mundo 2 · Pantano de Esporas Bioluminiscentes",
+  "worldId": "marsh_of_spores",
+  "zoneId": "marsh_of_spores",
+  "zoneOrder": 2,
+  "isRootZone": true,
+  "name": "Pantano de Esporas",
+  "worldTitle": "Capítulo II · Islas Druídicas y Sombra Silvestre",
   "biome": "marsh_of_spores",
   "layoutPreset": "marsh_of_spores",
   "weather": "spores",
-  "cols": 54,
-  "rows": 36,
+  "cols": 58,
+  "rows": 40,
   "tileSize": 32,
-  "playerSpawn": { "x": 220, "y": 628 },
-  "arenaCenter": { "x": 1344, "y": 384 },
-  "ambientColor": "rgba(13, 38, 52, 0.34)",
-  "lights": [
-    { "x": 512, "y": 448, "radius": 190, "color": "#2dd4bf", "intensity": 0.72, "flickerSpeed": 1.6 },
-    { "x": 1120, "y": 704, "radius": 210, "color": "#a855f7", "intensity": 0.65, "flickerSpeed": 1.3 },
-    { "x": 1344, "y": 384, "radius": 180, "color": "#5eead4", "intensity": 0.78, "flickerSpeed": 1.9 },
-    { "x": 1556, "y": 636, "radius": 150, "color": "#fb923c", "intensity": 0.7, "flickerSpeed": 2.4 }
+  "startDormant": false,
+  "enableStealth": true,
+  "ambientColor": "rgba(7, 22, 18, 0.30)",
+  "initialObjective": "Incinera las zarzas del puente oeste [Fuego] y explora las Islas Norte y Sur para despertar Raíces",
+  "playerSpawn": { "x": 224, "y": 620 },
+  "spawnPoints": [
+    { "id": "default", "label": "Embarcadero Oeste", "x": 224, "y": 620 },
+    { "id": "east_sanctuary", "label": "Santuario Inundado", "x": 1408, "y": 620 }
   ],
-  "colliders": [
-    { "x": 0, "y": 0, "width": 1728, "height": 124 }
+  "arenaCenter": { "x": 1472, "y": 640 },
+  "perimeterConfig": {
+    "enabled": true,
+    "step": 108,
+    "hasOpenRoad": true,
+    "roadGapY": [540, 720]
+  },
+  "solidColliders": [],
+  "stealthZones": [
+    { "x": 544, "y": 176, "width": 512, "height": 240 }
+  ],
+  "lights": [
+    { "x": 224, "y": 620, "radius": 185, "color": "#2dd4bf", "intensity": 0.65, "flickerSpeed": 1.6 },
+    { "x": 784, "y": 256, "radius": 240, "color": "#4ade80", "intensity": 0.76, "flickerSpeed": 1.9 },
+    { "x": 920, "y": 264, "radius": 155, "color": "#4ade80", "intensity": 0.62, "flickerSpeed": 2.1 },
+    { "x": 784, "y": 992, "radius": 220, "color": "#2dd4bf", "intensity": 0.64, "flickerSpeed": 1.5 },
+    { "x": 1472, "y": 640, "radius": 280, "color": "#5eead4", "intensity": 0.74, "flickerSpeed": 1.8 },
+    { "x": 1660, "y": 620, "radius": 195, "color": "#f97316", "intensity": 0.75, "flickerSpeed": 2.4 }
   ],
   "props": [
-    { "propType": "world_portal", "x": 130, "y": 608, "portalColor": "#4ade80", "targetWorld": "cave_exit_intro", "worldLabel": "Claro de las Reliquias" },
-    { "propType": "crystal_rock", "x": 270, "y": 260 },
-    { "propType": "crystal_rock", "x": 640, "y": 240 },
     {
+      "id": "m2_return_portal",
+      "propType": "world_portal",
+      "targetWorld": "cave_exit_intro",
+      "targetSpawnId": "east_sanctuary",
+      "worldLabel": "Claro de la Reliquia",
+      "portalColor": "#fde047",
+      "x": 140,
+      "y": 548
+    },
+    {
+      "id": "m2_broken_statue",
       "propType": "broken_statue",
-      "x": 448,
-      "y": 692,
+      "x": 336,
+      "y": 664,
       "biomeTint": "marsh",
       "loreTitle": "Efigie Sumergida de las Esporas",
       "loreText": "El musgo bioluminiscente conserva la memoria de antiguos druidas que sellaron estas marismas.",
       "essenceReward": 22
     },
     {
+      "id": "m2_rusted_greatsword",
       "propType": "rusted_greatsword",
-      "x": 930,
-      "y": 310,
+      "x": 608,
+      "y": 212,
       "loreTitle": "Espada del Vigía del Cieno",
       "loreText": "La hoja absorbió la humedad cenagosa, pero su empuñadura aún retiene calor rúnico.",
       "essenceReward": 18
     },
     {
+      "id": "m2_runic_obelisk",
       "propType": "runic_obelisk",
-      "x": 704,
-      "y": 710,
+      "x": 584,
+      "y": 684,
       "runeColor": "#2dd4bf",
       "loreTitle": "Obelisco de las Aguas Brillantes",
-      "loreText": "Las esporas retroceden ante el pulso cinético de la Reliquia.",
+      "loreText": "Las esporas retroceden ante el pulso silvestre de la Reliquia.",
       "essenceReward": 30
     },
-    { "propType": "sanctuary_altar", "x": 1240, "y": 320, "id": "marsh_sanctuary_altar" },
-    { "propType": "horde_totem", "x": 1410, "y": 340, "id": "marsh_horde_totem" },
-    { "propType": "cracked_rock", "x": 1160, "y": 290, "id": "marsh_cracked_cache" },
-    { "propType": "world_portal", "x": 1520, "y": 608, "portalColor": "#fb923c", "targetWorld": "ash_caldera", "worldLabel": "Caldera de Ceniza" }
+    { "id": "m2_west_bridge_rock_n", "propType": "cliff_rock", "x": 452, "y": 554 },
+    { "id": "m2_west_bridge_vines", "propType": "burnable_vines", "x": 448, "y": 592 },
+    { "id": "m2_west_bridge_rock_s", "propType": "cliff_rock", "x": 452, "y": 652 },
+    {
+      "id": "m2_spore_pool_west",
+      "propType": "hazard_vent",
+      "hazardKind": "spore_pool",
+      "hazardRadius": 42,
+      "x": 628,
+      "y": 612
+    },
+    {
+      "id": "m2_spore_pool_center",
+      "propType": "hazard_vent",
+      "hazardKind": "spore_pool",
+      "hazardRadius": 42,
+      "x": 916,
+      "y": 612
+    },
+    {
+      "id": "m2_relic_raices",
+      "propType": "relic_pedestal",
+      "grantsElement": "Raíces",
+      "essenceReward": 40,
+      "label": "Núcleo de Raíces",
+      "x": 756,
+      "y": 224
+    },
+    {
+      "id": "marsh_root_totem_a",
+      "propType": "root_totem",
+      "label": "Tótem Norte del Pantano",
+      "runeColor": "#4ade80",
+      "x": 912,
+      "y": 240
+    },
+    {
+      "id": "marsh_root_totem_b",
+      "propType": "root_totem",
+      "label": "Tótem Sur del Pantano",
+      "runeColor": "#4ade80",
+      "x": 904,
+      "y": 964
+    },
+    {
+      "id": "m2_east_gate",
+      "propType": "runic_gate",
+      "sealedBy": ["marsh_root_totem_a", "marsh_root_totem_b"],
+      "runeColor": "#4ade80",
+      "label": "Compuerta de Esporas",
+      "sealedHint": "Ancla los 2 Tótems Silvestres (Isla Norte e Isla Sur) con el poder de Raíces [Clic Der / K].",
+      "x": 1120,
+      "y": 604
+    },
+    { "id": "m2_sanctuary_altar", "propType": "sanctuary_altar", "x": 1356, "y": 484 },
+    { "id": "m2_horde_totem", "propType": "horde_totem", "x": 1344, "y": 768 },
+    {
+      "id": "m2_spore_pool_arena",
+      "propType": "hazard_vent",
+      "hazardKind": "spore_pool",
+      "hazardRadius": 40,
+      "x": 1468,
+      "y": 544
+    },
+    {
+      "id": "m2_portal_to_ash",
+      "propType": "world_portal",
+      "targetWorld": "ash_caldera",
+      "targetSpawnId": "default",
+      "worldLabel": "Caldera de Ceniza",
+      "portalColor": "#f97316",
+      "sealedBy": ["boss_m2"],
+      "sealedHint": "La Matriarca Esporífera retiene la energía del portal hacia la Caldera de Ceniza.",
+      "x": 1640,
+      "y": 596
+    }
   ],
   "entities": [
-    { "type": "npc", "variant": "tarak", "name": "Tarak", "x": 310, "y": 605 },
-    { "type": "enemy", "archetype": "slime", "element": "plantas", "x": 540, "y": 640 },
-    { "type": "enemy", "archetype": "slime", "element": "kinetic", "x": 620, "y": 616 },
-    { "type": "enemy", "archetype": "artillery", "element": "plantas", "x": 720, "y": 480 },
-    { "type": "enemy", "archetype": "hound", "element": "plantas", "x": 930, "y": 635 },
-    { "type": "enemy", "archetype": "duelist", "element": "kinetic", "x": 1080, "y": 400 },
-    { "type": "enemy", "archetype": "tank", "element": "plantas", "x": 1280, "y": 450 },
-    { "type": "enemy", "archetype": "artillery", "element": "kinetic", "x": 1450, "y": 440 }
-  ],
-  "foliage": [
-    { "x": 340, "y": 720 },
-    { "x": 650, "y": 730 },
-    { "x": 960, "y": 330 },
-    { "x": 1310, "y": 500 },
-    { "x": 1420, "y": 730 }
+    {
+      "type": "npc",
+      "id": "tarak_m2_npc",
+      "name": "Sabio Tarak",
+      "variant": "tarak",
+      "x": 272,
+      "y": 564,
+      "dialogues": {
+        "highKarma": "Tu senda brilla entre la niebla de esporas. Usa los arbustos altos del norte [Ctrl / C] para acechar sin alertar al pantano.",
+        "lowKarma": "No subestimes el sigilo ni la paciencia en estas ciénagas, Santi. Las esporas frenan a quien embiste a ciegas.",
+        "lines": [
+          "El puente oeste conserva zarzas secas sensibles a tu Fuego. En la isla norte duerme el Núcleo de Raíces.",
+          "Combina Raíces + Fuego sobre los enemigos enredados para desatar Llamas Vegetales."
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "lira_m2_npc",
+      "name": "Lira la Herbolaria",
+      "variant": "valerio",
+      "rescueTag": "ambush_marsh",
+      "karmaEventId": "marsh_survivor_m2",
+      "rewardWeapon": "thorn_saber",
+      "rewardEssence": 22,
+      "x": 636,
+      "y": 976,
+      "dialogues": {
+        "underThreat": "¡Cuidado! ¡Esas babas se dividen al morir y las esporas bloquean mi retirada!",
+        "rescueComplete": "¡Me salvaste de quedar sepultada en esporas! Acepta mi Sable de Espinas en el Arsenal [I]: su remate desangra a tus enemigos.",
+        "highKarma": "Nadie en la ciénaga olvidará tu auxilio. Ese Sable de Espinas corta incluso entre raíces espesas.",
+        "lowKarma": "Salí viva por tu intervención. Llévate el Sable de Espinas y sigue hacia el tótem sur.",
+        "lines": [
+          "Dispara el poder de Raíces sobre el tótem oriental de esta isla para abrir el sello hacia la Matriarca.",
+          "Evita pisar los charcos de esporas en el cruce central: agotan tu estamina si no usas Dash."
+        ]
+      }
+    },
+    {
+      "type": "enemy",
+      "id": "m2_slime_cross_1",
+      "archetype": "slime",
+      "element": "plantas",
+      "name": "Baba Mitótica",
+      "canSplit": true,
+      "x": 700,
+      "y": 604
+    },
+    {
+      "type": "enemy",
+      "id": "m2_slime_cross_2",
+      "archetype": "slime",
+      "element": "plantas",
+      "name": "Baba Mitótica",
+      "canSplit": true,
+      "x": 844,
+      "y": 632
+    },
+    {
+      "type": "enemy",
+      "id": "m2_artillery_cross",
+      "archetype": "artillery",
+      "element": "plantas",
+      "name": "Esporífero de Bruma",
+      "x": 968,
+      "y": 584
+    },
+    {
+      "type": "enemy",
+      "id": "m2_hound_north_stealth",
+      "archetype": "hound",
+      "element": "plantas",
+      "name": "Vigilante del Musgo",
+      "x": 664,
+      "y": 292
+    },
+    {
+      "type": "enemy",
+      "id": "m2_artillery_north_stealth",
+      "archetype": "artillery",
+      "element": "plantas",
+      "name": "Centinela de Esporas",
+      "x": 864,
+      "y": 212
+    },
+    {
+      "type": "enemy",
+      "id": "m2_marsh_ambush_1",
+      "archetype": "slime",
+      "element": "plantas",
+      "name": "Baba Voraz",
+      "canSplit": true,
+      "customTags": ["ambush_marsh"],
+      "x": 692,
+      "y": 964
+    },
+    {
+      "type": "enemy",
+      "id": "m2_marsh_ambush_2",
+      "archetype": "slime",
+      "element": "plantas",
+      "name": "Baba Voraz",
+      "canSplit": true,
+      "customTags": ["ambush_marsh"],
+      "x": 768,
+      "y": 1020
+    },
+    {
+      "type": "enemy",
+      "id": "m2_marsh_ambush_3",
+      "archetype": "artillery",
+      "element": "plantas",
+      "name": "Acechador Fúngico",
+      "customTags": ["ambush_marsh"],
+      "x": 620,
+      "y": 1044
+    },
+    {
+      "type": "enemy",
+      "id": "m2_boss_spore",
+      "archetype": "boss_spore",
+      "element": "plantas",
+      "name": "Matriarca Esporífera",
+      "bossId": "boss_m2",
+      "worldSeal": true,
+      "noRespawn": true,
+      "scaleWithRelicTier": true,
+      "x": 1488,
+      "y": 644
+    }
   ],
   "clearingTrees": [
-    { "x": 190, "y": 390 },
-    { "x": 660, "y": 780 },
-    { "x": 940, "y": 200 },
-    { "x": 1480, "y": 230 },
-    { "x": 1510, "y": 760 }
+    { "x": 168, "y": 468 },
+    { "x": 176, "y": 732 },
+    { "x": 544, "y": 176 },
+    { "x": 1004, "y": 172 },
+    { "x": 548, "y": 852 },
+    { "x": 1000, "y": 1068 },
+    { "x": 1560, "y": 420 },
+    { "x": 1568, "y": 824 }
   ],
-  "perimeterConfig": {
-    "streamGapX": [760, 880]
-  }
+  "foliage": [
+    { "x": 608, "y": 288 },
+    { "x": 648, "y": 244 },
+    { "x": 700, "y": 312 },
+    { "x": 828, "y": 324 },
+    { "x": 884, "y": 200 },
+    { "x": 584, "y": 548 },
+    { "x": 968, "y": 688 },
+    { "x": 816, "y": 900 },
+    { "x": 1300, "y": 588 }
+  ]
 }
-

@@ -54,7 +54,16 @@ export class CombatManager {
     this._activeTokenHolders = new Set();
 
     /** @private Objeto reutilizable Zero-GC para `active_threat` en HUD */
-    this._activeThreatCache = { name: '', health: 0, maxHealth: 100, hasShield: false, element: 'plantas' };
+    this._activeThreatCache = {
+      name: '',
+      health: 0,
+      maxHealth: 100,
+      hasShield: false,
+      hasMetalArmor: false,
+      isBoss: false,
+      phase: 1,
+      element: 'plantas'
+    };
     /** @private Buffer reutilizable Zero-GC para consultas a SpatialGrid de ataques */
     this._attackQueryBuf = [];
     this._lastSyncedComboCount = -1;
@@ -207,6 +216,9 @@ export class CombatManager {
         tc.health = Math.max(0, this.trackedTarget.health || 0);
         tc.maxHealth = this.trackedTarget.max_health || 100;
         tc.hasShield = !!(this.trackedTarget.hasWoodenShield || this.trackedTarget.hasTag('wooden_shield'));
+        tc.hasMetalArmor = !!(this.trackedTarget.hasMetalArmor || this.trackedTarget.hasTag('metal_armor'));
+        tc.isBoss = Boolean(this.trackedTarget.isBoss);
+        tc.phase = this.trackedTarget.phase || 1;
         tc.element = this.trackedTarget.elementalAffinity || 'plantas';
         context.state.set('active_threat', tc);
       }
@@ -672,6 +684,40 @@ export class CombatManager {
     }
 
     // =========================================================================
+    // 2.5 MECÁNICA DE CORAZA VOLCÁNICA (Caldera de Ceniza / Guardián Blindado)
+    // =========================================================================
+    let armorMitigated = false;
+    if (entity.hasMetalArmor || entity.hasTag('metal_armor')) {
+      if (attack.element === 'kinetic' || attack.element === 'eter' || attack.damageType === 'armor_break') {
+        if (typeof entity.shatterMetalArmor === 'function') {
+          entity.shatterMetalArmor(context);
+        } else {
+          entity.hasMetalArmor = false;
+          entity.tags = entity.tags.filter((t) => t !== 'metal_armor');
+          entity.activeEffects.delete('metal_armor');
+        }
+        if (context && context.engine) context.engine.hitStop(0.055);
+        if (context && context.audioManager) context.audioManager.playExplosion();
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('plasma_pulse', entity.pos.x + 16, entity.pos.y + 16, { radius: 44, duration: 0.4 });
+        }
+        if (context && context.uiManager && context.camera) {
+          context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 10, '¡CORAZA QUEBRADA!', '#38bdf8');
+        }
+      } else if ((attack.element === 'physical' && !attack.isFinisher && !attack.isReflected) || attack.element === 'fuego') {
+        armorMitigated = true;
+        if (context && context.audioManager) context.audioManager.playHitImpact('resisted', 'armor');
+        const nowClock = entity.animClock || 0;
+        if (!entity._lastArmorHintClock || nowClock - entity._lastArmorHintClock >= 1.1) {
+          entity._lastArmorHintClock = nowClock;
+          if (context && context.uiManager && context.camera) {
+            context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 6, 'CORAZA (USA EMBESTIDA)', '#94a3b8');
+          }
+        }
+      }
+    }
+
+    // =========================================================================
     // 3. RESOLUCIÓN OFENSIVA DEL JUGADOR Y SINERGIAS ELEMENTALES
     // =========================================================================
     const isPlayerAttack = (attack.owner && attack.owner.hasTag('player')) || attack.isFriendlySynergy;
@@ -796,12 +842,13 @@ export class CombatManager {
         }
       }
 
-      // Triángulo de Efectividad Elemental (x2.0 Súper Efectivo / x0.6 Resistido)
+      // Triángulo de Efectividad Elemental (x2.0 Súper Efectivo / x0.6 Resistido / x1.75 Éter)
       const atkElem = attack.element;
       const defElem = entity.elementalAffinity || (
         entity.hasTag('elem_plantas') ? 'plantas'
           : entity.hasTag('elem_fuego') ? 'fuego'
-            : entity.hasTag('elem_kinetic') ? 'kinetic' : null
+            : entity.hasTag('elem_kinetic') ? 'kinetic'
+              : entity.hasTag('elem_astral') ? 'astral' : null
       );
 
       if (defElem && atkElem !== 'physical' && atkElem !== 'explosion') {
@@ -809,6 +856,10 @@ export class CombatManager {
           (atkElem === 'fuego' && (defElem === 'plantas' || defElem === 'raices' || defElem === 'tierra')) ||
           ((atkElem === 'plantas' || atkElem === 'tierra') && defElem === 'kinetic') ||
           (atkElem === 'kinetic' && defElem === 'fuego')
+        );
+        const isEtherAdvantage = atkElem === 'eter' && (
+          defElem === 'astral' ||
+          (defElem === 'kinetic' && (entity.hasMetalArmor || entity.archetype === 'tank' || entity.archetype === 'sentinel_ether'))
         );
 
         const isResisted = (
@@ -823,10 +874,22 @@ export class CombatManager {
           if (context && context.vfxRenderer && !attack.isMagmaZone) {
             context.vfxRenderer.spawnImpact('parry_spark', entity.pos.x + 16, entity.pos.y + 16, { radius: 26, duration: 0.26 });
           }
+        } else if (isEtherAdvantage) {
+          finalDamage *= 1.75;
+          if (!isCriticalRiposte) hitSoundType = 'super_effective';
+          if (context && context.vfxRenderer && !attack.isSingularityZone) {
+            context.vfxRenderer.spawnImpact('ether_arc', entity.pos.x + 16, entity.pos.y + 16, { radius: 26, duration: 0.24 });
+          }
         } else if (isResisted) {
           finalDamage *= 0.6;
           if (!isCriticalRiposte) hitSoundType = 'resisted';
         }
+      }
+
+      // Reducción de daño por Coraza Volcánica intacta (salvo Riposte crítico)
+      if (armorMitigated && !isCriticalRiposte) {
+        finalDamage *= 0.5;
+        hitSoundType = 'resisted';
       }
 
       // Feedback sonoro con capas acústicas por material del objetivo
@@ -890,31 +953,76 @@ export class CombatManager {
     // =========================================================================
     // 4. SINERGIAS ELEMENTALES CRUZADAS (Potenciadas por `elemental_synergy`)
     // =========================================================================
-    if (attack.element === 'fuego' && entity.hasTag('inmovilizado_raices')) {
-      entity.activeEffects.delete('inmovilizado_raices');
-      if (context && context.engine) context.engine.hitStop(0.045);
-      if (context && context.audioManager) context.audioManager.playExplosion();
-      if (context && context.camera) context.camera.shake(0.50, 0.24);
-      if (context && context.vfxRenderer) {
-        context.vfxRenderer.spawnImpact('wood_explosion', entity.pos.x + 15, entity.pos.y + 15, { radius: 58, duration: 0.45 });
+    if (!attack.isFriendlySynergy) {
+      if (attack.element === 'fuego' && entity.hasTag('inmovilizado_raices')) {
+        entity.activeEffects.delete('inmovilizado_raices');
+        if (context && context.engine) context.engine.hitStop(0.045);
+        if (context && context.audioManager) context.audioManager.playExplosion();
+        if (context && context.camera) context.camera.shake(0.50, 0.24);
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('wood_explosion', entity.pos.x + 15, entity.pos.y + 15, { radius: 58, duration: 0.45 });
+        }
+        if (context && context.uiManager && context.camera) {
+          context.uiManager.spawnDamageNumber(entity.pos.x + 15, entity.pos.y - 14, '¡SINERGIA EXPLOSIVA!', '#fb923c');
+        }
+        this.triggerWoodExplosion(entity, context, attack.owner);
       }
-      if (context && context.uiManager && context.camera) {
-        context.uiManager.spawnDamageNumber(entity.pos.x + 15, entity.pos.y - 14, '¡SINERGIA EXPLOSIVA!', '#fb923c');
-      }
-      this.triggerWoodExplosion(entity, context, attack.owner);
-    }
 
-    if (attack.element === 'kinetic' && entity.hasTag('quemadura_ignea')) {
-      entity.activeEffects.delete('quemadura_ignea');
-      if (context && context.engine) context.engine.hitStop(0.045);
-      if (context && context.audioManager) context.audioManager.playExplosion();
-      if (context && context.vfxRenderer) {
-        context.vfxRenderer.spawnImpact('fire_burst', entity.pos.x + 15, entity.pos.y + 15, { radius: 48, duration: 0.38 });
+      if (attack.element === 'kinetic' && entity.hasTag('quemadura_ignea')) {
+        entity.activeEffects.delete('quemadura_ignea');
+        if (context && context.engine) context.engine.hitStop(0.045);
+        if (context && context.audioManager) context.audioManager.playExplosion();
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('fire_burst', entity.pos.x + 15, entity.pos.y + 15, { radius: 48, duration: 0.38 });
+        }
+        if (context && context.uiManager && context.camera) {
+          context.uiManager.spawnDamageNumber(entity.pos.x + 15, entity.pos.y - 14, '¡TORBELLINO ÍGNEO!', '#38bdf8');
+        }
+        this.triggerFirestormSynergy(entity, context, attack.owner);
       }
-      if (context && context.uiManager && context.camera) {
-        context.uiManager.spawnDamageNumber(entity.pos.x + 15, entity.pos.y - 14, '¡TORBELLINO ÍGNEO!', '#38bdf8');
+
+      if ((attack.element === 'fuego' && entity.hasTag('sobrecarga_eter')) || (attack.element === 'eter' && entity.hasTag('quemadura_ignea'))) {
+        entity.activeEffects.delete('sobrecarga_eter');
+        entity.activeEffects.delete('quemadura_ignea');
+        if (context && context.engine) context.engine.hitStop(0.045);
+        if (context && context.audioManager) context.audioManager.playExplosion();
+        if (context && context.camera) context.camera.shake(0.48, 0.22);
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('plasma_pulse', entity.pos.x + 16, entity.pos.y + 16, { radius: 62, duration: 0.42 });
+        }
+        if (context && context.uiManager && context.camera) {
+          context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 14, '¡SOBRECARGA DE PLASMA!', '#e879f9');
+        }
+        this.triggerPlasmaOverload(entity, context, attack.owner);
+      } else if ((attack.element === 'kinetic' && entity.hasTag('sobrecarga_eter')) || (attack.element === 'eter' && entity.hasTag('armor_break'))) {
+        entity.activeEffects.delete('sobrecarga_eter');
+        if (context && context.engine) context.engine.hitStop(0.04);
+        if (context && context.audioManager) context.audioManager.playParry();
+        if (attack.owner && attack.owner.hasTag('player')) {
+          attack.owner.energy = Math.min(attack.owner.max_energy || 100, (attack.owner.energy || 0) + 18);
+        }
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('ether_burst', entity.pos.x + 16, entity.pos.y + 16, { radius: 52, duration: 0.36 });
+        }
+        if (context && context.uiManager && context.camera) {
+          context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 14, '¡ACELERADOR MAGNÉTICO!', '#38bdf8');
+        }
+        this.triggerMagneticAccelerator(entity, context, attack.owner);
+      } else if ((attack.element === 'plantas' && entity.hasTag('sobrecarga_eter')) || (attack.element === 'eter' && entity.hasTag('inmovilizado_raices'))) {
+        entity.activeEffects.delete('sobrecarga_eter');
+        if (context && context.engine) context.engine.hitStop(0.04);
+        if (context && context.audioManager) context.audioManager.playAbility('eter', false);
+        if (attack.owner && attack.owner.hasTag('player')) {
+          attack.owner.guard_meter = Math.min(attack.owner.max_guard || 100, (attack.owner.guard_meter || 0) + 25);
+        }
+        if (context && context.vfxRenderer) {
+          context.vfxRenderer.spawnImpact('ether_arc', entity.pos.x + 16, entity.pos.y + 16, { radius: 54, duration: 0.36 });
+        }
+        if (context && context.uiManager && context.camera) {
+          context.uiManager.spawnDamageNumber(entity.pos.x + 16, entity.pos.y - 14, '¡TORMENTA BIOELÉCTRICA!', '#4ade80');
+        }
+        this.triggerBioElectricStorm(entity, context, attack.owner);
       }
-      this.triggerFirestormSynergy(entity, context, attack.owner);
     }
 
     if (attack.applyEffect) {
@@ -986,6 +1094,106 @@ export class CombatManager {
       originX: entity.pos.x + entity.width / 2,
       originY: entity.pos.y + entity.height / 2,
       knockbackForce: synRank >= 1 ? 40 : 34,
+      hitbox: {
+        x: entity.pos.x - pad,
+        y: entity.pos.y - pad,
+        width: pad * 2 + entity.width,
+        height: pad * 2 + entity.height
+      },
+      hitEntities: new Set()
+    });
+  }
+
+  /**
+   * Detona Sobrecarga de Plasma (Fuego + Éter) aturdiendo en área.
+   */
+  triggerPlasmaOverload(entity, context, owner = null) {
+    const skillTree = context ? context.skillTreeManager : null;
+    const synRank = skillTree ? skillTree.getSkillRank('elemental_synergy') : 0;
+    const dmg = synRank >= 2 ? 86 : (synRank === 1 ? 76 : 66);
+    const pad = synRank >= 2 ? 64 : (synRank === 1 ? 54 : 46);
+    const targetOwner = owner || (context ? context.player : null);
+
+    if (skillTree && skillTree.hasSkill('supernova_protocol') && targetOwner && targetOwner.hasTag('player')) {
+      targetOwner.energy = Math.min(targetOwner.max_energy || 100, targetOwner.energy + 12);
+    }
+
+    this.addAttack({
+      owner: targetOwner,
+      isFriendlySynergy: true,
+      type: 'synergy',
+      element: 'eter',
+      damage: dmg,
+      duration: 0.18,
+      isSweep: true,
+      originX: entity.pos.x + entity.width / 2,
+      originY: entity.pos.y + entity.height / 2,
+      knockbackForce: 40,
+      applyEffect: { tag: 'staggered', duration: 1.4 },
+      hitbox: {
+        x: entity.pos.x - pad,
+        y: entity.pos.y - pad,
+        width: pad * 2 + entity.width,
+        height: pad * 2 + entity.height
+      },
+      hitEntities: new Set()
+    });
+  }
+
+  /**
+   * Detona Acelerador Magnético (Cinética + Éter) perforando defensas y restaurando energía.
+   */
+  triggerMagneticAccelerator(entity, context, owner = null) {
+    const skillTree = context ? context.skillTreeManager : null;
+    const synRank = skillTree ? skillTree.getSkillRank('elemental_synergy') : 0;
+    const dmg = synRank >= 2 ? 64 : (synRank === 1 ? 54 : 46);
+    const pad = synRank >= 2 ? 52 : (synRank === 1 ? 44 : 36);
+    const targetOwner = owner || (context ? context.player : null);
+
+    this.addAttack({
+      owner: targetOwner,
+      isFriendlySynergy: true,
+      type: 'synergy',
+      element: 'kinetic',
+      damage: dmg,
+      duration: 0.16,
+      isSweep: true,
+      originX: entity.pos.x + entity.width / 2,
+      originY: entity.pos.y + entity.height / 2,
+      knockbackForce: 32,
+      applyEffect: { tag: 'armor_break', duration: 3.5 },
+      hitbox: {
+        x: entity.pos.x - pad,
+        y: entity.pos.y - pad,
+        width: pad * 2 + entity.width,
+        height: pad * 2 + entity.height
+      },
+      hitEntities: new Set()
+    });
+  }
+
+  /**
+   * Detona Tormenta Bioeléctrica (Raíces + Éter) dañando en área y restaurando postura.
+   */
+  triggerBioElectricStorm(entity, context, owner = null) {
+    const skillTree = context ? context.skillTreeManager : null;
+    const synRank = skillTree ? skillTree.getSkillRank('elemental_synergy') : 0;
+    const dmg = synRank >= 2 ? 72 : (synRank === 1 ? 62 : 52);
+    const pad = synRank >= 2 ? 60 : (synRank === 1 ? 52 : 44);
+    const targetOwner = owner || (context ? context.player : null);
+
+    this.addAttack({
+      owner: targetOwner,
+      isFriendlySynergy: true,
+      type: 'synergy',
+      element: 'eter',
+      damage: dmg,
+      duration: 0.18,
+      isSweep: true,
+      originX: entity.pos.x + entity.width / 2,
+      originY: entity.pos.y + entity.height / 2,
+      knockbackForce: 26,
+      applyEffect: { tag: 'sobrecarga_eter', duration: 3.5 },
       hitbox: {
         x: entity.pos.x - pad,
         y: entity.pos.y - pad,
@@ -1093,7 +1301,7 @@ export class CombatManager {
     this.releaseAttackToken(owner);
     for (let i = this.activeAttacks.length - 1; i >= 0; i--) {
       const atk = this.activeAttacks[i];
-      if (atk.owner === owner && !atk.isProjectile && !atk.isMagmaZone) {
+      if (atk.owner === owner && !atk.isProjectile && !atk.isMagmaZone && !atk.isSingularityZone) {
         this._removeAttackAt(i);
       }
     }

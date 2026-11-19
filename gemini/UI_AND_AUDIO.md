@@ -60,11 +60,14 @@ updateEnergy(energy, maxEnergy) {
 
 ---
 
-## 3. Estética Artesanal de la Reliquia (`ui.css` y `UIManager.js`)
+## 3. Estética Artesanal de la Reliquia (`ui.css`, `UIManager.js`, `CinematicManager.js`)
 
+* **HUD Simplificado y Contextual:** La tarjeta superior izquierda compacta Vitalidad + Energía elemental junto a dos micro-barras contextuales (`.rpg-micro-row`): la barra del Escudo/Égida (`#hud-posture-wrap`) permanece tenue al `100%` en reposo y se realza al bloquear o recibir daño, mientras Resistencia (`#hud-stamina-wrap`) se oculta automáticamente al `100%` (`is-idle`) y reaparece solo al correr o agotarse.
+* **Minimapa Periférico DOM (`#hud-minimap-wrap` + `MinimapRenderer.js`):** Anclado en `top-right` (`transform-origin: top right`, `92×92 px` en escritorio y `72×72 px` en `9:16`) con preferencia persistente (`be_a_legend_ui_prefs_v1`) y plegado por clic o tecla `[N]`, evitando deformaciones al escalar `#main-canvas`.
+* **Ajustes Diferenciados (Menú Principal vs In-Game):** Al abrir Ajustes desde `#main-menu`, `#skill-tree-modal` activa `.is-main-menu-settings` (oculta pestañas/recursos de partida y muestra únicamente configuración global, controles, `VOLVER AL TÍTULO` y `BORRAR PROGRESO GUARDADO`); en partida abre el Santuario completo de 4 pestañas con pausa y `REINICIAR CAMPAÑA`.
+* **Cinemáticas "Crónica de la Reliquia" (`CinematicManager.js`):** Reemplaza estilos neón por tablilla tallada en obsidiana cálida y bronce envejecido con franjas *letterbox*, escudo heráldico reactivo por personaje (`data-speaker`), diamantes de progreso de escena (`#cinematic-progress-pips`) y carga segura `encodeURI` en `<img id="cinematic-img-el">`.
 * **Rastro de Daño en Postura (`#hud-posture-ghost-fill`):** La barra principal responde en `14ms`, mientras que la sub-barra de rastro dorada/blanca decae con `320ms ease-out` tras impactos o bloqueos pesados.
-* **Biselado Angular de la Reliquia (`clip-path: polygon(...)`):** Las barras, tarjetas del Atlas (`.st-world-card`) y botones táctiles sustituyen bordes web genéricos por chaflanes angulares simétricos/asimétricos con respuesta háptica en `75ms` (`scale(1.05)` hover, `scale(0.95)` active).
-* **Hub 3×4 Multi-Rango y Atlas de Mundos:** `renderSkillTree` organiza 3 carriles por disciplina con insignias `R{rank}/{maxRank}` y requisitos de rama (`reqTreePoints`); `renderCodexTab` renderiza el Atlas interactivo con los 4 biomas conectados mediante `stateManager.get('load_world_hook')`.
+* **Biselado Angular de la Reliquia (`clip-path: polygon(...)`):** Las barras, tarjetas del Atlas (`.st-world-card`) y botones táctiles sustituyen bordes web genéricos por chaflanes angulares simétricos/asimétricos con respuesta háptica en `75ms`.
 
 ---
 

@@ -205,7 +205,70 @@ export class VFXRenderer {
           color: i % 2 === 0 ? '#38bdf8' : '#e0f2fe'
         });
       }
+    } else if (type === 'ether_arc' || type === 'ether_burst') {
+      const count = type === 'ether_burst' ? 14 : 8;
+      for (let i = 0; i < count; i++) {
+        const ang = (Math.PI * 2 * i) / count;
+        const spd = (type === 'ether_burst' ? 90 : 60) + Math.random() * 55;
+        this.addParticle({
+          x,
+          y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          size: 3.2,
+          life: 0.30,
+          color: i % 2 === 0 ? '#c084fc' : '#38bdf8'
+        });
+      }
+    } else if (type === 'core_awakening') {
+      for (let i = 0; i < 18; i++) {
+        const ang = (Math.PI * 2 * i) / 18;
+        const spd = 45 + Math.random() * 85;
+        this.addParticle({
+          x,
+          y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd - 26,
+          size: 3.5,
+          life: 0.55,
+          color: i % 2 === 0 ? (options.color || '#fb923c') : '#fef08a'
+        });
+      }
     }
+  }
+
+  /**
+   * Dispara la animación luminosa de ritual al despertar un Núcleo Elemental.
+   * @param {number} x
+   * @param {number} y
+   * @param {string} [color='#fb923c']
+   */
+  spawnCoreAwakening(x, y, color = '#fb923c') {
+    this.spawnImpact('core_awakening', x, y, { radius: 84, duration: 1.05, color });
+  }
+
+  /**
+   * Emite un haz cometa visual entre un interruptor resuelto y la compuerta/portal que desbloquea.
+   * @param {number} x1
+   * @param {number} y1
+   * @param {number} x2
+   * @param {number} y2
+   * @param {string} [color='#38bdf8']
+   */
+  spawnLogicBeam(x1, y1, x2, y2, color = '#38bdf8') {
+    const fx = this._effectPool.length > 0 ? this._effectPool.pop() : {};
+    fx.type = 'logic_beam';
+    fx.x = x1;
+    fx.y = y1;
+    fx.targetX = x2;
+    fx.targetY = y2;
+    fx.timer = 0;
+    fx.duration = 0.65;
+    fx.radius = 12;
+    fx.color = color;
+    fx.angle = 0;
+    fx.isFinisher = false;
+    this.effects.push(fx);
   }
 
   /**
@@ -279,6 +342,18 @@ export class VFXRenderer {
             size: 3,
             life: 0.32,
             color: Math.random() > 0.45 ? '#fb923c' : '#fde047'
+          });
+        } else if (atk.isSingularityZone && Math.random() < 0.4) {
+          const ang = Math.random() * Math.PI * 2;
+          const dist = (atk.radius || 96) * 0.85;
+          this.addParticle({
+            x: (atk.originX || 0) + Math.cos(ang) * dist,
+            y: (atk.originY || 0) + Math.sin(ang) * dist,
+            vx: -Math.cos(ang) * 95,
+            vy: -Math.sin(ang) * 95,
+            size: 3,
+            life: 0.35,
+            color: Math.random() > 0.45 ? '#c084fc' : '#38bdf8'
           });
         } else if (atk.isPhantomStep && atk.owner && Math.random() < 0.65) {
           this.addParticle({
@@ -445,13 +520,13 @@ export class VFXRenderer {
       p.color = Math.random() > 0.45 ? '#5eead4' : '#c084fc';
       p.size = 2.6 + Math.random() * 1.4;
       p.life = 2.4;
-    } else if (weatherKey === 'embers') {
+    } else if (weatherKey === 'embers' || weatherKey === 'ash') {
       p.vx = (Math.random() - 0.35) * 24;
       p.vy = -26 - Math.random() * 28;
       p.color = Math.random() > 0.35 ? '#fb923c' : '#fde047';
       p.size = 2.2 + Math.random() * 1.6;
       p.life = 1.6;
-    } else if (weatherKey === 'stardust') {
+    } else if (weatherKey === 'stardust' || weatherKey === 'astral') {
       p.vx = (Math.random() - 0.5) * 10;
       p.vy = (Math.random() - 0.5) * 10;
       const r = Math.random();
@@ -687,6 +762,64 @@ export class VFXRenderer {
           ctx.arc(rx, ry, 8.5, 0, Math.PI * 2);
           ctx.stroke();
         }
+        ctx.restore();
+      }
+    } else if (atk.element === 'eter') {
+      if (atk.isPolarityPulse) {
+        const ox = atk.originX || (atk.hitbox ? atk.hitbox.x + atk.hitbox.width / 2 : 0);
+        const oy = atk.originY || (atk.hitbox ? atk.hitbox.y + atk.hitbox.height / 2 : 0);
+        const progress = 1 - Math.max(0, atk.duration / (atk.maxDuration || 0.22));
+        const alpha = 1 - progress;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(192, 132, 252, ${alpha})`;
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.arc(ox, oy, 18 + progress * 24, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.9})`;
+        ctx.lineWidth = 2;
+        for (let b = 0; b < 4; b++) {
+          const ang = (atk.aimAngle || 0) + (b - 1.5) * 0.45;
+          const rEnd = 22 + progress * 22;
+          ctx.beginPath();
+          ctx.moveTo(ox, oy);
+          ctx.lineTo(ox + Math.cos(ang + 0.15) * (rEnd * 0.5), oy + Math.sin(ang + 0.15) * (rEnd * 0.5));
+          ctx.lineTo(ox + Math.cos(ang) * rEnd, oy + Math.sin(ang) * rEnd);
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (atk.isSingularityZone) {
+        const cx = atk.originX ?? (atk.hitbox.x + atk.hitbox.width / 2);
+        const cy = atk.originY ?? (atk.hitbox.y + atk.hitbox.height / 2);
+        const r = atk.radius || 96;
+        const lifeRatio = Math.min(1, atk.duration / 0.45);
+        const spin = this.time * 6;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = `rgba(168, 85, 247, ${0.16 * lifeRatio})`;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(192, 132, 252, ${0.8 * lifeRatio})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.85, spin, spin + Math.PI * 1.45);
+        ctx.stroke();
+
+        ctx.strokeStyle = `rgba(56, 189, 248, ${0.75 * lifeRatio})`;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.52, -spin * 1.4, -spin * 1.4 + Math.PI * 1.4);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f5d0fe';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 6 + Math.sin(this.time * 14) * 2, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
       }
     }
@@ -1047,6 +1180,51 @@ export class VFXRenderer {
       ctx.fillStyle = `rgba(186, 230, 253, ${alpha * 0.28})`;
       ctx.beginPath();
       ctx.arc(fx.x, fx.y, r * 0.65, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (fx.type === 'ether_arc' || fx.type === 'ether_burst') {
+      const r = fx.radius * (0.3 + progress * 0.78);
+      ctx.strokeStyle = `rgba(192, 132, 252, ${alpha * 0.95})`;
+      ctx.lineWidth = (fx.type === 'ether_burst' ? 4.5 : 2.8) * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.8})`;
+      ctx.lineWidth = 2 * alpha;
+      ctx.beginPath();
+      ctx.moveTo(fx.x - r * 0.7, fx.y);
+      ctx.lineTo(fx.x, fx.y - r * 0.35);
+      ctx.lineTo(fx.x + r * 0.7, fx.y);
+      ctx.stroke();
+    } else if (fx.type === 'core_awakening') {
+      const col = fx.color || '#fb923c';
+      const r = fx.radius * (0.2 + progress * 0.85);
+      ctx.globalAlpha = alpha * 0.75;
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.round(fx.x - 14 * alpha), Math.round(fx.y - 160), Math.round(28 * alpha), 170);
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 3.5 * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.2 * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r * 0.62, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (fx.type === 'logic_beam') {
+      const bx = fx.x + ((fx.targetX ?? fx.x) - fx.x) * progress;
+      const by = fx.y + ((fx.targetY ?? fx.y) - fx.y) * progress;
+      ctx.strokeStyle = fx.color || '#38bdf8';
+      ctx.globalAlpha = Math.sin(progress * Math.PI);
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(fx.x, fx.y);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(bx, by, 5, 0, Math.PI * 2);
       ctx.fill();
     }
 

@@ -56,6 +56,29 @@ export class ChunkManager {
     /** @type {number} Coordenadas del último centro de chunk procesado para evitar recorridos innecesarios */
     this._lastFocusChunkX = NaN;
     this._lastFocusChunkY = NaN;
+
+    /** @type {import('../systems/ProgressionManager.js').ProgressionManager|null} */
+    this.progressionManager = null;
+    /** @type {string|null} */
+    this.currentWorldId = null;
+  }
+
+  /**
+   * Vincula el ProgressionManager y el identificador del mundo activo para persistir enlaces y escalado.
+   * @param {import('../systems/ProgressionManager.js').ProgressionManager|null} pm
+   * @param {string|null} [worldId=null]
+   */
+  setProgressionManager(pm, worldId = null) {
+    this.progressionManager = pm;
+    if (worldId) this.currentWorldId = worldId;
+  }
+
+  /**
+   * Actualiza el identificador del mundo actualmente cargado.
+   * @param {string} worldId
+   */
+  setCurrentWorldId(worldId) {
+    this.currentWorldId = worldId || null;
   }
 
   /**
@@ -286,12 +309,40 @@ export class ChunkManager {
 
         case 'prop': {
           // Omitir creación pesada si era obstáculo destructible ya destruido en visitas anteriores
-          if (remembered && remembered.isDead && (bp.propType === 'cracked_rock' || bp.propType === 'burnable_vines')) {
+          if (
+            remembered &&
+            remembered.isDead &&
+            (
+              bp.propType === 'cracked_rock' ||
+              bp.propType === 'burnable_vines' ||
+              bp.propType === 'kinetic_barrier' ||
+              bp.propType === 'runic_gate'
+            )
+          ) {
+            continue;
+          }
+          // Omitir compuerta ya desbloqueada en ProgressionManager
+          if (
+            bp.propType === 'runic_gate' &&
+            this.progressionManager &&
+            this.currentWorldId &&
+            Array.isArray(bp.propConfig?.sealedBy) &&
+            bp.propConfig.sealedBy.length > 0 &&
+            this.progressionManager.areRequirementsMet(this.currentWorldId, bp.propConfig.sealedBy)
+          ) {
             continue;
           }
           entity = new InteractableProp(bp.propConfig);
           if (remembered && typeof entity.restoreChunkState === 'function') {
             entity.restoreChunkState(remembered);
+          } else if (
+            this.progressionManager &&
+            this.currentWorldId &&
+            bp.propConfig?.id &&
+            (bp.propType === 'elemental_brazier' || bp.propType === 'root_totem' || bp.propType === 'kinetic_pillar' || bp.propType === 'ether_pylon') &&
+            this.progressionManager.areRequirementsMet(this.currentWorldId, [bp.propConfig.id])
+          ) {
+            entity.isActivated = true;
           }
           break;
         }
@@ -318,15 +369,41 @@ export class ChunkManager {
           if (remembered && remembered.isDead && bp.noRespawn) {
             continue;
           }
+          if (
+            (bp.bossId || bp.linkId) &&
+            this.progressionManager &&
+            this.currentWorldId &&
+            this.progressionManager.areRequirementsMet(this.currentWorldId, [bp.linkId || bp.bossId])
+          ) {
+            continue;
+          }
           entity = new Enemy(bp.x, bp.y, bp.element, bp.name, bp.archetype);
           if (bp.hasWoodenShield) {
             entity.hasWoodenShield = true;
             entity._initialWoodenShield = true;
             if (!entity.tags.includes('wooden_shield')) entity.tags.push('wooden_shield');
           }
+          if (bp.hasMetalArmor) {
+            if (typeof entity.equipMetalArmor === 'function') {
+              entity.equipMetalArmor(!bp.hasWoodenShield);
+            } else {
+              entity.hasMetalArmor = true;
+              entity._initialMetalArmor = true;
+              if (!entity.tags.includes('metal_armor')) entity.tags.push('metal_armor');
+            }
+          }
           if (bp.noRespawn) {
             entity.noRespawn = true;
             entity.tags.push('no_respawn');
+          }
+          if (bp.bossId) entity.bossId = bp.bossId;
+          if (bp.linkId) entity.linkId = bp.linkId;
+          if (bp.worldSeal) entity.worldSeal = true;
+          if (bp.rewardWeapon) entity.rewardWeapon = bp.rewardWeapon;
+          if (bp.rewardShield) entity.rewardShield = bp.rewardShield;
+          if (bp.canSplit) entity.canSplit = true;
+          if (bp.scaleWithRelicTier && this.progressionManager && this.currentWorldId) {
+            entity.applyTierScaling(this.progressionManager.getWorldScalingMultiplier(this.currentWorldId, entity.isBoss));
           }
           if (Array.isArray(bp.customTags)) {
             for (let t = 0; t < bp.customTags.length; t++) {

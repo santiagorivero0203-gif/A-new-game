@@ -38,6 +38,8 @@ import { WaveManager } from './systems/WaveManager.js';
 import { LevelLoader } from './world/LevelLoader.js';
 import { ChunkManager } from './world/ChunkManager.js';
 import { WorldMemoryStore } from './world/WorldMemoryStore.js';
+import { ProgressionManager } from './systems/ProgressionManager.js';
+import { MinimapRenderer } from './ui/MinimapRenderer.js';
 import { ProjectileSystem } from './systems/ProjectileSystem.js';
 import { CelSpriteAtlas } from './render/CelSpriteAtlas.js';
 import { PerfOverlay } from './render/PerfOverlay.js';
@@ -65,14 +67,25 @@ const btnQuickArsenal = document.getElementById('btn-quick-arsenal');
 const btnQuickPause = document.getElementById('btn-quick-pause');
 const btnResume = document.getElementById('btn-resume');
 const btnToMainMenu = document.getElementById('btn-to-main-menu');
+const btnResetCampaign = document.getElementById('btn-reset-campaign');
+const btnMenuBack = document.getElementById('btn-menu-back');
+const btnClearSaveData = document.getElementById('btn-clear-save-data');
 const btnCloseTalents = document.getElementById('btn-close-talents');
 const btnCloseTalentsX = document.getElementById('btn-close-talents-x');
 const btnNavPrev = document.getElementById('st-nav-prev');
 const btnNavNext = document.getElementById('st-nav-next');
 const btnToggleAudio = document.getElementById('btn-toggle-audio');
 const btnToggleTouchHud = document.getElementById('btn-toggle-touch-hud');
+const btnToggleMinimap = document.getElementById('btn-toggle-minimap');
 const btnTouchInteract = document.getElementById('touch-btn-interact');
 const pressEnterMsg = document.getElementById('press-enter-msg');
+const stSystemEyebrow = document.getElementById('st-system-eyebrow');
+const stSystemHeading = document.getElementById('st-system-heading');
+const stSystemSub = document.getElementById('st-system-sub');
+const stIngameActions = document.getElementById('st-ingame-actions');
+const stMenuSettingsActions = document.getElementById('st-menu-settings-actions');
+const hudMinimapWrap = document.getElementById('hud-minimap-wrap');
+const hudMinimapCanvas = document.getElementById('hud-minimap-canvas');
 
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
@@ -84,14 +97,116 @@ const entityManager = new EntityManager();
 const physicsSystem = new PhysicsSystem(entityManager);
 const interactionSystem = new InteractionSystem(entityManager, inputManager, stateManager);
 const equipmentManager = new EquipmentManager();
+const progressionManager = new ProgressionManager(stateManager);
 const combatManager = new CombatManager(equipmentManager);
-const skillTreeManager = new SkillTreeManager(stateManager);
+const skillTreeManager = new SkillTreeManager(stateManager, progressionManager);
 const waveManager = new WaveManager(entityManager, stateManager);
 // Mecánica modular de detección/sigilo guardada e inactiva por defecto salvo secciones específicas
 const stealthSystem = new StealthSystem({ enabled: false });
 const projectileSystem = new ProjectileSystem(192);
 combatManager.projectileSystem = projectileSystem;
 const worldMemoryStore = new WorldMemoryStore();
+
+const UI_PREFS_STORAGE_KEY = 'be_a_legend_ui_prefs_v1';
+let _initialMinimapCollapsed = false;
+try {
+  const savedUiPrefs = JSON.parse(localStorage.getItem(UI_PREFS_STORAGE_KEY) || '{}');
+  if (typeof savedUiPrefs.minimapCollapsed === 'boolean') {
+    _initialMinimapCollapsed = savedUiPrefs.minimapCollapsed;
+  }
+} catch {
+  // Ignorar errores de almacenamiento privado
+}
+
+const minimapRenderer = new MinimapRenderer(hudMinimapCanvas, hudMinimapWrap, {
+  viewRadiusTiles: 20,
+  refreshInterval: 0.14
+});
+if (_initialMinimapCollapsed) {
+  minimapRenderer.toggleCollapsed(true);
+}
+const _minimapMarkers = [];
+const _minimapMarkerPool = [];
+
+/**
+ * Persiste preferencias globales de HUD (minimapa visible/plegado) entre sesiones.
+ * @private
+ */
+function _saveUiPrefs() {
+  try {
+    localStorage.setItem(UI_PREFS_STORAGE_KEY, JSON.stringify({
+      minimapCollapsed: Boolean(minimapRenderer.collapsed)
+    }));
+  } catch {
+    // Ignorar errores de cuota
+  }
+}
+
+/**
+ * Sincroniza el estado del botón de Minimapa en Ajustes (Menú Principal e In-Game).
+ * @private
+ */
+function syncMinimapBtnLabel() {
+  if (!btnToggleMinimap) return;
+  const visible = !minimapRenderer.collapsed;
+  btnToggleMinimap.textContent = visible ? 'VISIBLE' : 'PLEGADO';
+  btnToggleMinimap.classList.toggle('primary', visible);
+  btnToggleMinimap.classList.toggle('secondary', !visible);
+}
+syncMinimapBtnLabel();
+
+if (hudMinimapWrap) {
+  hudMinimapWrap.addEventListener('click', () => {
+    _saveUiPrefs();
+    syncMinimapBtnLabel();
+  });
+}
+
+/**
+ * Rellena el array reciclado de marcadores para el minimapa táctico con Zero-GC.
+ * @private
+ */
+function _fillMinimapMarkers() {
+  _minimapMarkers.length = 0;
+  const push = (x, y, kind) => {
+    const idx = _minimapMarkers.length;
+    let slot = _minimapMarkerPool[idx];
+    if (!slot) {
+      slot = { x: 0, y: 0, kind: '' };
+      _minimapMarkerPool[idx] = slot;
+    }
+    slot.x = x;
+    slot.y = y;
+    slot.kind = kind;
+    _minimapMarkers.push(slot);
+  };
+
+  const props = entityManager.getByTag('prop');
+  for (let i = 0; i < props.length; i++) {
+    const p = props[i];
+    if (!p || p.isDead) continue;
+    if (p.propType === 'world_portal') push(p.pos.x + p.width * 0.5, p.pos.y + p.height * 0.5, 'portal');
+    else if (p.propType === 'sanctuary_altar') push(p.pos.x + p.width * 0.5, p.pos.y + p.height * 0.5, 'altar');
+    else if (p.propType === 'relic_pedestal' && !p.isConsumed) push(p.pos.x + p.width * 0.5, p.pos.y + p.height * 0.5, 'rel_sanctuary');
+  }
+  const npcs = entityManager.getByTag('npc');
+  for (let i = 0; i < npcs.length; i++) {
+    const n = npcs[i];
+    if (!n || n.isDead) continue;
+    push(n.pos.x + n.width * 0.5, n.pos.y + n.height * 0.5, 'npc');
+  }
+  const mobs = entityManager.getByTag('enemy');
+  for (let i = 0; i < mobs.length; i++) {
+    const e = mobs[i];
+    if (!e || e.isDead || e.active === false) continue;
+    const kind = e.isBoss
+      ? 'boss'
+      : (e.aiState === 'CHASE' || e.aiState === 'ATTACK' || e.aiState === 'TELEGRAPH')
+        ? 'alerted'
+        : 'enemy';
+    push(e.pos.x + e.width * 0.5, e.pos.y + e.height * 0.5, kind);
+  }
+}
 
 const renderer = new Renderer(mainCanvas);
 const vfxRenderer = new VFXRenderer();
@@ -107,6 +222,7 @@ const chunkManager = new ChunkManager({
   resourceManager,
   chunkSize: 256
 });
+chunkManager.setProgressionManager(progressionManager);
 let engine = null;
 
 // 2. Estado Lazy del Mundo (cero análisis JSON hasta pulsar Jugar)
@@ -136,7 +252,9 @@ const POWER_LIGHT_COLORS = {
   Plantas: '#4ade80',
   Raíces: '#4ade80',
   Embestida: '#38bdf8',
-  Kinetic: '#38bdf8'
+  Kinetic: '#38bdf8',
+  Éter: '#c084fc',
+  Eter: '#c084fc'
 };
 
 /** Caches Zero-GC compartidos por cámara e iluminación */
@@ -264,24 +382,41 @@ function ensureWorldInitialized() {
   camera.setRoomBounds({ x: 0, y: 0, width: tilemap.width, height: tilemap.height });
   camera.snapTo({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 });
 
+  chunkManager.setCurrentWorldId(currentWorldKey);
   levelInfo = LevelLoader.loadLevel(currentLevelData, {
     entityManager,
     foliageSystem,
     camera,
     physicsSystem,
-    chunkManager
+    chunkManager,
+    tilemap
   });
 
   if (levelInfo.arenaCenter) {
     waveManager.setArenaCenter(levelInfo.arenaCenter.x, levelInfo.arenaCenter.y);
   }
 
-  if (levelInfo.startDormant) {
+  if (levelInfo.startDormant && progressionManager.getWorldTier() === 0) {
     player.configureDormantStart();
-    stateManager.set('gauntlet_tier', 0);
-  } else {
-    stateManager.set('gauntlet_tier', 1);
   }
+  progressionManager.syncPlayerFromCampaign(player, stateManager, {
+    isPlaytest: false,
+    startDormant: levelInfo.startDormant
+  });
+
+  minimapRenderer.setMapData(
+    tilemap.grid,
+    tilemap.cols,
+    tilemap.rows,
+    tilemap.tileSize,
+    tilemap.getActivePalette(),
+    worldMemoryStore.restoreMinimapMask(currentWorldKey)
+  );
+  minimapRenderer.revealAroundWorldPos(
+    player.pos.x + player.width * 0.5,
+    player.pos.y + player.height * 0.5,
+    7
+  );
 
   const initialMaxHp = 3 + skillTreeManager.getSkillRank('max_health_up');
   player.max_health = initialMaxHp;
@@ -349,6 +484,7 @@ async function loadWorld(worldKey, options = {}) {
     const prevWorldKey = currentWorldKey;
     if (prevWorldKey && !isPlaytestSession) {
       worldMemoryStore.save(prevWorldKey, chunkManager.exportMemory());
+      worldMemoryStore.saveMinimapMask(prevWorldKey, minimapRenderer.exportExploredMask());
     }
 
     const nextLevelData = await loadWorldData(worldKey, true);
@@ -361,6 +497,7 @@ async function loadWorld(worldKey, options = {}) {
     combatManager.clearAllCombatState();
     projectileSystem.clear();
     chunkManager.clearAll();
+    chunkManager.setCurrentWorldId(worldKey);
     foliageSystem.clear();
     entityManager.clearExceptPlayer(player);
     CelSpriteAtlas.clear();
@@ -376,15 +513,17 @@ async function loadWorld(worldKey, options = {}) {
       chunkManager.importMemory(savedMem);
     }
 
+    tilemap.reconfigureFromLevel(currentLevelData, resourceManager);
+
     levelInfo = LevelLoader.loadLevel(currentLevelData, {
       entityManager,
       foliageSystem,
       camera,
       physicsSystem,
-      chunkManager
+      chunkManager,
+      tilemap
     });
 
-    tilemap.reconfigureFromLevel(currentLevelData, resourceManager);
     waveManager.resetForWorld(levelInfo.arenaCenter || null);
 
     // Resolver punto de aparición específico por spawnId (transiciones entre zonas)
@@ -399,15 +538,27 @@ async function loadWorld(worldKey, options = {}) {
     player.pos.set(targetSpawn.x, targetSpawn.y);
     player.velocity.set(0, 0);
 
-    if (worldKey !== 'cave_exit_intro') {
-      if (typeof player.unlockSword === 'function') player.unlockSword();
-      if (typeof player.unlockAllElements === 'function') player.unlockAllElements();
-      stateManager.set('gauntlet_tier', Math.max(2, stateManager.get('gauntlet_tier') || 2));
-      stateManager.set('unlocked_powers', ['Fuego', 'Embestida', 'Raíces']);
-      if (!player.currentAbility || !player.hasElement(player.currentAbility)) {
-        player.equipAbility('Fuego');
-      }
+    if (!isPlaytestSession) {
+      progressionManager.markWorldVisited(worldKey, stateManager);
     }
+    progressionManager.syncPlayerFromCampaign(player, stateManager, {
+      isPlaytest: isPlaytestSession,
+      startDormant: levelInfo.startDormant
+    });
+
+    minimapRenderer.setMapData(
+      tilemap.grid,
+      tilemap.cols,
+      tilemap.rows,
+      tilemap.tileSize,
+      tilemap.getActivePalette(),
+      isPlaytestSession ? null : worldMemoryStore.restoreMinimapMask(worldKey)
+    );
+    minimapRenderer.revealAroundWorldPos(
+      player.pos.x + player.width * 0.5,
+      player.pos.y + player.height * 0.5,
+      7
+    );
 
     _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
     _playerCenterCache.y = Math.round(player.pos.y) + player.height * 0.5;
@@ -476,6 +627,7 @@ const _gameContext = {
   combatManager,
   projectileSystem,
   equipmentManager,
+  progressionManager,
   skillTreeManager,
   waveManager,
   stealthSystem,
@@ -608,6 +760,7 @@ function update(deltaTime) {
 
   _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
   _playerCenterCache.y = Math.round(player.pos.y) + player.height * 0.5;
+  minimapRenderer.revealIfMovedTile(_playerCenterCache.x, _playerCenterCache.y, 7);
   playerLight.x = _playerCenterCache.x;
   playerLight.y = _playerCenterCache.y;
   const equippedPower = stateManager.get('equipped_power') || 'Fuego';
@@ -712,6 +865,10 @@ function render(deltaTime) {
   lightManager.compositeTo(renderer.ctx, mainCanvas.width, mainCanvas.height);
 
   if (gameState === 'STATE_PLAYING') {
+    if (minimapRenderer.shouldUpdate(deltaTime)) {
+      _fillMinimapMarkers();
+      minimapRenderer.render(deltaTime, _playerCenterCache.x, _playerCenterCache.y, _minimapMarkers);
+    }
     uiManager.render(inputManager, stateManager, deltaTime, camera);
   } else {
     uiManager.setGameState(gameState);
@@ -929,13 +1086,13 @@ async function enterCaveExitGameplay() {
     hasShownCaveOpeningLine = true;
     camera.snapTo({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 });
     chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
-    if (currentWorldKey === 'cave_exit_intro') {
+    if (currentWorldKey === 'cave_exit_intro' && progressionManager.getWorldTier() === 0) {
       startCaveOrbIntroSequence();
     } else {
       stateManager.set('active_dialogue', {
-        speaker: 'SANTI',
-        text: 'El aire fresco del bosque... Tarak dijo que su santuario está cruzando el arroyo al este.',
-        timer: 5.5
+        speaker: 'ECO DE LA RELIQUIA',
+        text: 'La Reliquia conserva tu progreso elemental. Pulsa [N] para alternar el minimapa táctico.',
+        timer: 4.5
       });
     }
   }
@@ -943,10 +1100,14 @@ async function enterCaveExitGameplay() {
 
 function startGame() {
   if (stateManager.get('game_state') !== 'STATE_MENU') return;
-  // Inicia la carga dinámica del JSON del Mundo 1 en paralelo con el prólogo para evitar demora al omitir
+  // Inicia carga paralela del Mundo 1 y pre-decodificación de las primeras escenas del prólogo
   void ensureInitialWorldData();
+  void cinematicManager.preloadSequence(PROLOGUE_CUTSCENE, 2);
   uiManager.unmountSanctuary();
-  if (sanctuaryModalEl) sanctuaryModalEl.classList.add('hidden');
+  if (sanctuaryModalEl) {
+    sanctuaryModalEl.classList.add('hidden');
+    sanctuaryModalEl.classList.remove('is-main-menu-settings');
+  }
   if (mainMenuEl) {
     mainMenuEl.classList.add('hidden');
     mainMenuEl.classList.remove('menu-cover-active');
@@ -999,6 +1160,7 @@ function getSanctuaryDeps() {
   return {
     skillTreeManager,
     equipmentManager,
+    progressionManager,
     stateManager,
     inputManager,
     waveManager,
@@ -1007,15 +1169,21 @@ function getSanctuaryDeps() {
     onTriggerHorde: () => {
       closeSanctuary();
       if (stateManager.get('game_state') === 'STATE_PLAYING' && player && levelInfo) {
+        if (progressionManager.getWorldTier() === 0) {
+          stateManager.set('active_dialogue', {
+            speaker: 'ESTELA DEL DESAFÍO',
+            text: 'Despierta al menos un Núcleo Elemental antes de invocar la Prueba de Hordas.',
+            timer: 3.4
+          });
+          return;
+        }
         // Teletransportar suavemente a Santi a la plaza del Santuario si estaba lejos para probar la horda de inmediato
         if (levelInfo.arenaCenter && Math.hypot(player.pos.x - levelInfo.arenaCenter.x, player.pos.y - levelInfo.arenaCenter.y) > 420) {
           player.pos.set(levelInfo.arenaCenter.x - 40, levelInfo.arenaCenter.y);
           camera.snapTo({ x: player.pos.x + player.width * 0.5, y: player.pos.y + player.height * 0.5 });
           chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
         }
-        player.unlockAllElements();
-        stateManager.set('gauntlet_tier', 3);
-        stateManager.set('equipped_power', player.currentAbility || 'Fuego');
+        stateManager.set('equipped_power', progressionManager.toDisplayElement(player.currentAbility || 'Fuego'));
         stateManager.set('level_objective', '¡Sobrevive a las 5 Oleadas del Eclipse en el Santuario!');
         waveManager.startHorde(buildGameContext(0.016));
       }
@@ -1025,6 +1193,10 @@ function getSanctuaryDeps() {
 
 function isSanctuaryOpen() {
   return !!(sanctuaryModalEl && !sanctuaryModalEl.classList.contains('hidden'));
+}
+
+function isMainMenuSettingsOpen() {
+  return Boolean(sanctuaryModalEl && sanctuaryModalEl.classList.contains('is-main-menu-settings') && !sanctuaryModalEl.classList.contains('hidden'));
 }
 
 function openSanctuary(initialTab = 'skills') {
@@ -1045,24 +1217,44 @@ function openSanctuary(initialTab = 'skills') {
     sanctuaryModalEl.classList.remove('hidden');
   }
 
-  // Adaptar botones de Sistema según si se abrió desde el Título o desde la Partida
-  if (btnToMainMenu) {
-    btnToMainMenu.classList.toggle('hidden', sanctuaryOriginState === 'STATE_MENU');
+  const isMenuOrigin = sanctuaryOriginState === 'STATE_MENU';
+  sanctuaryModalEl.classList.toggle('is-main-menu-settings', isMenuOrigin);
+
+  // Diferenciación clara entre Ajustes Globales (Menú Principal) y Santuario/Pausa (In-Game)
+  if (stIngameActions) stIngameActions.classList.toggle('hidden', isMenuOrigin);
+  if (stMenuSettingsActions) stMenuSettingsActions.classList.toggle('hidden', !isMenuOrigin);
+  if (stSystemEyebrow) {
+    stSystemEyebrow.textContent = isMenuOrigin ? 'CONFIGURACIÓN GLOBAL' : 'PARTIDA EN PAUSA';
   }
-  if (btnResume) {
-    const span = btnResume.querySelector('span');
-    if (span) span.textContent = sanctuaryOriginState === 'STATE_MENU' ? 'VOLVER AL TÍTULO' : 'REANUDAR AVENTURA';
+  if (stSystemHeading) {
+    stSystemHeading.textContent = isMenuOrigin ? 'AJUSTES DEL JUEGO' : 'PAUSA Y CONFIGURACIÓN';
+  }
+  if (stSystemSub) {
+    stSystemSub.textContent = isMenuOrigin
+      ? 'Configura el audio, el gamepad táctil y el minimapa antes de iniciar tu travesía.'
+      : 'Ajusta el audio, el minimapa táctico o los controles en mitad de la partida.';
   }
   if (btnCloseTalents) {
-    btnCloseTalents.textContent = sanctuaryOriginState === 'STATE_MENU' ? 'VOLVER AL TÍTULO' : 'VOLVER AL JUEGO';
+    btnCloseTalents.textContent = isMenuOrigin ? 'VOLVER AL TÍTULO' : 'VOLVER AL JUEGO';
   }
+  if (btnClearSaveData) {
+    const hasProgress = progressionManager.getWorldTier() > 0
+      || progressionManager.completedWorlds.size > 0
+      || progressionManager.karmaEvents.size > 0;
+    btnClearSaveData.disabled = !hasProgress;
+    const span = btnClearSaveData.querySelector('span');
+    if (span) span.textContent = hasProgress ? 'BORRAR PROGRESO GUARDADO' : 'SIN DATOS GUARDADOS';
+  }
+  syncMinimapBtnLabel();
 
-  uiManager.setSanctuaryTab(initialTab, getSanctuaryDeps());
+  const resolvedTab = isMenuOrigin ? 'system' : initialTab;
+  uiManager.setSanctuaryTab(resolvedTab, getSanctuaryDeps());
 }
 
 function closeSanctuary() {
   if (!isSanctuaryOpen()) return;
   sanctuaryModalEl.classList.add('hidden');
+  sanctuaryModalEl.classList.remove('is-main-menu-settings');
   uiManager.unmountSanctuary();
 
   if (sanctuaryOriginState === 'STATE_MENU') {
@@ -1137,6 +1329,44 @@ addTouchClick(btnToMainMenu, () => {
   if (tilemap) tilemap.clearChunks();
   CelSpriteAtlas.clear();
   engine.pause(false);
+});
+
+addTouchClick(btnResetCampaign, async () => {
+  progressionManager.resetCampaign();
+  skillTreeManager.resetCampaign();
+  equipmentManager.reset();
+  worldMemoryStore.clear();
+  hasShownCaveOpeningLine = false;
+  closeSanctuary();
+  if (worldInitialized) {
+    await loadWorld('cave_exit_intro');
+  }
+  stateManager.set('active_dialogue', {
+    speaker: 'RELIQUIA',
+    text: 'Campaña reiniciada desde cero. Los 4 Núcleos Elementales regresan a sus pedestales.',
+    timer: 4.2
+  });
+});
+
+addTouchClick(btnMenuBack, () => closeSanctuary());
+
+addTouchClick(btnClearSaveData, () => {
+  progressionManager.resetCampaign();
+  skillTreeManager.resetCampaign();
+  equipmentManager.reset();
+  worldMemoryStore.clear();
+  hasShownCaveOpeningLine = false;
+  if (btnClearSaveData) {
+    btnClearSaveData.disabled = true;
+    const span = btnClearSaveData.querySelector('span');
+    if (span) span.textContent = '¡PROGRESO BORRADO!';
+  }
+});
+
+addTouchClick(btnToggleMinimap, () => {
+  minimapRenderer.toggleCollapsed();
+  _saveUiPrefs();
+  syncMinimapBtnLabel();
 });
 
 // 11.B Integración de la Forja de Niveles (Carga Perezosa e Inyección Bajo Demanda)
@@ -1256,6 +1486,23 @@ inputManager.onPause(() => {
   }
 });
 
+inputManager.setPowerFilter((power) => Boolean(player && player.hasElement(power)));
+
+stateManager.subscribe('core_awakened', (ev) => {
+  if (!ev || !player) return;
+  const color = POWER_LIGHT_COLORS[ev.element] || '#fb923c';
+  player.awakeningTimer = 1.65;
+  player.awakeningColor = color;
+  if (typeof vfxRenderer.spawnCoreAwakening === 'function') {
+    vfxRenderer.spawnCoreAwakening(
+      ev.x ?? (player.pos.x + player.width * 0.5),
+      ev.y ?? (player.pos.y + player.height * 0.5),
+      color
+    );
+  }
+  camera.addTrauma(0.45);
+});
+
 inputManager.onSkillEquipped((newPower) => {
   if (!player) return;
   if (!player.hasElement(newPower)) {
@@ -1263,7 +1510,7 @@ inputManager.onSkillEquipped((newPower) => {
     const fallbackPower = player.currentAbility || 'Fuego';
     inputManager.currentPower = fallbackPower;
     if (player.hasElement(fallbackPower)) {
-      stateManager.set('equipped_power', fallbackPower);
+      stateManager.set('equipped_power', progressionManager.toDisplayElement(fallbackPower));
     }
     if (stateManager.get('game_state') === 'STATE_PLAYING') {
       const tier = stateManager.get('gauntlet_tier') || 0;
@@ -1271,13 +1518,13 @@ inputManager.onSkillEquipped((newPower) => {
         speaker: 'SANTI',
         text: tier === 0
           ? 'El Guantelete aún está frío... Debo buscar el Orbe de Fuego que cayó hacia el suroeste.'
-          : `El engarce de ${newPower} sigue dormido. El Sabio Tarak podrá armonizarlo en su Santuario.`,
+          : `El núcleo de ${newPower} sigue dormido. Explora el mundo correspondiente para reclamar su pedestal.`,
         timer: 3.0
       });
     }
     return;
   }
-  stateManager.set('equipped_power', newPower);
+  stateManager.set('equipped_power', progressionManager.toDisplayElement(newPower));
   player.equipAbility(newPower);
 });
 
@@ -1303,8 +1550,8 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
-  // Navegación por teclado dentro del Hub Unificado del Santuario ([Q] / [E])
-  if (isSanctuaryOpen() && !e.repeat) {
+  // Navegación por teclado dentro del Hub Unificado del Santuario ([Q] / [E]) — solo en partida
+  if (isSanctuaryOpen() && !isMainMenuSettingsOpen() && !e.repeat) {
     if (e.code === 'KeyQ') {
       e.preventDefault();
       uiManager.cycleSanctuaryTab(-1, getSanctuaryDeps());
@@ -1317,8 +1564,8 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
-  // Accesos rápidos a Arsenal [I] y Crónica/Códice [M] durante la partida
-  if ((currentState === 'STATE_PLAYING' || isSanctuaryOpen()) && !e.repeat) {
+  // Accesos rápidos a Arsenal [I], Crónica/Códice [M] y Minimapa [N] durante la partida
+  if ((currentState === 'STATE_PLAYING' || (isSanctuaryOpen() && !isMainMenuSettingsOpen())) && !e.repeat) {
     if (e.code === 'KeyI') {
       e.preventDefault();
       toggleSanctuaryTab('arsenal');
@@ -1327,6 +1574,13 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyM') {
       e.preventDefault();
       toggleSanctuaryTab('codex');
+      return;
+    }
+    if (e.code === 'KeyN' && currentState === 'STATE_PLAYING') {
+      e.preventDefault();
+      minimapRenderer.toggleCollapsed();
+      _saveUiPrefs();
+      syncMinimapBtnLabel();
       return;
     }
   }

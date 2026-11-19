@@ -281,6 +281,20 @@ sequenceDiagram
   1. Se purgan los estados de combate y proyectiles.
   2. El editor restaura su interfaz exactamente en el estado en que se dejó.
 
+---
+
+## 12. Campaña Coherente de 4 Mundos, Éter Magnético y Minimapa Táctico v5.5
+
+### 12.1. Progresión Sistémica y World-State Tiering (`ProgressionManager.js`, `SkillTreeManager.js`)
+- [`ProgressionManager`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/systems/ProgressionManager.js) elimina el desbloqueo forzado al cambiar de bioma: cada mundo despierta su núcleo elemental en pedestal (`Fuego` ➔ `Raíces` ➔ `Embestida` ➔ `Éter`), bloquea los portales/viajes siguientes hasta vencer al Guardián Regional (`worldSeal: true`) y persiste la campaña en `be_a_legend_campaign_v1`.
+- **Karma Invisible Idempotente:** Los rescates (`valerio_m1`, `marsh_survivor_m2`, `forge_keeper_m3`) adaptan diálogos en `NPC.js`, otorgan arsenal dedicado (`iron_pavise`, `thorn_saber`, `obsidian_aegis`) y ajustan costos en `SkillTreeManager.getSkillCost()` (`0.85x` positivo, `1.15x` negativo) sin mostrar barras morales en la UI.
+- **Escalado Híbrido (`getWorldScalingMultiplier`):** Enemigos marcados con `scaleWithRelicTier` reciben un ajuste acotado (`1.0x–1.36x`) según el número de núcleos despertados.
+
+### 12.2. Minimapa Táctico Zero-GC en DOM Overlay (`MinimapRenderer.js`, `WorldMemoryStore.js`, `main.js`)
+- [`MinimapRenderer`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/ui/MinimapRenderer.js) renderiza en `#hud-minimap-canvas` dentro del dock periférico `top-right` (`#hud-minimap-wrap`, `92×92 px` en 16:9 y `72×72 px` en 9:16), con Niebla de Guerra comprimida en `Uint32Array` persistida por bioma en `WorldMemoryStore`, preferencia de visibilidad en `be_a_legend_ui_prefs_v1`, pool reciclado de marcadores (`portal`, `altar`, `rel_sanctuary`, `npc`, `boss`, `alerted`, `enemy`) y plegado por clic o atajo **`[N]`**.
+- `computePerimeterTrees(levelData, terrainGrid)` en [`LevelSchema.js`](file:///c:/Users/user/Desktop/video%20proyectos/Be%20a%20legend/src/data/LevelSchema.js) descarta automáticamente cualquier árbol perimetral cuyo tronco caiga sobre acantilados (`tile === 2`), fluidos (`tile === 3`) o la `caveSafeZone`.
+
+
 
 
 

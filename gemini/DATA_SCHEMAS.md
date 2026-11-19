@@ -164,8 +164,27 @@ Para evitar migraciones rotas o conflictos de guardado, el motor utiliza llaves 
 
 | Llave en `localStorage` | Contenido | Gestor Encargado |
 | :--- | :--- | :--- |
+| `'be_a_legend_campaign_v1'` | Núcleos despertados, mundos visitados/completados, `karmaLevel`, `karmaEvents` idempotentes y `resolvedLinks` (`sealedBy`). | `ProgressionManager.js` (debounce 400ms). |
 | `'be_a_legend_skill_ranks_v3'` | Mapa de rangos por ID (`Record<string, number>`). Migra desde `'be_a_legend_skills_v2'` automáticamente. | `SkillTreeManager.js` (debounce 450ms). |
 | `'be_a_legend_essence_v2'` | Saldo entero de Esencia Ancestral (`number`). | `SkillTreeManager.js` |
 | `'be_a_legend_audio_config'` | Preferencias de volumen y mute (`{ muted: boolean }`). | `AudioManager.js` |
-| `'be_a_legend_equipment'` | Armas y escudos equipados (`{ weaponId, shieldId }`). | `EquipmentManager.js` |
+| `'be_a_legend_equipment'` | Armas/escudos desbloqueados y equipo activo (`{ unlockedWeapons, unlockedShields, weaponId, shieldId }`). | `EquipmentManager.js` |
+
+---
+
+## 7. Campaña Progresiva de 4 Mundos, Props Lógicos y Arsenal v4.0
+
+### Catálogo de Arsenal Progresivo
+* **Armas (`WEAPONS`)**: `training_sword` (16 dmg, base), `thorn_saber` (22 dmg, `finisherEffect: sangrado_espinas`, Mundo 2 Karma), `forge_claymore` (30 dmg, `finisherEffect: armor_break`, Mundo 3 santuario secreto) y `relic_blade` (34 dmg, 0.11s recovery, +6 energía/golpe, Mundo 4 santuario).
+* **Escudos (`SHIELDS`)**: `wooden_shield` (1.0x drenaje, débil a `fuego`), `iron_pavise` (0.65x drenaje, ignífugo, Mundo 1 Karma) y `obsidian_aegis` (0.50x drenaje, ignífugo, Mundo 3 Karma).
+
+### Props Sistémicos y Enlaces Lógicos (`InteractableProp.js` + `ProgressionManager.js`)
+* **Pedestales Elementales (`relic_pedestal`)**: Desbloquean 1 núcleo por mundo (`Fuego` ➔ `Raíces` ➔ `Embestida` ➔ `Éter`), disparando la animación `core_awakening` y aumentando el *World-State Tiering* (`1..4`).
+* **Interruptores y Barreras**: `elemental_brazier` (`Fuego`), `root_totem` (`Raíces`/`Plantas`), `kinetic_barrier` (rompible con `Embestida`/`Éter`), `kinetic_pillar` (`Embestida`), `ether_pylon` (`Éter`), `runic_gate` (abierta al cumplirse su arreglo `sealedBy` mediante haz `logic_beam`), `weapon_shrine` y `hazard_vent` (`spore_pool`, `magma_geyser`, `storm_coil`).
+* **Orden Canónico de Campaña (`CAMPAIGN_WORLD_ORDER`)**:
+  1. `cave_exit_intro` (`56×38`) — Núcleo: `Fuego` | Jefe: `boss_bramble` (`boss_m1`)
+  2. `marsh_of_spores` (`58×40`) — Núcleo: `Raíces` | Jefe: `boss_spore` (`boss_m2`)
+  3. `ash_caldera` (`58×40`) — Núcleo: `Embestida` | Jefe: `boss_forge` (`boss_m3`)
+  4. `astral_citadel` (`60×40`) — Núcleo: `Éter` | Jefe: `boss_astral` (`boss_m4`)
+
 

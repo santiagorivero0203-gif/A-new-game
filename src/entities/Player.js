@@ -3,6 +3,7 @@ import { Vector2 } from '../utils/Vector2.js';
 import { FireAbility } from '../combat/FireAbility.js';
 import { KineticAbility } from '../combat/KineticAbility.js';
 import { EarthAbility } from '../combat/EarthAbility.js';
+import { EtherAbility } from '../combat/EtherAbility.js';
 import { PLAYER_STATS } from '../data/PlayerStats.js';
 import { KEYBINDINGS } from '../core/InputManager.js';
 import { CelSpriteAtlas } from '../render/CelSpriteAtlas.js';
@@ -124,19 +125,26 @@ export class Player extends Entity {
     // --- Arsenal Elemental del Guantelete y Progresión Diegética ---
     const kineticAbility = new KineticAbility();
     const earthAbility = new EarthAbility();
+    const etherAbility = new EtherAbility();
     this.abilities = {
       'Fuego': new FireAbility(),
       'Embestida': kineticAbility,
       'Kinetic': kineticAbility,
       'Plantas': earthAbility,
-      'Raíces': earthAbility
+      'Raíces': earthAbility,
+      'Éter': etherAbility,
+      'Eter': etherAbility,
+      'Astral': etherAbility
     };
     /** @type {Set<string>} Elementos despertados actualmente en el Guantelete */
-    this.unlockedElements = new Set(['Fuego', 'Embestida', 'Plantas']);
+    this.unlockedElements = new Set(['Fuego', 'Embestida', 'Plantas', 'Éter']);
     this.currentAbility = 'Fuego';
     /** @type {boolean} Indica si el héroe ya recogió la Espada del Alba frente a la cueva */
     this.hasSword = true;
     this._dormantHintCooldown = 0;
+    /** @type {number} Temporizador de animación especial al despertar un Núcleo Elemental */
+    this.awakeningTimer = 0;
+    this.awakeningColor = '#fb923c';
     this.sprite = null;
   }
 
@@ -175,6 +183,9 @@ export class Player extends Entity {
     if (key === 'fire' || key === 'fuego') {
       return 'Fuego';
     }
+    if (key === 'éter' || key === 'eter' || key === 'astral' || key === 'ether' || key === 'magnetico' || key === 'magnético') {
+      return 'Éter';
+    }
     return name;
   }
 
@@ -191,12 +202,13 @@ export class Player extends Entity {
   }
 
   /**
-   * Despierta los 3 conductos elementales primordiales (Altar del Santuario / Modo Horda).
+   * Despierta los 4 conductos elementales primordiales (Modo Playtest / Altar Completo).
    */
   unlockAllElements() {
     this.unlockedElements.add('Fuego');
     this.unlockedElements.add('Embestida');
     this.unlockedElements.add('Plantas');
+    this.unlockedElements.add('Éter');
   }
 
   /**
@@ -826,6 +838,7 @@ export class Player extends Entity {
         originX: cx,
         originY: cy,
         knockbackForce: knockback,
+        applyEffect: (isFinisher && weapon && weapon.finisherEffect) ? weapon.finisherEffect : null,
         update: function () {
           this.facing = self.facing;
           this.aimAngle = self.aimAngle;
@@ -1010,6 +1023,7 @@ export class Player extends Entity {
     if (this.healTimer > 0) this.healTimer -= deltaTime;
     if (this.hurtTimer > 0) this.hurtTimer -= deltaTime;
     if (this.dashCooldown > 0) this.dashCooldown -= deltaTime;
+    if (this.awakeningTimer > 0) this.awakeningTimer = Math.max(0, this.awakeningTimer - deltaTime);
     if (this._dormantHintCooldown > 0) this._dormantHintCooldown -= deltaTime;
     if (this.comboWindowTimer > 0) {
       this.comboWindowTimer -= deltaTime;
@@ -1026,7 +1040,11 @@ export class Player extends Entity {
       this._ghostSpawnAccum += deltaTime;
       if (this._ghostSpawnAccum >= 0.035) {
         this._ghostSpawnAccum = 0;
-        const pColor = this._burstGhostColor || (this.currentAbility === 'Fuego' ? '#fb923c' : this.currentAbility === 'Embestida' ? '#38bdf8' : '#4ade80');
+        const pColor = this._burstGhostColor || (
+          this.currentAbility === 'Fuego' ? '#fb923c'
+            : this.currentAbility === 'Embestida' ? '#38bdf8'
+              : this.currentAbility === 'Éter' ? '#c084fc' : '#4ade80'
+        );
         const ghost = this._ghostPool.length > 0 ? this._ghostPool.pop() : { x: 0, y: 0, alpha: 0, color: '' };
         ghost.x = this.pos.x;
         ghost.y = this.pos.y;
@@ -1545,10 +1563,11 @@ export class Player extends Entity {
       if (this.velocity.lengthSquared() > 1) {
         this.velocity.normalize();
       }
-      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Sprint (+62%) y Sigilo/Prone (-48%)
+      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Sprint (+62%), Sigilo (-48%) y Esporas (-38%)
       let speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.08 : 1.0;
       if (this.isSprinting) speedMult *= 1.62;
       else if (this.isProne) speedMult *= 0.52;
+      if (this.hasTag('enredado_espinas')) speedMult *= 0.62;
       this.velocity.multiplyScalar(this.speed * speedMult * deltaTime);
       nextX = this.pos.x + this.velocity.x;
       nextY = this.pos.y + this.velocity.y;
@@ -1631,12 +1650,27 @@ export class Player extends Entity {
     const bobY = isMoving ? Math.round(Math.abs(Math.sin(this.walkCycle)) * -2) : 0;
     const isLowManeuver = this.fsmState === 'STATE_SLIDE' || this.fsmState === 'STATE_DIVE';
     const proneYOffset = this.fsmState === 'STATE_DIVE' ? 7 : (this.isProne || isLowManeuver) ? 4 : 0;
+    const awakeLiftY = this.awakeningTimer > 0 ? Math.round(-5 * Math.sin(Math.min(1, this.awakeningTimer / 1.6) * Math.PI)) : 0;
     const stepPhase = Math.floor(this.walkCycle * 1.35) & 3;
     const stepFrame = isMoving ? (stepPhase === 0 ? 1 : stepPhase === 2 ? 3 : 0) : 0;
 
-    // Pivote pixel-art entero para bob vertical y postura de perfil bajo/sigilo
+    // Aura especial al despertar un Núcleo Elemental
+    if (this.awakeningTimer > 0) {
+      const pulse = 0.35 + Math.sin(this.animClock * 16) * 0.2;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = this.awakeningColor || '#fb923c';
+      ctx.globalAlpha = pulse;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(x + 16, y + 16 + awakeLiftY, 22 + Math.sin(this.animClock * 12) * 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Pivote pixel-art entero para bob vertical, levitación de despertar y postura baja
     ctx.save();
-    ctx.translate(0, bobY + proneYOffset);
+    ctx.translate(0, bobY + proneYOffset + awakeLiftY);
 
     if (this.isProne && !isLowManeuver) {
       ctx.globalAlpha = this.isStealthHidden ? 0.68 : 0.90;
@@ -1649,7 +1683,9 @@ export class Player extends Entity {
         ? '#fb923c'
         : this.currentAbility === 'Embestida'
           ? '#38bdf8'
-          : '#4ade80';
+          : this.currentAbility === 'Éter'
+            ? '#c084fc'
+            : '#4ade80';
     }
 
     // 2. Dibujar Sprite 2D Pixel-Art horneado de Santi (40x44 centrado sobre 32x32)

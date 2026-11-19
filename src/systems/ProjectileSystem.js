@@ -114,7 +114,8 @@ export class ProjectileSystem {
           : (cfg.isFriendly === false && p.element === 'fuego') ? 'enemy_fire_orb'
             : (p.element === 'plantas' || p.element === 'tierra') ? 'poison_orb'
               : p.element === 'kinetic' ? 'kinetic_bolt'
-                : 'fire_orb'
+                : (p.element === 'eter' || p.element === 'astral') ? 'ether_orb'
+                  : 'fire_orb'
     );
     p.isProjectile = true;
     p.isReflected = Boolean(cfg.isReflected);
