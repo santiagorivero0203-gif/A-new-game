@@ -114,6 +114,13 @@ export class UIManager {
     this.touchSkillLabel = document.getElementById('touch-skill-label');
     this.touchSwitchLabel = document.getElementById('touch-switch-label');
 
+    // Etiqueta de compilación en Ajustes > Sistema (evita ReferenceError fuera de Vite)
+    this.buildVersionEl = document.getElementById('st-build-version');
+    if (this.buildVersionEl) {
+      const buildTag = (typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) ? __APP_VERSION__ : 'v·dev';
+      this.buildVersionEl.textContent = buildTag;
+    }
+
     // Paleta cromática Cel-Shaded de la Reliquia
     this.powerColors = {
       'Dormido': '#94a3b8',
@@ -551,7 +558,8 @@ export class UIManager {
   }
 
   /**
-   * Actualiza la tarjeta inferior de diálogo diegético con caché RegEx O(1) por cambio de texto.
+   * Actualiza la tarjeta inferior de diálogo diegético con caché RegEx O(1) por cambio de texto
+   * y alterna `body.dialogue-open` para despejar el medidor de combo.
    * @param {import('../core/StateManager.js').StateManager} stateManager
    * @param {number} deltaTime
    */
@@ -563,6 +571,7 @@ export class UIManager {
       if (this._dialogueVisible || !this.dialogueCard.classList.contains('hidden')) {
         this.dialogueCard.classList.add('hidden');
         this._dialogueVisible = false;
+        if (document.body) document.body.classList.remove('dialogue-open');
       }
       return;
     }
@@ -572,6 +581,7 @@ export class UIManager {
       stateManager.set('active_dialogue', null);
       this.dialogueCard.classList.add('hidden');
       this._dialogueVisible = false;
+      if (document.body) document.body.classList.remove('dialogue-open');
       return;
     }
 
@@ -598,6 +608,7 @@ export class UIManager {
     if (!this._dialogueVisible) {
       this.dialogueCard.classList.remove('hidden');
       this._dialogueVisible = true;
+      if (document.body) document.body.classList.add('dialogue-open');
     }
   }
 
@@ -713,6 +724,8 @@ export class UIManager {
       }
       if (this.bossThreatBar) this.bossThreatBar.classList.add('hidden');
       if (this.dialogueCard) this.dialogueCard.classList.add('hidden');
+      this._dialogueVisible = false;
+      if (document.body) document.body.classList.remove('dialogue-open');
       if (this.radialWheel) this.radialWheel.classList.add('hidden');
       if (this.virtualGamepad) this.virtualGamepad.classList.add('hidden');
       if (this.comboHud) this.comboHud.classList.add('hidden');

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
   <title>Be a Legend — El Legado de la Reliquia</title>
 
   <!-- Google Fonts: Tipografía Sans-Serif nítida y expresiva -->
@@ -31,7 +32,9 @@
     #game-container {
       position: relative;
       width: 100vw;
+      width: 100dvw;
       height: 100vh;
+      height: 100dvh;
       background-color: #050811;
       overflow: hidden;
     }
@@ -687,6 +690,11 @@
                   <button type="button" id="btn-clear-save-data" class="cel-action-btn danger" title="Borra campaña, habilidades y equipo guardados en este dispositivo">
                     <span>BORRAR PROGRESO GUARDADO</span>
                   </button>
+                </div>
+
+                <div class="st-build-meta" aria-label="Versión de compilación">
+                  <span>Compilación</span>
+                  <code id="st-build-version">v·dev</code>
                 </div>
               </div>
 

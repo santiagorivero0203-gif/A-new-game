@@ -17,6 +17,8 @@
   --safe-bottom: max(14px, env(safe-area-inset-bottom, 14px));
   --safe-left: max(16px, env(safe-area-inset-left, 16px));
   --touch-dock-height: 204px;
+  --touch-joy-reserve: 170px;
+  --touch-cluster-reserve: 296px;
 
   --ink-black: #050811;
   --cel-slate-top: #18263e;
@@ -647,11 +649,17 @@
   border: 2.5px solid var(--ink-black);
   border-radius: 12px;
   box-shadow: 0 3px 0 var(--ink-black);
-  transition: transform 0.1s ease;
+  transition: transform 0.1s ease, opacity 0.16s ease;
 }
 
 .combo-hud.combo-pulse {
   transform: scale(1.07);
+}
+
+/* Ocultar medidor de combo durante diálogos para evitar choques en móvil */
+body.dialogue-open .combo-hud {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .combo-rank-badge {
@@ -1187,8 +1195,8 @@
   bottom: var(--safe-bottom);
   left: var(--safe-left);
   transform-origin: bottom left;
-  width: 162px;
-  height: 162px;
+  width: clamp(136px, 34vh, 162px);
+  height: clamp(136px, 34vh, 162px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1196,8 +1204,8 @@
 }
 
 .touch-joystick-base {
-  width: 128px;
-  height: 128px;
+  width: clamp(110px, 28vh, 136px);
+  height: clamp(110px, 28vh, 136px);
   border-radius: 50%;
   background: rgba(12, 20, 36, 0.78);
   border: 2.5px solid var(--ink-black);
@@ -1208,8 +1216,8 @@
 }
 
 .touch-joystick-thumb {
-  width: 54px;
-  height: 54px;
+  width: clamp(46px, 11vh, 56px);
+  height: clamp(46px, 11vh, 56px);
   border-radius: 50%;
   background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
   border: 2.5px solid var(--ink-black);
@@ -1221,8 +1229,14 @@
   bottom: var(--safe-bottom);
   right: var(--safe-right);
   transform-origin: bottom right;
-  width: 294px;
-  height: 236px;
+  --btn-main: clamp(64px, 17vh, 84px);
+  --btn-skill: clamp(58px, 15vh, 74px);
+  --btn-sec: clamp(48px, 13vh, 64px);
+  --btn-strong: clamp(48px, 12.5vh, 60px);
+  --btn-mini: clamp(44px, 11.5vh, 52px);
+  --btn-gap: 8px;
+  width: calc(var(--btn-main) + var(--btn-sec) + var(--btn-strong) + var(--btn-mini) + var(--btn-gap) * 3 + 8px);
+  height: calc(var(--btn-main) + var(--btn-skill) + var(--btn-mini) + var(--btn-gap) * 2 + 8px);
   pointer-events: none;
 }
 
@@ -1244,7 +1258,7 @@
 }
 
 .touch-action-btn svg { font-size: 22px; }
-.touch-mini-btn svg { font-size: 17px; }
+.touch-mini-btn svg { font-size: 15px; }
 
 .touch-action-btn.touch-pressed,
 .touch-mini-btn.touch-pressed {
@@ -1254,42 +1268,101 @@
 .main-attack-btn {
   right: 4px;
   bottom: 4px;
-  width: 84px;
-  height: 84px;
+  width: var(--btn-main);
+  height: var(--btn-main);
   background: linear-gradient(180deg, #f59e0b 0%, #ea580c 100%);
   color: var(--ink-black);
 }
 .main-attack-btn svg { font-size: 28px; }
 
-.dash-btn { right: 98px; bottom: 4px; width: 64px; height: 64px; color: #7dd3fc; }
-.defend-btn { right: 90px; bottom: 78px; width: 64px; height: 64px; color: #93c5fd; }
+.dash-btn {
+  right: calc(4px + var(--btn-main) + var(--btn-gap));
+  bottom: 4px;
+  width: var(--btn-sec);
+  height: var(--btn-sec);
+  color: #7dd3fc;
+}
+.defend-btn {
+  right: calc(4px + var(--btn-main) + var(--btn-gap));
+  bottom: calc(4px + var(--btn-sec) + var(--btn-gap));
+  width: var(--btn-sec);
+  height: var(--btn-sec);
+  color: #93c5fd;
+}
 .skill-btn {
   right: 4px;
-  bottom: 98px;
-  width: 74px;
-  height: 74px;
+  bottom: calc(4px + var(--btn-main) + var(--btn-gap));
+  width: var(--btn-skill);
+  height: var(--btn-skill);
   color: var(--cel-gold);
   gap: 1px;
-  padding: 8px;
+  padding: 5px 2px;
 }
-.skill-btn > svg { font-size: 18px; margin-top: 2px; }
-.skill-btn .btn-subtext { font-size: 7.5px; line-height: 1; margin-bottom: 6px; }
-.skill-strong-btn { right: 170px; bottom: 44px; width: 60px; height: 60px; color: var(--cel-amber); }
+.skill-btn > svg { font-size: 16px; margin-top: 2px; }
+.skill-btn .btn-subtext { font-size: clamp(7.5px, 2vh, 9px); letter-spacing: 0; line-height: 1; margin-bottom: 5px; white-space: nowrap; }
+.skill-strong-btn {
+  right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-gap) * 2);
+  bottom: 16px;
+  width: var(--btn-strong);
+  height: var(--btn-strong);
+  color: var(--cel-amber);
+}
 
-.heal-btn { right: 164px; bottom: 112px; width: 52px; height: 52px; color: var(--cel-emerald); }
-.switch-btn { right: 94px; bottom: 150px; width: 52px; height: 52px; color: var(--cel-gold); }
-.interact-btn { right: 22px; bottom: 182px; width: 52px; height: 52px; color: #fde047; }
-.sprint-btn { right: 238px; bottom: 46px; width: 52px; height: 52px; color: #38bdf8; }
+.heal-btn {
+  right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-gap) * 2 + (var(--btn-strong) - var(--btn-mini)) * 0.5);
+  bottom: calc(16px + var(--btn-strong) + var(--btn-gap));
+  width: var(--btn-mini);
+  height: var(--btn-mini);
+  color: var(--cel-emerald);
+}
+.switch-btn {
+  right: calc(4px + var(--btn-main) + var(--btn-gap) + (var(--btn-sec) - var(--btn-mini)) * 0.5);
+  bottom: calc(4px + var(--btn-sec) * 2 + var(--btn-gap) * 2);
+  width: var(--btn-mini);
+  height: var(--btn-mini);
+  color: var(--cel-gold);
+}
+.interact-btn {
+  right: calc(4px + (var(--btn-skill) - var(--btn-mini)) * 0.5);
+  bottom: calc(4px + var(--btn-main) + var(--btn-skill) + var(--btn-gap) * 2);
+  width: var(--btn-mini);
+  height: var(--btn-mini);
+  color: #fde047;
+}
+.sprint-btn {
+  right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-strong) + var(--btn-gap) * 3);
+  bottom: 18px;
+  width: var(--btn-mini);
+  height: var(--btn-mini);
+  color: #38bdf8;
+}
 /* Botón táctil de Agacharse/Slide/Dive disponible siempre en móvil; verde brillante en zonas de sigilo */
-.stealth-btn { display: flex; right: 230px; bottom: 108px; width: 52px; height: 52px; color: #cbd5e1; }
+.stealth-btn {
+  display: flex;
+  right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-strong) + var(--btn-gap) * 3);
+  bottom: calc(18px + var(--btn-mini) + var(--btn-gap));
+  width: var(--btn-mini);
+  height: var(--btn-mini);
+  color: #cbd5e1;
+}
 body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
 
-.btn-subtext,
+.btn-subtext {
+  font-family: 'Outfit', sans-serif;
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .touch-sub-label {
   font-family: 'Outfit', sans-serif;
-  font-size: 8.5px;
+  font-size: 9px;
   font-weight: 900;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .swipe-hint {
@@ -2298,6 +2371,27 @@ body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
   gap: 10px;
 }
 
+.st-build-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 4px;
+  font-size: 10.5px;
+  color: #64748b;
+  letter-spacing: 0.03em;
+}
+
+.st-build-meta code {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(212, 163, 73, 0.28);
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
 .st-controls-grid {
   display: flex;
   flex-direction: column;
@@ -2917,6 +3011,10 @@ kbd {
    5. REGLA 4: BREAKPOINTS POR PROPORCIÓN (16:9 Horizontal <-> 9:16 Vertical)
    ============================================================================ */
 @media (max-aspect-ratio: 1/1) {
+  :root {
+    --touch-dock-height: 228px;
+  }
+
   .rpg-player-hud {
     transform: scale(0.86);
   }
@@ -2964,17 +3062,67 @@ kbd {
     padding: 9px 13px;
   }
 
+  /* Reorganización en 3 columnas ergonómicas (>=44px sin scale<0.9) para pantallas verticales estrechas */
+  .touch-joystick-zone {
+    width: 124px;
+    height: 124px;
+  }
+
+  .touch-joystick-base {
+    width: 110px;
+    height: 110px;
+  }
+
+  .touch-joystick-thumb {
+    width: 46px;
+    height: 46px;
+  }
+
+  .touch-actions-cluster {
+    --btn-main: 68px;
+    --btn-skill: 62px;
+    --btn-sec: 52px;
+    --btn-strong: 50px;
+    --btn-mini: 44px;
+    --btn-gap: 7px;
+    width: calc(var(--btn-main) + var(--btn-sec) + var(--btn-strong) + var(--btn-gap) * 2 + 8px);
+    height: calc(var(--btn-sec) * 2 + var(--btn-mini) * 2 + var(--btn-gap) * 3 + 12px);
+  }
+
+  .skill-strong-btn {
+    bottom: 8px;
+  }
+
+  .heal-btn {
+    bottom: calc(8px + var(--btn-strong) + var(--btn-gap));
+  }
+
+  .sprint-btn {
+    right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-gap) * 2 + (var(--btn-strong) - var(--btn-mini)) * 0.5);
+    bottom: calc(8px + var(--btn-strong) + var(--btn-mini) + var(--btn-gap) * 2);
+  }
+
+  .stealth-btn {
+    right: calc(4px + var(--btn-main) + var(--btn-gap) + (var(--btn-sec) - var(--btn-mini)) * 0.5);
+    bottom: calc(4px + var(--btn-sec) * 2 + var(--btn-mini) + var(--btn-gap) * 3);
+  }
+
   /* Cinemática del prólogo compacta en vertical para lucir la ilustración superior */
+  .btn-skip-cinematic {
+    padding: 6px 11px;
+    font-size: 10px;
+  }
+
   .cinematic-caption-box {
     bottom: calc(var(--safe-bottom) + 10px);
     max-width: calc(100vw - var(--safe-left) - var(--safe-right) - 8px);
-    padding: 9px 13px 8px 13px;
+    padding: 8px 14px;
   }
 
   .cinematic-text {
-    font-size: 13px;
-    line-height: 1.4;
-    min-height: 1.8em;
+    font-size: clamp(12px, 3.2vh, 14px);
+    line-height: 1.38;
+    min-height: 0;
   }
 
   .cinematic-caption-footer {
@@ -3001,19 +3149,6 @@ kbd {
 
   .st-tab-item span {
     font-size: 10.5px;
-  }
-}
-
-/* En retrato angosto (< 540px), escalar levemente los mandos para que no colisionen horizontalmente */
-@media (max-aspect-ratio: 1/1) and (max-width: 540px) {
-  .touch-actions-cluster {
-    transform: scale(0.80);
-    transform-origin: bottom right;
-  }
-
-  .touch-joystick-zone {
-    transform: scale(0.84);
-    transform-origin: bottom left;
   }
 }
 
@@ -3114,10 +3249,10 @@ body.touch-controls-active .touch-joystick-zone {
 
   /* Diálogo diegético anclado en el hueco inferior central entre joystick y botonera */
   body.touch-controls-active .dialogue-card {
-    bottom: calc(var(--safe-bottom) + 6px);
-    left: calc(var(--safe-left) + 172px);
-    right: calc(var(--safe-right) + 304px);
-    max-width: 460px;
+    bottom: calc(var(--safe-bottom) + 8px);
+    left: calc(var(--safe-left) + var(--touch-joy-reserve));
+    right: calc(var(--safe-right) + var(--touch-cluster-reserve));
+    max-width: min(460px, 46vw);
     padding: 8px 13px;
     border-width: 2.5px;
     border-radius: 13px;
@@ -3140,6 +3275,10 @@ body.touch-controls-active .touch-joystick-zone {
   body.touch-controls-active .dialogue-text {
     font-size: 12px;
     line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }
 
@@ -3171,6 +3310,12 @@ body.touch-controls-active .st-nav-key {
 }
 
 @media (max-height: 540px) {
+  :root {
+    --touch-joy-reserve: 148px;
+    /* Reserva dinámica sincronizada con el ancho real de .touch-actions-cluster según altura (360–540 px) */
+    --touch-cluster-reserve: clamp(236px, 60vh, 290px);
+  }
+
   .rpg-player-hud {
     transform: scale(0.72);
     transform-origin: top left;
@@ -3194,6 +3339,7 @@ body.touch-controls-active .st-nav-key {
   }
 
   .touch-actions-cluster {
+    --btn-gap: 6px;
     bottom: max(4px, calc(var(--safe-bottom) - 6px));
     right: max(4px, calc(var(--safe-right) - 6px));
   }
@@ -3227,14 +3373,14 @@ body.touch-controls-active .st-nav-key {
 
   .btn-skip-cinematic {
     top: calc(var(--safe-top) + 4px);
-    padding: 6px 11px;
-    font-size: 10px;
+    padding: 5px 10px;
+    font-size: 9.5px;
   }
 
   .cinematic-caption-box {
     bottom: calc(var(--safe-bottom) + 6px);
-    max-width: min(540px, calc(100vw - var(--safe-left) - var(--safe-right) - 24px));
-    padding: 8px 14px 7px 14px;
+    max-width: min(620px, 72vw);
+    padding: 8px 14px;
     border-width: 2px;
     box-shadow:
       0 4px 0 #090706,
@@ -3253,14 +3399,15 @@ body.touch-controls-active .st-nav-key {
   }
 
   .cinematic-text {
-    font-size: 12px;
-    line-height: 1.36;
-    min-height: 1.4em;
+    font-size: clamp(12px, 3.2vh, 14px);
+    line-height: 1.35;
+    min-height: 0;
   }
 
   .cinematic-caption-footer {
-    margin-top: 5px;
-    padding-top: 5px;
+    margin-top: 4px;
+    padding-top: 4px;
+    justify-content: center;
   }
 
   .cinematic-pip {
@@ -3269,26 +3416,7 @@ body.touch-controls-active .st-nav-key {
   }
 
   .cinematic-prompt {
-    font-size: 10px;
-  }
-}
-
-/* Teléfonos horizontales muy compactos (< 740px ancho o < 370px alto) */
-@media (min-aspect-ratio: 1/1) and (max-height: 370px),
-       (min-aspect-ratio: 1/1) and (max-width: 739px) and (max-height: 540px) {
-  .touch-actions-cluster {
-    transform: scale(0.84);
-    transform-origin: bottom right;
-  }
-
-  .touch-joystick-zone {
-    transform: scale(0.86);
-    transform-origin: bottom left;
-  }
-
-  body.touch-controls-active .dialogue-card {
-    left: calc(var(--safe-left) + 146px);
-    right: calc(var(--safe-right) + 256px);
+    display: none;
   }
 }
 
