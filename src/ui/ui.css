@@ -1298,8 +1298,8 @@ body.dialogue-open .combo-hud {
   gap: 1px;
   padding: 5px 2px;
 }
-.skill-btn > svg { font-size: 16px; margin-top: 2px; }
-.skill-btn .btn-subtext { font-size: clamp(7.5px, 2vh, 9px); letter-spacing: 0; line-height: 1; margin-bottom: 5px; white-space: nowrap; }
+.skill-btn > svg { font-size: 15px; margin-top: 3px; }
+.skill-btn .btn-subtext { font-size: clamp(7.5px, 2vh, 8.5px); letter-spacing: 0; line-height: 1; margin-bottom: 6px; white-space: nowrap; }
 .skill-strong-btn {
   right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-gap) * 2);
   bottom: 16px;
@@ -1365,16 +1365,21 @@ body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
   white-space: nowrap;
 }
 
+/* Indicadores cardinales compactos del selector elemental por swipe (evita herencia de .touch-action-btn svg) */
 .swipe-hint {
   position: absolute;
-  font-size: 7.5px;
+  font-size: 8px;
   line-height: 1;
   pointer-events: none;
-  opacity: 0.72;
+  opacity: 0.8;
+}
+.touch-action-btn .swipe-hint svg {
+  font-size: 8px;
+  display: block;
 }
 .hint-n { top: 3px; color: #fb923c; }
 .hint-e { right: 3px; color: #38bdf8; }
-.hint-s { bottom: 2.5px; color: #4ade80; }
+.hint-s { bottom: 3px; color: #4ade80; }
 .hint-w { left: 3px; color: #c084fc; }
 
 /* ============================================================================
