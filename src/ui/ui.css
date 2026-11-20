@@ -16,7 +16,7 @@
   --safe-right: max(16px, env(safe-area-inset-right, 16px));
   --safe-bottom: max(14px, env(safe-area-inset-bottom, 14px));
   --safe-left: max(16px, env(safe-area-inset-left, 16px));
-  --touch-dock-height: 196px;
+  --touch-dock-height: 204px;
 
   --ink-black: #050811;
   --cel-slate-top: #18263e;
@@ -754,6 +754,7 @@
 }
 
 .hud-minimap-wrap canvas {
+  position: static;
   display: block;
   width: 92px;
   height: 92px;
@@ -1061,10 +1062,10 @@
   left: var(--safe-left);
   right: var(--safe-right);
   width: auto;
-  max-width: 600px;
+  max-width: 580px;
   margin-inline: auto;
   transform-origin: bottom center;
-  padding: 12px 18px;
+  padding: 11px 16px;
   background: linear-gradient(180deg, #17253d 0%, #0b1322 100%);
   border: 3px solid var(--ink-black);
   border-radius: 16px;
@@ -1073,10 +1074,6 @@
     inset 0 0 0 1.5px rgba(250, 204, 21, 0.42);
   pointer-events: none;
   z-index: 19;
-}
-
-body.touch-controls-active .dialogue-card {
-  bottom: calc(var(--safe-bottom) + var(--touch-dock-height));
 }
 
 .dialogue-header {
@@ -1190,8 +1187,8 @@ body.touch-controls-active .dialogue-card {
   bottom: var(--safe-bottom);
   left: var(--safe-left);
   transform-origin: bottom left;
-  width: 144px;
-  height: 144px;
+  width: 162px;
+  height: 162px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1199,8 +1196,8 @@ body.touch-controls-active .dialogue-card {
 }
 
 .touch-joystick-base {
-  width: 112px;
-  height: 112px;
+  width: 128px;
+  height: 128px;
   border-radius: 50%;
   background: rgba(12, 20, 36, 0.78);
   border: 2.5px solid var(--ink-black);
@@ -1211,8 +1208,8 @@ body.touch-controls-active .dialogue-card {
 }
 
 .touch-joystick-thumb {
-  width: 46px;
-  height: 46px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
   border: 2.5px solid var(--ink-black);
@@ -1224,8 +1221,8 @@ body.touch-controls-active .dialogue-card {
   bottom: var(--safe-bottom);
   right: var(--safe-right);
   transform-origin: bottom right;
-  width: 218px;
-  height: 184px;
+  width: 294px;
+  height: 236px;
   pointer-events: none;
 }
 
@@ -1246,8 +1243,8 @@ body.touch-controls-active .dialogue-card {
   cursor: pointer;
 }
 
-.touch-action-btn svg { font-size: 20px; }
-.touch-mini-btn svg { font-size: 15px; }
+.touch-action-btn svg { font-size: 22px; }
+.touch-mini-btn svg { font-size: 17px; }
 
 .touch-action-btn.touch-pressed,
 .touch-mini-btn.touch-pressed {
@@ -1256,43 +1253,43 @@ body.touch-controls-active .dialogue-card {
 
 .main-attack-btn {
   right: 4px;
-  bottom: 6px;
-  width: 74px;
-  height: 74px;
+  bottom: 4px;
+  width: 84px;
+  height: 84px;
   background: linear-gradient(180deg, #f59e0b 0%, #ea580c 100%);
   color: var(--ink-black);
 }
-.main-attack-btn svg { font-size: 26px; }
+.main-attack-btn svg { font-size: 28px; }
 
-.dash-btn { right: 88px; bottom: 4px; width: 56px; height: 56px; color: #7dd3fc; }
-.defend-btn { right: 82px; bottom: 68px; width: 56px; height: 56px; color: #93c5fd; }
+.dash-btn { right: 98px; bottom: 4px; width: 64px; height: 64px; color: #7dd3fc; }
+.defend-btn { right: 90px; bottom: 78px; width: 64px; height: 64px; color: #93c5fd; }
 .skill-btn {
   right: 4px;
-  bottom: 88px;
-  width: 68px;
-  height: 68px;
+  bottom: 98px;
+  width: 74px;
+  height: 74px;
   color: var(--cel-gold);
   gap: 1px;
   padding: 8px;
 }
-.skill-btn > svg { font-size: 16px; margin-top: 2px; }
-.skill-btn .btn-subtext { font-size: 7px; line-height: 1; margin-bottom: 6px; }
-.skill-strong-btn { right: 144px; bottom: 44px; width: 52px; height: 52px; color: var(--cel-amber); }
+.skill-btn > svg { font-size: 18px; margin-top: 2px; }
+.skill-btn .btn-subtext { font-size: 7.5px; line-height: 1; margin-bottom: 6px; }
+.skill-strong-btn { right: 170px; bottom: 44px; width: 60px; height: 60px; color: var(--cel-amber); }
 
-.heal-btn { right: 146px; bottom: 106px; width: 44px; height: 44px; color: var(--cel-emerald); }
-.switch-btn { right: 92px; bottom: 132px; width: 44px; height: 44px; color: var(--cel-gold); }
-.interact-btn { right: 32px; bottom: 158px; width: 44px; height: 44px; color: #fde047; }
-.sprint-btn { right: 198px; bottom: 46px; width: 44px; height: 44px; color: #38bdf8; }
+.heal-btn { right: 164px; bottom: 112px; width: 52px; height: 52px; color: var(--cel-emerald); }
+.switch-btn { right: 94px; bottom: 150px; width: 52px; height: 52px; color: var(--cel-gold); }
+.interact-btn { right: 22px; bottom: 182px; width: 52px; height: 52px; color: #fde047; }
+.sprint-btn { right: 238px; bottom: 46px; width: 52px; height: 52px; color: #38bdf8; }
 /* Botón táctil de Agacharse/Slide/Dive disponible siempre en móvil; verde brillante en zonas de sigilo */
-.stealth-btn { display: flex; right: 198px; bottom: 104px; width: 44px; height: 44px; color: #cbd5e1; }
+.stealth-btn { display: flex; right: 230px; bottom: 108px; width: 52px; height: 52px; color: #cbd5e1; }
 body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
 
 .btn-subtext,
 .touch-sub-label {
   font-family: 'Outfit', sans-serif;
-  font-size: 7.5px;
+  font-size: 8.5px;
   font-weight: 900;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
 
 .swipe-hint {
@@ -2716,8 +2713,8 @@ kbd {
   pointer-events: none;
   z-index: 2;
   background:
-    radial-gradient(ellipse at center, transparent 48%, rgba(10, 7, 5, 0.56) 100%),
-    linear-gradient(180deg, rgba(12, 8, 6, 0.46) 0%, transparent 28%, transparent 56%, rgba(10, 8, 6, 0.92) 100%);
+    radial-gradient(ellipse at center, transparent 52%, rgba(10, 7, 5, 0.48) 100%),
+    linear-gradient(180deg, rgba(12, 8, 6, 0.36) 0%, transparent 24%, transparent 64%, rgba(10, 8, 6, 0.84) 100%);
 }
 
 /* Bandas cinematográficas con filigrana de bronce envejecido */
@@ -2780,21 +2777,21 @@ kbd {
   --crest-accent: #d4a349;
   --crest-text: #120d08;
   position: absolute;
-  bottom: calc(var(--safe-bottom) + 18px);
+  bottom: calc(var(--safe-bottom) + 14px);
   left: var(--safe-left);
   right: var(--safe-right);
   width: auto;
-  max-width: 780px;
+  max-width: 680px;
   margin-inline: auto;
   transform-origin: bottom center;
   z-index: 4;
-  padding: 15px 22px 13px 22px;
-  background: linear-gradient(180deg, rgba(25, 19, 15, 0.95) 0%, rgba(13, 10, 9, 0.97) 100%);
-  border: 3px solid #090706;
-  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
+  padding: 12px 18px 10px 18px;
+  background: linear-gradient(180deg, rgba(25, 19, 15, 0.92) 0%, rgba(13, 10, 9, 0.95) 100%);
+  border: 2.5px solid #090706;
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
   box-shadow:
-    0 6px 0 #090706,
-    inset 0 0 0 1.5px rgba(212, 163, 73, 0.44),
+    0 5px 0 #090706,
+    inset 0 0 0 1.5px rgba(212, 163, 73, 0.42),
     inset 0 2px 0 rgba(255, 241, 204, 0.12);
 }
 
@@ -2821,8 +2818,8 @@ kbd {
 .cinematic-caption-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 7px;
+  margin-bottom: 5px;
 }
 
 .cinematic-crest-ornament {
@@ -2835,15 +2832,15 @@ kbd {
 
 .cinematic-speaker {
   display: inline-block;
-  padding: 2px 11px;
+  padding: 2px 10px;
   background: var(--crest-accent);
   color: var(--crest-text);
   border: 1.5px solid #090706;
   clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
   font-family: 'Outfit', sans-serif;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.11em;
   flex-shrink: 0;
 }
 
@@ -2854,16 +2851,16 @@ kbd {
 }
 
 .cinematic-text {
-  font-size: clamp(14px, 1.9vw, 17px);
-  line-height: 1.55;
+  font-size: clamp(13px, 1.45vw, 15.5px);
+  line-height: 1.46;
   color: #f5efe1;
-  min-height: 2.8em;
+  min-height: 2.1em;
   text-shadow: 0 1.5px 0 #090706;
 }
 
 .cinematic-caption-footer {
-  margin-top: 10px;
-  padding-top: 8px;
+  margin-top: 7px;
+  padding-top: 6px;
   border-top: 1px solid rgba(212, 163, 73, 0.18);
   display: flex;
   align-items: center;
@@ -2919,17 +2916,18 @@ kbd {
 /* ============================================================================
    5. REGLA 4: BREAKPOINTS POR PROPORCIÓN (16:9 Horizontal <-> 9:16 Vertical)
    ============================================================================ */
-@media (max-aspect-ratio: 1/1), (max-width: 860px) {
+@media (max-aspect-ratio: 1/1) {
   .rpg-player-hud {
-    transform: scale(0.9);
+    transform: scale(0.86);
   }
 
   .hud-top-right-dock {
-    transform: scale(0.92);
+    transform: scale(0.88);
   }
 
   /* En 9:16 vertical, el panel central superior de misión baja debajo de Top-Left y respeta el Minimapa Top-Right */
-  .objective-hud-tracker {
+  .objective-hud-tracker,
+  body.touch-controls-active .objective-hud-tracker {
     top: calc(var(--safe-top) + 88px);
     left: var(--safe-left);
     right: calc(var(--safe-right) + 88px);
@@ -2957,11 +2955,69 @@ kbd {
   }
 
   /* En 9:16 vertical, la tarjeta inferior sube por encima de los controles táctiles */
-  .dialogue-card {
+  .dialogue-card,
+  body.touch-controls-active .dialogue-card {
     bottom: calc(var(--safe-bottom) + var(--touch-dock-height));
+    left: var(--safe-left);
+    right: var(--safe-right);
+    max-width: 440px;
+    padding: 9px 13px;
+  }
+
+  /* Cinemática del prólogo compacta en vertical para lucir la ilustración superior */
+  .cinematic-caption-box {
+    bottom: calc(var(--safe-bottom) + 10px);
+    max-width: calc(100vw - var(--safe-left) - var(--safe-right) - 8px);
+    padding: 9px 13px 8px 13px;
+  }
+
+  .cinematic-text {
+    font-size: 13px;
+    line-height: 1.4;
+    min-height: 1.8em;
+  }
+
+  .cinematic-caption-footer {
+    margin-top: 6px;
+    padding-top: 5px;
   }
 
   /* Adaptación vertical fluida del Hub del Santuario */
+  .st-sanctuary-window {
+    height: 94vh;
+  }
+
+  .st-workspace {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .st-trees-grid,
+  .st-arsenal-layout,
+  .st-codex-layout,
+  .st-system-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .st-tab-item span {
+    font-size: 10.5px;
+  }
+}
+
+/* En retrato angosto (< 540px), escalar levemente los mandos para que no colisionen horizontalmente */
+@media (max-aspect-ratio: 1/1) and (max-width: 540px) {
+  .touch-actions-cluster {
+    transform: scale(0.80);
+    transform-origin: bottom right;
+  }
+
+  .touch-joystick-zone {
+    transform: scale(0.84);
+    transform-origin: bottom left;
+  }
+}
+
+@media (max-width: 860px) and (min-aspect-ratio: 1/1) {
   .st-sanctuary-window {
     height: 94vh;
   }
@@ -3022,40 +3078,69 @@ kbd {
 }
 
 /* ============================================================================
-   7. OPTIMIZACIÓN RESPONSIVA MÓVIL Y TOUCH: COMPACCIÓN DE HUD Y MANDOS
-   Evita la saturación visual en pantallas móviles horizontales/verticales,
-   despejando la escena para máxima legibilidad táctica del juego.
+   7. OPTIMIZACIÓN RESPONSIVA MÓVIL Y TOUCH: CONTROLES ERGONÓMICOS, DIÁLOGOS Y PRÓLOGO
+   Mantiene los botones táctiles a tamaño completo ergonómico en horizontal,
+   ubica los diálogos en la franja inferior central entre joystick y botones,
+   y compacta la tablilla del prólogo para despejar la escena ilustrada.
    ============================================================================ */
 body.touch-controls-active .rpg-player-hud {
-  transform: scale(0.72);
+  transform: scale(0.74);
   transform-origin: top left;
 }
 
 body.touch-controls-active .hud-top-right-dock {
-  transform: scale(0.76);
+  transform: scale(0.78);
   transform-origin: top right;
 }
 
 body.touch-controls-active .touch-actions-cluster {
-  transform: scale(0.78);
-  transform-origin: bottom right;
-  bottom: max(6px, calc(var(--safe-bottom) - 8px));
-  right: max(6px, calc(var(--safe-right) - 8px));
+  bottom: max(6px, calc(var(--safe-bottom) - 4px));
+  right: max(6px, calc(var(--safe-right) - 4px));
 }
 
 body.touch-controls-active .touch-joystick-zone {
-  transform: scale(0.80);
-  transform-origin: bottom left;
-  bottom: max(6px, calc(var(--safe-bottom) - 8px));
-  left: max(6px, calc(var(--safe-left) - 8px));
+  bottom: max(6px, calc(var(--safe-bottom) - 4px));
+  left: max(6px, calc(var(--safe-left) - 4px));
 }
 
-body.touch-controls-active .objective-hud-tracker {
-  top: var(--safe-top);
-  left: calc(var(--safe-left) + 246px);
-  right: calc(var(--safe-right) + 144px);
-  max-width: 330px;
-  padding: 4px 10px;
+@media (min-aspect-ratio: 1/1) {
+  body.touch-controls-active .objective-hud-tracker {
+    top: var(--safe-top);
+    left: calc(var(--safe-left) + 246px);
+    right: calc(var(--safe-right) + 144px);
+    max-width: 330px;
+    padding: 4px 10px;
+  }
+
+  /* Diálogo diegético anclado en el hueco inferior central entre joystick y botonera */
+  body.touch-controls-active .dialogue-card {
+    bottom: calc(var(--safe-bottom) + 6px);
+    left: calc(var(--safe-left) + 172px);
+    right: calc(var(--safe-right) + 304px);
+    max-width: 460px;
+    padding: 8px 13px;
+    border-width: 2.5px;
+    border-radius: 13px;
+  }
+
+  body.touch-controls-active .dialogue-header {
+    margin-bottom: 3px;
+    gap: 6px;
+  }
+
+  body.touch-controls-active .dialogue-badge {
+    font-size: 8.5px;
+    padding: 1px 6px;
+  }
+
+  body.touch-controls-active .dialogue-speaker {
+    font-size: 11.5px;
+  }
+
+  body.touch-controls-active .dialogue-text {
+    font-size: 12px;
+    line-height: 1.35;
+  }
 }
 
 body.touch-controls-active .objective-hud-text {
@@ -3087,12 +3172,12 @@ body.touch-controls-active .st-nav-key {
 
 @media (max-height: 540px) {
   .rpg-player-hud {
-    transform: scale(0.70);
+    transform: scale(0.72);
     transform-origin: top left;
   }
 
   .hud-top-right-dock {
-    transform: scale(0.74);
+    transform: scale(0.76);
     transform-origin: top right;
   }
 
@@ -3109,17 +3194,13 @@ body.touch-controls-active .st-nav-key {
   }
 
   .touch-actions-cluster {
-    transform: scale(0.75);
-    transform-origin: bottom right;
-    bottom: 4px;
-    right: 4px;
+    bottom: max(4px, calc(var(--safe-bottom) - 6px));
+    right: max(4px, calc(var(--safe-right) - 6px));
   }
 
   .touch-joystick-zone {
-    transform: scale(0.76);
-    transform-origin: bottom left;
-    bottom: 4px;
-    left: 4px;
+    bottom: max(4px, calc(var(--safe-bottom) - 6px));
+    left: max(4px, calc(var(--safe-left) - 6px));
   }
 
   .horde-announcement-banner {
@@ -3137,6 +3218,77 @@ body.touch-controls-active .st-nav-key {
 
   .horde-banner-sub {
     font-size: 9.5px;
+  }
+
+  /* Prólogo en móvil horizontal: tablilla compacta para no cubrir la ilustración */
+  .cinematic-letterbox {
+    height: 6px;
+  }
+
+  .btn-skip-cinematic {
+    top: calc(var(--safe-top) + 4px);
+    padding: 6px 11px;
+    font-size: 10px;
+  }
+
+  .cinematic-caption-box {
+    bottom: calc(var(--safe-bottom) + 6px);
+    max-width: min(540px, calc(100vw - var(--safe-left) - var(--safe-right) - 24px));
+    padding: 8px 14px 7px 14px;
+    border-width: 2px;
+    box-shadow:
+      0 4px 0 #090706,
+      inset 0 0 0 1px rgba(212, 163, 73, 0.42);
+    clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+  }
+
+  .cinematic-caption-header {
+    margin-bottom: 4px;
+    gap: 6px;
+  }
+
+  .cinematic-speaker {
+    font-size: 9.5px;
+    padding: 1px 8px;
+  }
+
+  .cinematic-text {
+    font-size: 12px;
+    line-height: 1.36;
+    min-height: 1.4em;
+  }
+
+  .cinematic-caption-footer {
+    margin-top: 5px;
+    padding-top: 5px;
+  }
+
+  .cinematic-pip {
+    width: 6px;
+    height: 6px;
+  }
+
+  .cinematic-prompt {
+    font-size: 10px;
+  }
+}
+
+/* Teléfonos horizontales muy compactos (< 740px ancho o < 370px alto) */
+@media (min-aspect-ratio: 1/1) and (max-height: 370px),
+       (min-aspect-ratio: 1/1) and (max-width: 739px) and (max-height: 540px) {
+  .touch-actions-cluster {
+    transform: scale(0.84);
+    transform-origin: bottom right;
+  }
+
+  .touch-joystick-zone {
+    transform: scale(0.86);
+    transform-origin: bottom left;
+  }
+
+  body.touch-controls-active .dialogue-card {
+    left: calc(var(--safe-left) + 146px);
+    right: calc(var(--safe-right) + 256px);
   }
 }
 

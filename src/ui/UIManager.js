@@ -656,8 +656,8 @@ export class UIManager {
     if (!shouldShow) return;
 
     if (this.joystickThumb && inputManager.joystickVector) {
-      const jx = Math.round(inputManager.joystickVector.x * 28);
-      const jy = Math.round(inputManager.joystickVector.y * 28);
+      const jx = Math.round(inputManager.joystickVector.x * 34);
+      const jy = Math.round(inputManager.joystickVector.y * 34);
       if (jx !== this._lastJoyX || jy !== this._lastJoyY) {
         this._lastJoyX = jx;
         this._lastJoyY = jy;

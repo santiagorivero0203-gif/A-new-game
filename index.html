@@ -35,7 +35,8 @@
       background-color: #050811;
       overflow: hidden;
     }
-    canvas {
+    #main-canvas,
+    #light-canvas {
       position: absolute;
       top: 0;
       left: 0;
@@ -818,7 +819,7 @@
           <div class="cinematic-caption-footer">
             <div id="cinematic-progress-pips" class="cinematic-progress-pips" aria-hidden="true"></div>
             <div id="cinematic-prompt" class="cinematic-prompt">
-              <span>Toca o pulsa [Espacio] para continuar</span>
+              <span id="cinematic-prompt-text">Toca o pulsa [Espacio] para continuar</span>
               <span class="cinematic-prompt-diamond" aria-hidden="true"></span>
             </div>
           </div>

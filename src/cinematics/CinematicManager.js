@@ -91,6 +91,7 @@ export class CinematicManager {
     this.speakerEl = document.getElementById('cinematic-speaker');
     this.textEl = document.getElementById('cinematic-text');
     this.progressPipsEl = document.getElementById('cinematic-progress-pips');
+    this.promptTextEl = document.getElementById('cinematic-prompt-text');
     this.btnSkip = document.getElementById('btn-skip-cinematic');
 
     this.currentSequence = null;
@@ -235,6 +236,23 @@ export class CinematicManager {
     });
   }
 
+  /**
+   * Detecta si la sesión actual utiliza pantalla táctil o dispositivo móvil
+   * para adaptar las indicaciones visuales de avance sin mencionar teclas físicas.
+   * @private
+   * @returns {boolean}
+   */
+  _isTouchSession() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+    return Boolean(
+      document.body.classList.contains('touch-controls-active') ||
+      ('ontouchstart' in window) ||
+      (navigator.maxTouchPoints > 0) ||
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      (navigator.userAgentData && navigator.userAgentData.mobile === true)
+    );
+  }
+
   play(sequence, onComplete = null) {
     if (!sequence || !sequence.slides || sequence.slides.length === 0) {
       if (onComplete) onComplete();
@@ -253,6 +271,12 @@ export class CinematicManager {
 
     if (this.overlay) {
       this.overlay.classList.remove('hidden');
+    }
+
+    if (this.promptTextEl) {
+      this.promptTextEl.textContent = this._isTouchSession()
+        ? 'Toca la pantalla para continuar'
+        : 'Pulsa [Espacio] o haz clic para continuar';
     }
 
     // Inicializar capa de transición limpia sin forzar bloqueo negro permanente

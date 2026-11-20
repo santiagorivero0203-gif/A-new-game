@@ -46,14 +46,20 @@ const MOBILE_PROMPT_REPLACEMENTS = [
   { regex: /con\s*las\s*teclas\s*\[\s*1\s*\],\s*\[\s*2\s*\],\s*\[\s*3\s*\],\s*la\s*rueda\s*del\s*ratón\s*o\s*manteniendo\s*\[\s*Tab\s*\]/gi, replace: 'deslizando el botón elemental o tocando el botón de cambio' },
   { regex: /Pulsa\s*\[\s*1\s*\]\s*\[\s*2\s*\]\s*\[\s*3\s*\]\s*o\s*\[\s*R\s*\]/gi, replace: 'Desliza el botón elemental o toca cambio rápido' },
   { regex: /\[\s*1\s*\]\s*(?:,\s*)?\[\s*2\s*\]\s*(?:,\s*)?\[\s*3\s*\]/gi, replace: '(deslizar botón elemental)' },
-  { regex: /\[\s*(?:R|Tab)\s*\]/gi, replace: '(botón cambio elemental)' },
+  { regex: /Alterna\s*con\s*\[\s*R\s*\]\s*\/\s*\[\s*[1-4]\s*\]/gi, replace: 'Alterna con el botón elemental' },
+  { regex: /\[\s*R\s*\]\s*\/\s*\[\s*[1-4]\s*\]/gi, replace: '(botón cambio elemental)' },
+  { regex: /\[\s*(?:R|Tab|[1-4])\s*\]/gi, replace: '(botón cambio elemental)' },
 
-  // 7. Sprint / Correr, Sigilo, Curación, Ataque fuerte y Santuario
+  // 7. Sprint / Correr, Sigilo, Curación, Ataque fuerte, Santuario, Arsenal y Minimapa
   { regex: /\[\s*F\s*\]/gi, replace: '(botón CORRER)' },
-  { regex: /\[\s*C\s*\]/gi, replace: '(botón SIGILO)' },
+  { regex: /\[\s*C\s*\]/gi, replace: '(botón BAJAR)' },
   { regex: /\[\s*H\s*\]/gi, replace: '(botón CURAR)' },
   { regex: /\[\s*L\s*\]/gi, replace: '(botón FUERTE)' },
-  { regex: /\[\s*U\s*\]/gi, replace: '(botón superior de Esencia)' }
+  { regex: /\[\s*U\s*\]/gi, replace: '(botón superior de Esencia)' },
+  { regex: /\[\s*I\s*\]/gi, replace: '(botón superior de Arsenal)' },
+  { regex: /\[\s*M\s*\]/gi, replace: '(botón de Códice)' },
+  { regex: /Pulsa\s*\[\s*N\s*\]/gi, replace: 'Toca el minimapa' },
+  { regex: /\[\s*N\s*\]/gi, replace: '(toca el minimapa)' }
 ];
 
 /**
