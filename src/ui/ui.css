@@ -1222,6 +1222,34 @@ body.dialogue-open .combo-hud {
   background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
   border: 2.5px solid var(--ink-black);
   box-shadow: 0 3px 0 var(--ink-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.joystick-crouch-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(248, 250, 252, 0.72);
+  background: rgba(5, 8, 17, 0.35);
+  pointer-events: none;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.touch-joystick-thumb.is-prone {
+  background: linear-gradient(180deg, #34d399 0%, #059669 100%);
+}
+
+.touch-joystick-thumb.is-prone .joystick-crouch-dot {
+  transform: scale(0.72);
+  background: #ecfdf5;
+  border-color: var(--ink-black);
+}
+
+.touch-joystick-thumb.is-hidden {
+  box-shadow: 0 3px 0 var(--ink-black), 0 0 12px rgba(52, 211, 153, 0.75);
 }
 
 .touch-actions-cluster {
@@ -1235,7 +1263,7 @@ body.dialogue-open .combo-hud {
   --btn-strong: clamp(48px, 12.5vh, 60px);
   --btn-mini: clamp(44px, 11.5vh, 52px);
   --btn-gap: 8px;
-  width: calc(var(--btn-main) + var(--btn-sec) + var(--btn-strong) + var(--btn-mini) + var(--btn-gap) * 3 + 8px);
+  width: calc(var(--btn-main) + var(--btn-sec) + var(--btn-strong) + var(--btn-gap) * 2 + 8px);
   height: calc(var(--btn-main) + var(--btn-skill) + var(--btn-mini) + var(--btn-gap) * 2 + 8px);
   pointer-events: none;
 }
@@ -1281,6 +1309,13 @@ body.dialogue-open .combo-hud {
   width: var(--btn-sec);
   height: var(--btn-sec);
   color: #7dd3fc;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+.dash-btn.sprint-active {
+  background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+  border-color: #bae6fd;
+  color: #ffffff;
+  box-shadow: 0 3.5px 0 var(--ink-black), 0 0 12px rgba(56, 189, 248, 0.55);
 }
 .defend-btn {
   right: calc(4px + var(--btn-main) + var(--btn-gap));
@@ -1329,23 +1364,6 @@ body.dialogue-open .combo-hud {
   height: var(--btn-mini);
   color: #fde047;
 }
-.sprint-btn {
-  right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-strong) + var(--btn-gap) * 3);
-  bottom: 18px;
-  width: var(--btn-mini);
-  height: var(--btn-mini);
-  color: #38bdf8;
-}
-/* Botón táctil de Agacharse/Slide/Dive disponible siempre en móvil; verde brillante en zonas de sigilo */
-.stealth-btn {
-  display: flex;
-  right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-strong) + var(--btn-gap) * 3);
-  bottom: calc(18px + var(--btn-mini) + var(--btn-gap));
-  width: var(--btn-mini);
-  height: var(--btn-mini);
-  color: #cbd5e1;
-}
-body.stealth-mode-active .stealth-btn { color: #34d399; border-color: #34d399; }
 
 .btn-subtext {
   font-family: 'Outfit', sans-serif;
@@ -3102,16 +3120,6 @@ kbd {
     bottom: calc(8px + var(--btn-strong) + var(--btn-gap));
   }
 
-  .sprint-btn {
-    right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-gap) * 2 + (var(--btn-strong) - var(--btn-mini)) * 0.5);
-    bottom: calc(8px + var(--btn-strong) + var(--btn-mini) + var(--btn-gap) * 2);
-  }
-
-  .stealth-btn {
-    right: calc(4px + var(--btn-main) + var(--btn-gap) + (var(--btn-sec) - var(--btn-mini)) * 0.5);
-    bottom: calc(4px + var(--btn-sec) * 2 + var(--btn-mini) + var(--btn-gap) * 3);
-  }
-
   /* Cinemática del prólogo compacta en vertical para lucir la ilustración superior */
   .btn-skip-cinematic {
     padding: 6px 11px;
@@ -3317,8 +3325,8 @@ body.touch-controls-active .st-nav-key {
 @media (max-height: 540px) {
   :root {
     --touch-joy-reserve: 148px;
-    /* Reserva dinámica sincronizada con el ancho real de .touch-actions-cluster según altura (360–540 px) */
-    --touch-cluster-reserve: clamp(236px, 60vh, 290px);
+    /* Reserva dinámica sincronizada con el ancho real de .touch-actions-cluster simplificado */
+    --touch-cluster-reserve: clamp(192px, 50vh, 232px);
   }
 
   .rpg-player-hud {
@@ -4416,6 +4424,201 @@ body.touch-controls-active .st-nav-key {
   background: #dc2626;
   color: #ffffff;
 }
+
+/* ============================================================================
+   8. TRANSICIÓN ANIMADA DE TELETRANSPORTE ENTRE MUNDOS (Z-65)
+   ============================================================================ */
+.world-teleport-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(15, 23, 42, 0.72) 0%, #050811 78%);
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  --teleport-accent: #38bdf8;
+}
+
+.world-teleport-overlay.active {
+  opacity: 1;
+}
+
+.teleport-vortex-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 3px solid var(--teleport-accent);
+  box-shadow: 0 0 28px var(--teleport-accent), inset 0 0 22px var(--teleport-accent);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.teleport-vortex-ring.outer {
+  width: clamp(190px, 38vmin, 310px);
+  height: clamp(190px, 38vmin, 310px);
+  border-style: dashed;
+  animation: teleport-spin 2.2s linear infinite;
+}
+
+.teleport-vortex-ring.inner {
+  width: clamp(130px, 26vmin, 220px);
+  height: clamp(130px, 26vmin, 220px);
+  animation: teleport-spin-rev 1.5s linear infinite;
+}
+
+@keyframes teleport-spin {
+  from { transform: rotate(0deg) scale(0.95); }
+  50% { transform: rotate(180deg) scale(1.06); }
+  to { transform: rotate(360deg) scale(0.95); }
+}
+
+@keyframes teleport-spin-rev {
+  from { transform: rotate(360deg) scale(1.04); }
+  50% { transform: rotate(180deg) scale(0.92); }
+  to { transform: rotate(0deg) scale(1.04); }
+}
+
+.teleport-emblem-card {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 14px 24px;
+  background: rgba(11, 16, 29, 0.9);
+  border: 2.5px solid var(--teleport-accent);
+  border-radius: 14px;
+  box-shadow: 0 6px 0 #050811, 0 0 32px rgba(56, 189, 248, 0.25);
+}
+
+.teleport-eyebrow {
+  font-family: 'Outfit', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--teleport-accent);
+}
+
+.teleport-dest-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(18px, 3.8vw, 26px);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: #f8fafc;
+}
+
+/* ============================================================================
+   9. EPÍLOGO FINAL DE VICTORIA · RELIQUIA UNIFICADA (Z-75)
+   ============================================================================ */
+.victory-epilogue-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) max(16px, var(--safe-bottom)) max(16px, var(--safe-left));
+  background: radial-gradient(circle at 50% 35%, rgba(67, 56, 202, 0.42), rgba(5, 8, 17, 0.95) 75%);
+  pointer-events: auto;
+}
+
+.victory-epilogue-card {
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 24px 26px;
+  background: linear-gradient(170deg, #131c33 0%, #090e1c 100%);
+  border: 3px solid #facc15;
+  border-radius: 18px;
+  box-shadow: 0 10px 0 #050811, 0 0 48px rgba(250, 204, 21, 0.22);
+}
+
+.victory-crest-badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fef08a 0%, #eab308 100%);
+  color: #050811;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #050811;
+  box-shadow: 0 4px 0 #050811;
+}
+
+.victory-eyebrow {
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #fde047;
+}
+
+.victory-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(20px, 4vw, 28px);
+  font-weight: 900;
+  line-height: 1.15;
+  color: #f8fafc;
+}
+
+.victory-desc {
+  font-size: clamp(12.5px, 2.2vw, 14px);
+  line-height: 1.5;
+  color: #cbd5e1;
+  max-width: 46ch;
+}
+
+.victory-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.victory-stat-pill {
+  min-width: 108px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 2px solid #334155;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.victory-stat-pill span {
+  font-family: 'Outfit', sans-serif;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+.victory-stat-pill strong {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  color: #fde047;
+}
+
+.victory-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 
 
 

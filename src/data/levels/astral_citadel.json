@@ -16,7 +16,7 @@
   "startDormant": false,
   "enableStealth": false,
   "ambientColor": "rgba(19, 14, 48, 0.34)",
-  "initialObjective": "Domina los 3 elementos previos en el Vestíbulo, despierta Éter Magnético al norte y sincroniza ambos Pilones Voltaicos",
+  "initialObjective": "Despierta el Éter Magnético al norte, rescata a la Custodia al sur y sincroniza los 3 sellos elementales para enfrentar al Arconte",
   "playerSpawn": { "x": 224, "y": 620 },
   "spawnPoints": [
     { "id": "default", "label": "Terraza del Umbral", "x": 224, "y": 620 },
@@ -112,6 +112,14 @@
       "y": 976
     },
     {
+      "id": "astral_root_totem",
+      "propType": "root_totem",
+      "label": "Tótem de Convergencia Silvestre",
+      "runeColor": "#4ade80",
+      "x": 576,
+      "y": 716
+    },
+    {
       "id": "m4_shrine_relic_blade",
       "propType": "weapon_shrine",
       "grantsWeapon": "relic_blade",
@@ -122,14 +130,24 @@
     {
       "id": "m4_zenith_gate",
       "propType": "runic_gate",
-      "sealedBy": ["astral_pylon_a", "astral_pylon_b"],
+      "sealedBy": ["astral_pylon_a", "astral_pylon_b", "astral_root_totem"],
       "runeColor": "#c084fc",
       "label": "Sello del Cenit",
-      "sealedHint": "Energiza los 2 Pilones Voltaicos (Observatorio Norte y Galería Sur) con Éter Magnético [Clic Der / K].",
+      "sealedHint": "Ancla el Tótem Silvestre del Vestíbulo [Raíces] y energiza ambos Pilones Voltaicos (Norte y Sur) [Éter].",
       "x": 1088,
       "y": 604
     },
     { "id": "m4_sanctuary_altar", "propType": "sanctuary_altar", "x": 1352, "y": 448 },
+    {
+      "id": "m4_zenith_obelisk",
+      "propType": "runic_obelisk",
+      "x": 1636,
+      "y": 428,
+      "runeColor": "#fde047",
+      "loreTitle": "Estela de la Convergencia",
+      "loreText": "Solo quien domina los cuatro engarces y unifica el Cenit despierta el verdadero legado de la Reliquia.",
+      "essenceReward": 45
+    },
     { "id": "m4_horde_totem", "propType": "horde_totem", "x": 1356, "y": 768 },
     {
       "id": "m4_storm_coil_1",
@@ -158,7 +176,8 @@
       "propType": "world_portal",
       "targetWorld": "cave_exit_intro",
       "targetSpawnId": "default",
-      "worldLabel": "Claro de la Reliquia (Victoria)",
+      "isVictoryPortal": true,
+      "worldLabel": "Altar de la Unificación (Final)",
       "portalColor": "#fde047",
       "sealedBy": ["boss_m4"],
       "sealedHint": "Derrota al Arconte del Eclipse para unificar los cuatro núcleos de la Reliquia.",
@@ -178,8 +197,30 @@
         "highKarma": "Tu compasión en cada bioma ha forjado un portador digno del Cuarto Núcleo. La Reliquia se alinea sin reservas contigo, Santi.",
         "lowKarma": "Has llegado al Cenit por puro ímpetu, Santi. Aquí los Centinelas Astrales castigarán cada golpe impulsivo.",
         "lines": [
-          "El Vestíbulo exige Fuego al norte, Embestida al sur y el Éter Magnético para armonizar ambos pilones.",
+          "El Vestíbulo exige Fuego al norte, Embestida al sur, Raíces en el tótem occidental y Éter Magnético en ambos pilones.",
           "Combina Éter con Fuego o Raíces para desatar Sobrecarga de Plasma o Tormenta Bioeléctrica sobre el Arconte."
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "aurelia_m4_npc",
+      "name": "Aurelia, Custodia del Cenit",
+      "variant": "valerio",
+      "rescueTag": "ambush_astral_guard",
+      "karmaEventId": "astral_guard_m4",
+      "rewardShield": "astral_crest",
+      "rewardEssence": 35,
+      "x": 768,
+      "y": 1064,
+      "dialogues": {
+        "underThreat": "¡Ayúdame, portador! Los guardianes corruptos de la Galería Sur me mantienen acorralada.",
+        "rescueComplete": "¡Mi gratitud eterna, Santi! Recibe el Blasón del Cenit Astral en tu Arsenal [I]: disipa los impactos del Arconte.",
+        "highKarma": "Incluso en la cima del mundo no abandonas a nadie. Ese Blasón del Cenit brilla con tu nobleza.",
+        "lowKarma": "Gracias por liberar el paso. Usa el Blasón del Cenit si quieres sobrevivir al Arconte del Eclipse.",
+        "lines": [
+          "Energiza el Pilón Voltaico del este con Éter Magnético y reclama la Espada de la Reliquia en el relicario cercano.",
+          "Cuando caiga el Arconte del Eclipse, cruza el Altar de la Unificación para sellar la leyenda."
         ]
       }
     },
@@ -226,6 +267,7 @@
       "archetype": "sentinel_ether",
       "element": "astral",
       "name": "Vigía de la Galería",
+      "customTags": ["ambush_astral_guard"],
       "x": 700,
       "y": 984
     },
@@ -235,8 +277,27 @@
       "archetype": "duelist",
       "element": "kinetic",
       "name": "Caballero de Cuarzo",
+      "customTags": ["ambush_astral_guard"],
       "x": 836,
       "y": 984
+    },
+    {
+      "type": "enemy",
+      "id": "m4_zenith_guard_1",
+      "archetype": "duelist",
+      "element": "kinetic",
+      "name": "Custodio del Eclipse",
+      "x": 1412,
+      "y": 548
+    },
+    {
+      "type": "enemy",
+      "id": "m4_zenith_guard_2",
+      "archetype": "sentinel_ether",
+      "element": "astral",
+      "name": "Oráculo Astral",
+      "x": 1416,
+      "y": 692
     },
     {
       "type": "enemy",

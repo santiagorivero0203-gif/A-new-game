@@ -51,6 +51,7 @@ export class InteractableProp extends Entity {
     this.portalColor = config.portalColor || '#38bdf8';
     this.targetWorld = config.targetWorld || '';
     this.targetSpawnId = config.targetSpawnId || null;
+    this.isVictoryPortal = Boolean(config.isVictoryPortal);
     this.worldLabel = config.worldLabel || 'Atlas de Mundos';
     this.essenceReward = Number(config.essenceReward || 0);
     this.sealedBy = Array.isArray(config.sealedBy) ? [...config.sealedBy] : [];
@@ -379,8 +380,11 @@ export class InteractableProp extends Entity {
           return;
         }
         if (this.propType === 'world_portal') {
-          this._isPortalSealed = !unlocked;
-          if (unlocked) this.isActivated = true;
+          const coreReady = typeof context.progressionManager.hasUnlockedWorldCore === 'function'
+            ? context.progressionManager.hasUnlockedWorldCore(worldId)
+            : true;
+          this._isPortalSealed = !(unlocked && coreReady);
+          if (unlocked && coreReady) this.isActivated = true;
         }
       }
     }
@@ -1114,11 +1118,37 @@ export class InteractableProp extends Entity {
           if (context.audioManager) context.audioManager.playHitImpact('resisted');
           return this.sealedHint || `Portal sellado. Derrota al Guardián de esta región para liberar el paso hacia ${this.worldLabel}.`;
         }
+        if (
+          currentWorld &&
+          typeof context.progressionManager.hasUnlockedWorldCore === 'function' &&
+          !context.progressionManager.hasUnlockedWorldCore(currentWorld)
+        ) {
+          if (context.audioManager) context.audioManager.playHitImpact('resisted');
+          return 'El portal rechaza tu paso: aún debes despertar el Núcleo Elemental de este mundo antes de avanzar.';
+        }
       }
       if (stateManager) {
+        if (this.isVictoryPortal) {
+          const victoryHook = stateManager.get('victory_epilogue_hook');
+          if (typeof victoryHook === 'function') {
+            victoryHook({
+              portalColor: this.portalColor,
+              portalX: this.pos.x + this.width * 0.5,
+              portalY: this.pos.y + this.height * 0.5
+            });
+            return null;
+          }
+        }
         const loadWorldHook = stateManager.get('load_world_hook');
         if (this.targetWorld && typeof loadWorldHook === 'function') {
-          loadWorldHook(this.targetWorld, { spawnId: this.targetSpawnId });
+          loadWorldHook(this.targetWorld, {
+            spawnId: this.targetSpawnId,
+            animated: true,
+            portalColor: this.portalColor,
+            worldLabel: this.worldLabel,
+            portalX: this.pos.x + this.width * 0.5,
+            portalY: this.pos.y + this.height * 0.5
+          });
           return null;
         }
         const openHook = stateManager.get('open_sanctuary_hook');

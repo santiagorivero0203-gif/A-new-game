@@ -145,6 +145,13 @@ export class Player extends Entity {
     /** @type {number} Temporizador de animación especial al despertar un Núcleo Elemental */
     this.awakeningTimer = 0;
     this.awakeningColor = '#fb923c';
+    /** @type {'out'|'in'|null} Estado de transición visual de teletransporte por portal */
+    this.teleportState = null;
+    /** @type {number} Progreso normalizado [0..1] de la animación de teletransporte */
+    this.teleportProgress = 0;
+    /** @type {string} Color cromático del haz de teletransporte */
+    this.teleportColor = '#38bdf8';
+    this._lastSyncProne = false;
     this.sprite = null;
   }
 
@@ -1102,8 +1109,14 @@ export class Player extends Entity {
 
     let moveX = 0;
     let moveY = 0;
+    const controlsLocked = Boolean(this.teleportState || (camera && camera.cinematicTarget));
 
-    if (input) {
+    if (controlsLocked && (this.fsmState === 'STATE_MOVE' || this.isSprinting)) {
+      this.fsmState = 'STATE_IDLE';
+      this.isSprinting = false;
+    }
+
+    if (input && !controlsLocked) {
       // 1. Vector de Movimiento (Teclado Zero-Closures + Joystick Táctil)
       const isUp = typeof input.isActionPressed === 'function' ? input.isActionPressed('UP') : KEYBINDINGS.UP.some(k => input.isKeyPressed(k));
       const isDown = typeof input.isActionPressed === 'function' ? input.isActionPressed('DOWN') : KEYBINDINGS.DOWN.some(k => input.isKeyPressed(k));
@@ -1184,6 +1197,7 @@ export class Player extends Entity {
         if (this.stamina <= 0) {
           this.staminaExhausted = true;
           this.isSprinting = false;
+          if (typeof input.resetTouchSprint === 'function') input.resetTouchSprint();
         }
       } else {
         this.isSprinting = false;
@@ -1587,6 +1601,10 @@ export class Player extends Entity {
         this._lastSyncSprint = this.isSprinting;
         st.set('player_is_sprinting', this.isSprinting);
       }
+      if (this._lastSyncProne !== this.isProne) {
+        this._lastSyncProne = this.isProne;
+        st.set('player_is_prone', this.isProne);
+      }
     }
 
     if (physics) {
@@ -1613,6 +1631,33 @@ export class Player extends Entity {
         ctx.fillRect(Math.round(g.x + 8), Math.round(g.y + 8), 16, 20);
       }
       ctx.restore();
+    }
+
+    // Transición visual de teletransporte por portal (haz vertical y desvanecimiento)
+    if (this.teleportState) {
+      const p = Math.max(0, Math.min(1, this.teleportProgress));
+      const bodyAlpha = this.teleportState === 'out' ? Math.max(0, 1 - p * 1.15) : Math.min(1, p * 1.2);
+      const liftY = this.teleportState === 'out' ? Math.round(-p * 18) : Math.round((1 - p) * -14);
+      const beamAlpha = Math.sin(p * Math.PI) * 0.72;
+      const cx = Math.round(this.pos.x + this.width * 0.5);
+      const cy = Math.round(this.pos.y + this.height);
+
+      ctx.save();
+      ctx.globalAlpha = bodyAlpha;
+      ctx.translate(0, liftY);
+      this._drawCharacterBody(ctx);
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.max(0, beamAlpha);
+      ctx.fillStyle = this.teleportColor || '#38bdf8';
+      const beamW = Math.max(6, Math.round(24 * (1 - p * 0.45)));
+      ctx.fillRect(cx - Math.floor(beamW * 0.5), cy - 120, beamW, 126);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx - 2, cy - 110, 4, 114);
+      ctx.restore();
+      return;
     }
 
     // Parpadeo sutil determinista durante fotogramas de invulnerabilidad post-daño (sin performance.now())

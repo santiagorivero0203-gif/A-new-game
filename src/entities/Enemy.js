@@ -500,16 +500,22 @@ export class Enemy extends Entity {
       }
     }
 
-    // Conquista de Sello Regional (desbloquea el siguiente mundo)
+    // Conquista de Sello Regional (desbloquea el siguiente mundo o el Altar de la Unificación final)
     if (this.worldSeal && context && context.progressionManager) {
       const worldId = context.state ? context.state.get('current_world') : null;
       if (worldId) {
         const newlyCompleted = context.progressionManager.completeWorld(worldId, context.state);
         if (newlyCompleted && context.state) {
+          const isFinalWorld = worldId === 'astral_citadel';
           context.state.set('horde_victory_announcement', {
-            title: 'SELLO REGIONAL LIBERADO',
-            rewardText: `${this.name} derrotado • El portal al siguiente mundo resplandece.`
+            title: isFinalWorld ? '¡ARCONTE DEL ECLIPSE DERROTADO!' : 'SELLO REGIONAL LIBERADO',
+            rewardText: isFinalWorld
+              ? 'El Altar de la Unificación del Cenit resplandece. Cruza el umbral final para culminar tu leyenda.'
+              : `${this.name} derrotado • El portal al siguiente mundo resplandece.`
           });
+          if (isFinalWorld) {
+            context.state.set('level_objective', 'Cruza el Altar de la Unificación en el extremo este para completar la Reliquia');
+          }
         }
       }
     }

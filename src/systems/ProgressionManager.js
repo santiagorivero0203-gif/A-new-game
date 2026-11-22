@@ -53,6 +53,9 @@ export class ProgressionManager {
     /** @type {Set<string>} Enlaces lógicos resueltos en formato `${worldId}:${linkId}` */
     this.resolvedLinks = new Set();
 
+    /** @type {Set<string>} Mundos cuya secuencia de revelación inicial de poder ya se mostró */
+    this.seenWorldReveals = new Set();
+
     /** @type {number|null} Handle de guardado diferido */
     this._saveTimer = null;
 
@@ -207,6 +210,37 @@ export class ProgressionManager {
       this.syncState(stateManager);
       this._scheduleSave();
     }
+  }
+
+  /**
+   * Consulta si ya se mostró la guía inicial de ubicación del Núcleo Elemental para `worldId`.
+   * @param {string} worldId
+   * @returns {boolean}
+   */
+  hasSeenWorldReveal(worldId) {
+    return Boolean(worldId && this.seenWorldReveals.has(worldId));
+  }
+
+  /**
+   * Marca como vista la guía inicial de ubicación del Núcleo Elemental en `worldId`.
+   * @param {string} worldId
+   */
+  markWorldRevealSeen(worldId) {
+    if (!worldId || this.seenWorldReveals.has(worldId)) return;
+    this.seenWorldReveals.add(worldId);
+    this._scheduleSave();
+  }
+
+  /**
+   * Consulta si el Núcleo Elemental propio de `worldId` ya fue despertado.
+   * @param {string} worldId
+   * @returns {boolean}
+   */
+  hasUnlockedWorldCore(worldId) {
+    const cfg = CAMPAIGN_WORLD_ORDER[worldId];
+    if (!cfg || !cfg.coreElement) return true;
+    const norm = this.normalizeElement(cfg.coreElement);
+    return this.unlockedElements.has(norm);
   }
 
   /**
@@ -372,7 +406,8 @@ export class ProgressionManager {
         visitedWorlds: Array.from(this.visitedWorlds),
         karmaLevel: this.karmaLevel,
         karmaEvents: Array.from(this.karmaEvents),
-        resolvedLinks: Array.from(this.resolvedLinks)
+        resolvedLinks: Array.from(this.resolvedLinks),
+        seenWorldReveals: Array.from(this.seenWorldReveals)
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -411,6 +446,9 @@ export class ProgressionManager {
         if (Array.isArray(parsed.resolvedLinks)) {
           this.resolvedLinks = new Set(parsed.resolvedLinks);
         }
+        if (Array.isArray(parsed.seenWorldReveals)) {
+          this.seenWorldReveals = new Set(parsed.seenWorldReveals);
+        }
       }
     } catch (e) {
       console.warn('[ProgressionManager] Error cargando campaña:', e);
@@ -428,6 +466,7 @@ export class ProgressionManager {
     this.karmaLevel = 0;
     this.karmaEvents.clear();
     this.resolvedLinks.clear();
+    this.seenWorldReveals.clear();
     this.saveProgress();
     this.syncState(this.state);
   }

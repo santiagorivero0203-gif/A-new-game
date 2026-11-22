@@ -337,7 +337,9 @@
         <div id="virtual-gamepad" class="virtual-gamepad hidden">
           <div id="touch-joystick-zone" class="touch-joystick-zone">
             <div id="touch-joystick-base" class="touch-joystick-base">
-              <div id="touch-joystick-thumb" class="touch-joystick-thumb"></div>
+              <div id="touch-joystick-thumb" class="touch-joystick-thumb" title="Toca el centro para agacharte / sigilo">
+                <span class="joystick-crouch-dot" aria-hidden="true"></span>
+              </div>
             </div>
           </div>
 
@@ -365,22 +367,6 @@
                 <path d="M12 4v16M4 12h16" />
               </svg>
               <span class="touch-sub-label">CURAR</span>
-            </button>
-
-            <!-- Carrera / Sprint Táctico ([F]) -->
-            <button id="touch-btn-sprint" class="touch-mini-btn sprint-btn" aria-label="Correr" title="Sprint con Resistencia [F]">
-              <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
-                <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
-              </svg>
-              <span class="touch-sub-label">CORRER</span>
-            </button>
-
-            <!-- Postura Baja / Slide / Sigilo ([C]) -->
-            <button id="touch-btn-stealth" class="touch-mini-btn stealth-btn" aria-label="Agachar o Deslizar" title="Agachar / Deslizar / Plancha [C]">
-              <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
-                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-              </svg>
-              <span class="touch-sub-label">BAJAR</span>
             </button>
 
             <!-- Habilidad Fuerte -->
@@ -420,12 +406,12 @@
               <span class="btn-subtext">GUARDIA</span>
             </button>
 
-            <!-- Dash -->
-            <button id="touch-btn-dash" class="touch-action-btn dash-btn" aria-label="Dash">
+            <!-- Dash (1 toque) / Correr (doble toque) -->
+            <button id="touch-btn-dash" class="touch-action-btn dash-btn" aria-label="Dash o Doble Toque Correr" title="Dash (1 toque) · Correr (doble toque)">
               <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
-              <span class="btn-subtext">DASH</span>
+              <span id="touch-dash-label" class="btn-subtext">DASH</span>
             </button>
 
             <!-- Ataque Principal con Espada -->
@@ -712,8 +698,12 @@
                     <span class="st-ctrl-desc">Combo rítmico de 3 tajos (360° hacia el cursor o movimiento)</span>
                   </div>
                   <div class="st-control-row">
-                    <span class="st-ctrl-keys"><kbd>Espacio</kbd></span>
-                    <span class="st-ctrl-desc">Esquiva con I-Frames (+ Ataque = Estocada Relámpago)</span>
+                    <span class="st-ctrl-keys"><kbd>Espacio</kbd> / <kbd>Dash x2</kbd></span>
+                    <span class="st-ctrl-desc">Esquiva con I-Frames (en móvil: doble toque en DASH para Correr)</span>
+                  </div>
+                  <div class="st-control-row">
+                    <span class="st-ctrl-keys"><kbd>C</kbd> / <kbd>Stick Centro</kbd></span>
+                    <span class="st-ctrl-desc">Agacharse, sigilo en hierba alta y deslizamiento táctico</span>
                   </div>
                   <div class="st-control-row">
                     <span class="st-ctrl-keys"><kbd>Shift</kbd></span>
@@ -830,6 +820,45 @@
               <span id="cinematic-prompt-text">Toca o pulsa [Espacio] para continuar</span>
               <span class="cinematic-prompt-diamond" aria-hidden="true"></span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =========================================================================
+           CAPA 5: TRANSICIÓN ANIMADA DE TELETRANSPORTE ENTRE MUNDOS (Z-65)
+           ========================================================================= -->
+      <div id="world-teleport-overlay" class="world-teleport-overlay hidden" aria-hidden="true">
+        <div class="teleport-vortex-ring outer"></div>
+        <div class="teleport-vortex-ring inner"></div>
+        <div class="teleport-emblem-card">
+          <span class="teleport-eyebrow">SINTONIZANDO PORTAL DEL ATLAS</span>
+          <h2 id="teleport-dest-title" class="teleport-dest-title">PANTANO DE ESPORAS</h2>
+        </div>
+      </div>
+
+      <!-- =========================================================================
+           CAPA 6: EPÍLOGO FINAL DE LA RELIQUIA UNIFICADA (Victoria Mundo 4, Z-75)
+           ========================================================================= -->
+      <div id="victory-epilogue-overlay" class="victory-epilogue-overlay hidden" role="dialog" aria-modal="true" aria-label="Legado de la Reliquia Completado">
+        <div class="victory-epilogue-card">
+          <div class="victory-crest-badge">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <polygon points="12,2 15.1,8.9 22,12 15.1,15.1 12,22 8.9,15.1 2,12 8.9,8.9" />
+            </svg>
+          </div>
+          <span id="victory-eyebrow" class="victory-eyebrow">CRÓNICA CULMINADA · RELIQUIA UNIFICADA</span>
+          <h2 id="victory-title" class="victory-title">EL ASCENSO DEL NUEVO AMANECER</h2>
+          <p id="victory-desc" class="victory-desc">
+            Los cuatro núcleos elementales resuenan en armonía dentro del Guantelete Ancestral. Has forjado tu leyenda.
+          </p>
+          <div id="victory-stats-row" class="victory-stats-row">
+            <div class="victory-stat-pill"><span>NÚCLEOS</span><strong id="victory-cores-val">4 / 4</strong></div>
+            <div class="victory-stat-pill"><span>MUNDOS</span><strong id="victory-worlds-val">4 / 4</strong></div>
+            <div class="victory-stat-pill"><span>ESENCIA</span><strong id="victory-essence-val">0</strong></div>
+          </div>
+          <div class="victory-actions-row">
+            <button type="button" id="btn-victory-continue" class="cel-action-btn primary">VOLVER AL CLARO Y SEGUIR EXPLORANDO</button>
+            <button type="button" id="btn-victory-menu" class="cel-action-btn secondary">MENÚ PRINCIPAL</button>
           </div>
         </div>
       </div>

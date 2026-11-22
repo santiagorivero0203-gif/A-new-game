@@ -57,11 +57,12 @@
       "loreText": "El antiguo guardián custodia el umbral: «Quien empuñe la Reliquia deberá restaurar los cuatro Sellos.»",
       "essenceReward": 18
     },
-    { "id": "m1_barricade_l", "propType": "cliff_rock", "x": 382, "y": 336 },
+    { "id": "m1_barricade_l", "propType": "cliff_rock", "x": 392, "y": 336 },
     { "id": "m1_cracked_rock_1", "propType": "cracked_rock", "x": 448, "y": 336, "label": "Roca Mineral Agrietada" },
-    { "id": "m1_barricade_r", "propType": "cliff_rock", "x": 514, "y": 336 },
-    { "id": "m1_cliff_guard_l", "propType": "cliff_rock", "x": 368, "y": 692 },
-    { "id": "m1_cracked_rock_2", "propType": "cracked_rock", "x": 424, "y": 700 },
+    { "id": "m1_barricade_r", "propType": "cliff_rock", "x": 504, "y": 336 },
+    { "id": "m1_cliff_guard_l", "propType": "cliff_rock", "x": 372, "y": 692 },
+    { "id": "m1_cracked_rock_2", "propType": "cracked_rock", "x": 428, "y": 700 },
+    { "id": "m1_cliff_guard_r", "propType": "cliff_rock", "x": 486, "y": 692 },
     { "id": "m1_pedestal_crystal_l", "propType": "crystal_rock", "x": 352, "y": 852 },
     {
       "id": "m1_relic_fuego",
@@ -81,7 +82,7 @@
       "loreTitle": "Obelisco del Despertar",
       "loreText": "El fuego interior no solo calcina madera: purifica las corruptas zarzas de la Reliquia.",
       "x": 556,
-      "y": 748
+      "y": 776
     },
     {
       "id": "m1_bridge_brazier",
@@ -91,7 +92,7 @@
       "x": 644,
       "y": 512
     },
-    { "id": "m1_bridge_vines", "propType": "burnable_vines", "x": 704, "y": 544 },
+    { "id": "m1_bridge_vines", "propType": "burnable_vines", "x": 704, "y": 540 },
     { "id": "m1_bridge_cap_n", "propType": "cliff_rock", "x": 776, "y": 524 },
     {
       "id": "m1_bridge_gate",

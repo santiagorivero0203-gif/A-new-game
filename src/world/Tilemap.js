@@ -319,8 +319,12 @@ export class Tilemap {
         if (y <= 3 && x <= 21) {
           this.grid[y][x] = 2;
         }
-        // Contrafuertes de acantilado flanqueando el acceso a la ruina SO y reborde sur lejano
-        if (y >= 22 && y <= 23 && ((x >= 8 && x <= 11) || (x >= 17 && x <= 20))) {
+        // Muralla natural del umbral de la cueva: obliga a romper la Roca Agrietada del paso (x=13..15)
+        if (y >= 10 && y <= 11 && ((x >= 0 && x <= 12) || (x >= 16 && x <= 22))) {
+          this.grid[y][x] = 2;
+        }
+        // Contrafuertes de acantilado flanqueando el acceso a la ruina SO (x=12..16) y reborde sur lejano
+        if (y >= 22 && y <= 23 && ((x >= 0 && x <= 11) || (x >= 17 && x <= 23))) {
           this.grid[y][x] = 2;
         }
         if (y >= 34 && x <= 20) {
@@ -439,10 +443,10 @@ export class Tilemap {
           this.grid[y][x] = 3;
         }
 
-        // 3. Calzadas de obsidiana y ceniza compactada (tile = 1)
+        // 3. Calzadas de obsidiana y ceniza compactada (tile = 1), respetando la grieta oeste de magma (x=14..15)
         if (x >= 6 && x <= 13 && y >= 9 && y <= 21) this.grid[y][x] = 1;
         if (y >= 9 && y <= 11 && x >= 11 && x <= 46) this.grid[y][x] = 1;
-        if (y >= 18 && y <= 21 && x >= 5 && x <= 33) this.grid[y][x] = 1;
+        if (y >= 18 && y <= 21 && x >= 5 && x <= 33 && (x < 14 || x > 15)) this.grid[y][x] = 1;
         if (x >= 24 && x <= 26 && y >= 13 && y <= 32) this.grid[y][x] = 1;
         if (y >= 29 && y <= 31 && x >= 7 && x <= 31) this.grid[y][x] = 1;
         if (y >= 19 && y <= 20 && x >= 33 && x <= 48) this.grid[y][x] = 1;

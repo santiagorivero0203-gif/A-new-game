@@ -97,6 +97,21 @@ export class InputManager {
     /** @type {boolean} Si el comando de sigilo/agacharse al suelo está activo */
     this.isStealthPressed = false;
 
+    /** @type {boolean} Estado de sprint activado por doble toque en el botón Dash móvil */
+    this.isTouchSprintActive = false;
+
+    /** @private Marca de tiempo del último toque en el botón Dash para detectar doble toque */
+    this._lastDashTapMs = -Infinity;
+
+    /** @private Indica si el usuario mantiene pulsado físicamente el botón táctil Dash/Correr */
+    this._isTouchDashHeld = false;
+
+    /** @private Acumulador de inactividad del joystick para desactivar sprint táctil al detenerse */
+    this._joyIdleTimer = null;
+
+    /** @private Marca de tiempo del último cambio de poder para impedir doble disparo touch+click */
+    this._lastSwitchTriggerMs = -Infinity;
+
     /** @type {string} Poder elemental actualmente equipado ('Fuego', 'Embestida', 'Raíces') */
     this.currentPower = 'Fuego';
 
@@ -141,6 +156,7 @@ export class InputManager {
 
     // Callbacks
     this._onSkillEquippedCallback = null;
+    this._onSinglePowerHintCallback = null;
     this._onPauseCallback = null;
     this._onTalentsCallback = null;
     /** @type {((powerName: string) => boolean)|null} Filtro opcional para ciclar solo poderes desbloqueados */
@@ -185,6 +201,14 @@ export class InputManager {
   }
 
   /**
+   * Registra un callback a ejecutar cuando el usuario pulsa cambiar poder pero solo tiene 1 elemento.
+   * @param {Function} cb - Recibe el nombre visible del único poder desbloqueado
+   */
+  onSinglePowerHint(cb) {
+    this._onSinglePowerHintCallback = cb;
+  }
+
+  /**
    * Registra un callback a ejecutar al pulsar el botón de pausa.
    * @param {Function} cb
    */
@@ -209,14 +233,31 @@ export class InputManager {
   }
 
   /**
+   * Normaliza alias elementales al nombre visible usado en la rueda radial y ciclo rápido.
+   * @private
+   * @param {string} powerName
+   * @returns {string}
+   */
+  _normalizeDisplayPower(powerName) {
+    if (!powerName) return '';
+    const key = String(powerName).trim().toLowerCase();
+    if (key === 'fuego' || key === 'fire') return 'Fuego';
+    if (key === 'plantas' || key === 'raices' || key === 'raíces' || key === 'tierra' || key === 'earth') return 'Raíces';
+    if (key === 'embestida' || key === 'kinetic' || key === 'cinetico' || key === 'cinético') return 'Embestida';
+    if (key === 'eter' || key === 'éter' || key === 'astral' || key === 'ether') return 'Éter';
+    return powerName;
+  }
+
+  /**
    * Establece directamente el poder elemental activo y dispara el callback.
    * @param {string} powerName - 'Fuego' | 'Embestida' | 'Raíces' | 'Éter'
    */
   setPower(powerName) {
     if (!powerName || powerName === 'Sellado') return;
-    this.currentPower = powerName;
+    const displayPower = this._normalizeDisplayPower(powerName);
+    this.currentPower = displayPower;
     if (this._onSkillEquippedCallback) {
-      this._onSkillEquippedCallback(powerName);
+      this._onSkillEquippedCallback(displayPower);
     }
   }
 
@@ -231,13 +272,45 @@ export class InputManager {
     const filtered = this._canSelectPowerFn
       ? allPowers.filter((p) => this._canSelectPowerFn(p))
       : allPowers;
+
+    if (this._canSelectPowerFn && filtered.length === 0) {
+      if (this._onSkillEquippedCallback) {
+        this._onSkillEquippedCallback(allPowers[0]);
+      }
+      return this.currentPower;
+    }
+
+    if (filtered.length === 1) {
+      const onlyPower = filtered[0];
+      this.setPower(onlyPower);
+      if (this._onSinglePowerHintCallback) {
+        this._onSinglePowerHintCallback(onlyPower);
+      }
+      return onlyPower;
+    }
+
     const pool = filtered.length > 0 ? filtered : allPowers;
-    let idx = pool.indexOf(this.currentPower || pool[0]);
+    const normalizedCurrent = this._normalizeDisplayPower(this.currentPower || pool[0]);
+    let idx = pool.indexOf(normalizedCurrent);
     if (idx === -1) idx = 0;
     idx = (idx + direction + pool.length) % pool.length;
     const nextPower = pool[idx];
     this.setPower(nextPower);
     return nextPower;
+  }
+
+  /**
+   * Desactiva el modo sprint táctil por doble toque de forma segura.
+   */
+  resetTouchSprint() {
+    this.isTouchSprintActive = false;
+    if (!this.isActionPressed('SPRINT')) {
+      this.isSprintPressed = false;
+    }
+    if (this._joyIdleTimer) {
+      clearTimeout(this._joyIdleTimer);
+      this._joyIdleTimer = null;
+    }
   }
 
   /**
@@ -572,8 +645,73 @@ export class InputManager {
     // 3.3 Botón de Habilidad Elemental Fuerte / Cargada
     bindBtn('touch-btn-skill-strong', () => { this.isStrongAttackPressed = true; }, () => { this.isStrongAttackPressed = false; }, 'strong');
 
-    // 3.4 Botón de Esquiva / Dash con Iframes
-    bindBtn('touch-btn-dash', () => { this.isDashPressed = true; }, () => { this.isDashPressed = false; }, 'dash');
+    // 3.4 Botón Híbrido Dash (1 toque) / Correr-Sprint (doble toque)
+    const btnDash = document.getElementById('touch-btn-dash');
+    if (btnDash) {
+      let lastTouchEventMs = -Infinity;
+      const startDashOrSprint = (e, isTouch) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const now = performance.now();
+        if (!isTouch && now - lastTouchEventMs < 450) return;
+        if (isTouch) lastTouchEventMs = now;
+
+        this.isTouchDevice = true;
+        this.lastActionSource = 'touch';
+        this._isTouchDashHeld = true;
+        btnDash.classList.add('touch-pressed');
+
+        if (this._joyIdleTimer) {
+          clearTimeout(this._joyIdleTimer);
+          this._joyIdleTimer = null;
+        }
+
+        if (now - this._lastDashTapMs <= 340) {
+          // Doble toque: activa Correr / Sprint sostenido mientras el stick esté activo
+          this._lastDashTapMs = -Infinity;
+          this.isTouchSprintActive = true;
+          this.isSprintPressed = true;
+          btnDash.classList.add('sprint-active');
+        } else {
+          this._lastDashTapMs = now;
+          if (this.isTouchSprintActive) {
+            this.resetTouchSprint();
+            btnDash.classList.remove('sprint-active');
+          }
+          this.triggerAction('dash', 200);
+        }
+      };
+
+      const stopDashOrSprint = (e, isTouch) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        if (!isTouch && performance.now() - lastTouchEventMs < 450) return;
+        this._isTouchDashHeld = false;
+        btnDash.classList.remove('touch-pressed');
+
+        // Si se activó Sprint por doble toque y el joystick está quieto, dar ventana de 450ms para empezar a moverse
+        if (this.isTouchSprintActive && this.joystickVector.lengthSquared() <= 0.02) {
+          clearTimeout(this._joyIdleTimer);
+          this._joyIdleTimer = setTimeout(() => {
+            if (!this._isTouchDashHeld && this.joystickVector.lengthSquared() <= 0.02) {
+              this.resetTouchSprint();
+              btnDash.classList.remove('sprint-active');
+            }
+          }, 450);
+        }
+      };
+
+      btnDash.addEventListener('touchstart', (e) => startDashOrSprint(e, true), { passive: false });
+      btnDash.addEventListener('touchend', (e) => stopDashOrSprint(e, true), { passive: false });
+      btnDash.addEventListener('touchcancel', (e) => stopDashOrSprint(e, true), { passive: false });
+      btnDash.addEventListener('mousedown', (e) => startDashOrSprint(e, false));
+      btnDash.addEventListener('mouseup', (e) => stopDashOrSprint(e, false));
+      btnDash.addEventListener('mouseleave', () => {
+        if (this._isTouchDashHeld) stopDashOrSprint(null, false);
+      });
+    }
 
     // 3.5 Botón de Guardia y Defensa con Escudo / Parry
     bindBtn('touch-btn-defend', () => { this.isDefendPressed = true; }, () => { 
@@ -583,37 +721,39 @@ export class InputManager {
     // 3.6 Botón de Curación Milenaria del Guante
     bindBtn('touch-btn-heal', () => { this.isHealPressed = true; }, () => { this.isHealPressed = false; }, 'heal');
 
-    // 3.7 Botón de Sprint / Carrera con Resistencia (acción continua mientras se mantiene pulsado)
-    bindBtn('touch-btn-sprint', () => { this.isSprintPressed = true; }, () => { this.isSprintPressed = false; });
-
-    // 3.8 Botón de Agacharse / Slide / Sigilo ([C]) activo siempre en móvil
-    bindBtn('touch-btn-stealth', () => {
-      this.isStealthPressed = true;
-    }, () => {
-      this.isStealthPressed = false;
-    }, 'stealth');
-
-    // 3.9 Selector Rápido de Elemento (Cicla entre Fuego, Embestida y Raíces)
+    // 3.7 Selector Rápido de Elemento (Cicla entre poderes desbloqueados con debounce estricto touch/click)
     const btnSwitch = document.getElementById('touch-btn-switch');
     if (btnSwitch) {
-      const handleSwitch = (e) => {
+      let lastTouchSwitchMs = -Infinity;
+      const triggerSwitch = (e, isTouch) => {
         e.preventDefault();
         e.stopPropagation();
+        const now = performance.now();
+        if (!isTouch && now - lastTouchSwitchMs < 450) return;
+        if (now - this._lastSwitchTriggerMs < 220) return;
+        if (isTouch) lastTouchSwitchMs = now;
+        this._lastSwitchTriggerMs = now;
+
         this.isTouchDevice = true;
+        this.lastActionSource = 'touch';
+        btnSwitch.classList.add('touch-pressed');
+        setTimeout(() => btnSwitch.classList.remove('touch-pressed'), 120);
         this.cyclePower(1);
       };
-      btnSwitch.addEventListener('touchstart', handleSwitch, { passive: false });
-      btnSwitch.addEventListener('click', handleSwitch);
+      btnSwitch.addEventListener('touchstart', (e) => triggerSwitch(e, true), { passive: false });
+      btnSwitch.addEventListener('click', (e) => triggerSwitch(e, false));
     }
 
-    // 4. Joystick Táctil en DOM (caché de rectángulo y nodo para cero reflows durante touchmove)
+    // 4. Joystick Táctil en DOM (incluye toque en el centro del stick para agacharse / sigilo)
     const joyZone = document.getElementById('touch-joystick-zone');
     const joyBase = document.getElementById('touch-joystick-base');
     this._joyThumbEl = document.getElementById('touch-joystick-thumb');
     if (joyZone && joyBase) {
       let activeTouchId = null;
+      let joyStartMs = 0;
+      let joyStayedInCenter = false;
 
-      const handleJoy = (clientX, clientY) => {
+      const handleJoy = (clientX, clientY, isStart = false) => {
         const rect = this._joyRectCache || joyBase.getBoundingClientRect();
         if (!this._joyRectCache && rect.width > 0) this._joyRectCache = rect;
         const centerX = rect.left + rect.width * 0.5;
@@ -622,20 +762,39 @@ export class InputManager {
         const dy = clientY - centerY;
         const distSq = dx * dx + dy * dy;
         const maxDist = rect.width * 0.5;
+        const centerTapRadius = maxDist * 0.44;
 
-        if (distSq === 0 || maxDist <= 0) {
+        if (maxDist <= 0) {
           this.joystickVector.set(0, 0);
           if (this._joyThumbEl) this._joyThumbEl.style.transform = 'translate(0px, 0px)';
           return;
         }
 
         const dist = Math.sqrt(distSq);
+        if (isStart) {
+          joyStartMs = performance.now();
+          joyStayedInCenter = dist <= centerTapRadius;
+        } else if (dist > centerTapRadius) {
+          joyStayedInCenter = false;
+        }
+
+        // Pequeña zona muerta central para evitar micro-giros al tocar el centro para agacharse
+        if (dist <= maxDist * 0.22 && joyStayedInCenter) {
+          this.joystickVector.set(0, 0);
+          if (this._joyThumbEl) this._joyThumbEl.style.transform = 'translate(0px, 0px)';
+          return;
+        }
+
         const clamped = dist < maxDist ? dist : maxDist;
-        const normX = dx / dist;
-        const normY = dy / dist;
+        const normX = dist > 0 ? dx / dist : 0;
+        const normY = dist > 0 ? dy / dist : 0;
         this.joystickVector.set(normX * (clamped / maxDist), normY * (clamped / maxDist));
         if (this.joystickVector.lengthSquared() > 0.02) {
           this.lastMoveDir.set(normX, normY);
+          if (this._joyIdleTimer) {
+            clearTimeout(this._joyIdleTimer);
+            this._joyIdleTimer = null;
+          }
         }
 
         if (this._joyThumbEl) {
@@ -652,7 +811,7 @@ export class InputManager {
         this._joyRectCache = joyBase.getBoundingClientRect();
         const touch = e.touches ? e.touches[0] : e;
         activeTouchId = e.touches ? touch.identifier : 'mouse';
-        handleJoy(touch.clientX, touch.clientY);
+        handleJoy(touch.clientX, touch.clientY, true);
       };
 
       const moveJoy = (e) => {
@@ -670,7 +829,7 @@ export class InputManager {
         }
         if (touch) {
           e.preventDefault();
-          handleJoy(touch.clientX, touch.clientY);
+          handleJoy(touch.clientX, touch.clientY, false);
         }
       };
 
@@ -687,9 +846,27 @@ export class InputManager {
           if (!matched) return;
         }
         activeTouchId = null;
+
+        // Toque corto en el centro del stick => alternar agacharse / sigilo / slide
+        if (joyStayedInCenter && (performance.now() - joyStartMs) <= 340) {
+          this.triggerAction('stealth', 200);
+        }
+        joyStayedInCenter = false;
+
         this.joystickVector.set(0, 0);
         if (this._joyThumbEl) {
           this._joyThumbEl.style.transform = 'translate(0px, 0px)';
+        }
+
+        if (this.isTouchSprintActive && !this._isTouchDashHeld) {
+          clearTimeout(this._joyIdleTimer);
+          this._joyIdleTimer = setTimeout(() => {
+            if (!this._isTouchDashHeld && this.joystickVector.lengthSquared() <= 0.02) {
+              this.resetTouchSprint();
+              const dashBtnEl = document.getElementById('touch-btn-dash');
+              if (dashBtnEl) dashBtnEl.classList.remove('sprint-active');
+            }
+          }, 240);
         }
       };
 

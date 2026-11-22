@@ -33,5 +33,14 @@ export const SHIELDS = {
     elemental_weakness: null,
     unlockHint: 'Auxilia al Maestro Herrero en la Caldera de Ceniza (Mundo 3).',
     description: 'Escudo volcánico de obsidiana astral capaz de absorber golpes de titanes.'
+  },
+  astral_crest: {
+    id: 'astral_crest',
+    name: 'Blasón del Cenit Astral',
+    posture_drain_rate: 0.35,       // Mitiga 65% de drenaje de postura
+    can_reflect_projectiles: true,
+    elemental_weakness: null,
+    unlockHint: 'Rescata a Aurelia en la Ciudadela Astral (Mundo 4).',
+    description: 'Égida estelar forjada con cuarzo celeste que disipa impactos devastadores y refleja energía astral.'
   }
 };

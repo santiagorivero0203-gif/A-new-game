@@ -86,6 +86,17 @@ const stIngameActions = document.getElementById('st-ingame-actions');
 const stMenuSettingsActions = document.getElementById('st-menu-settings-actions');
 const hudMinimapWrap = document.getElementById('hud-minimap-wrap');
 const hudMinimapCanvas = document.getElementById('hud-minimap-canvas');
+const worldTeleportOverlay = document.getElementById('world-teleport-overlay');
+const teleportDestTitle = document.getElementById('teleport-dest-title');
+const victoryEpilogueOverlay = document.getElementById('victory-epilogue-overlay');
+const victoryEyebrow = document.getElementById('victory-eyebrow');
+const victoryTitle = document.getElementById('victory-title');
+const victoryDesc = document.getElementById('victory-desc');
+const victoryCoresVal = document.getElementById('victory-cores-val');
+const victoryWorldsVal = document.getElementById('victory-worlds-val');
+const victoryEssenceVal = document.getElementById('victory-essence-val');
+const btnVictoryContinue = document.getElementById('btn-victory-continue');
+const btnVictoryMenu = document.getElementById('btn-victory-menu');
 
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
@@ -403,6 +414,9 @@ function ensureWorldInitialized() {
     isPlaytest: false,
     startDormant: levelInfo.startDormant
   });
+  if (player.unlockedElements.size > 0 && player.currentAbility) {
+    inputManager.currentPower = progressionManager.toDisplayElement(player.currentAbility);
+  }
 
   minimapRenderer.setMapData(
     tilemap.grid,
@@ -502,6 +516,8 @@ async function loadWorld(worldKey, options = {}) {
     entityManager.clearExceptPlayer(player);
     CelSpriteAtlas.clear();
     introSequenceState.active = false;
+    worldPowerRevealState.active = false;
+    worldPowerRevealState.orb = null;
     vfxRenderer.setIntroOrbs([]);
     camera.cinematicTarget = null;
     if (prevWorldKey && prevWorldKey !== worldKey) {
@@ -538,6 +554,7 @@ async function loadWorld(worldKey, options = {}) {
     player.pos.set(targetSpawn.x, targetSpawn.y);
     player.velocity.set(0, 0);
 
+    const isFirstWorldVisit = !isPlaytestSession && !progressionManager.hasSeenWorldReveal(worldKey);
     if (!isPlaytestSession) {
       progressionManager.markWorldVisited(worldKey, stateManager);
     }
@@ -545,6 +562,10 @@ async function loadWorld(worldKey, options = {}) {
       isPlaytest: isPlaytestSession,
       startDormant: levelInfo.startDormant
     });
+    if (player.unlockedElements.size > 0 && player.currentAbility) {
+      inputManager.currentPower = progressionManager.toDisplayElement(player.currentAbility);
+    }
+    inputManager.resetTouchSprint();
 
     minimapRenderer.setMapData(
       tilemap.grid,
@@ -582,12 +603,151 @@ async function loadWorld(worldKey, options = {}) {
     camera.snapTo(_playerCenterCache);
     chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
     chunkManager.syncFlyweightSprites();
+
+    // Guía inicial de ubicación del Núcleo Elemental (solo la 1ra vez que se entra al mundo)
+    if (isFirstWorldVisit && worldKey !== 'cave_exit_intro' && !progressionManager.hasUnlockedWorldCore(worldKey)) {
+      const pedestalProp = Array.isArray(currentLevelData.props)
+        ? currentLevelData.props.find((p) => p && p.propType === 'relic_pedestal')
+        : null;
+      if (pedestalProp) {
+        progressionManager.markWorldRevealSeen(worldKey);
+        if (options && options.animated) {
+          teleportState.pendingReveal = { worldKey, pedestalProp, worldMeta };
+        } else {
+          startWorldPowerRevealSequence(worldKey, pedestalProp, worldMeta);
+        }
+      }
+    }
   } finally {
     _isTransitioningWorld = false;
   }
 }
 
-stateManager.set('load_world_hook', (targetWorld, opts = {}) => loadWorld(targetWorld, opts));
+/** Estado de la transición animada de teletransporte por portal */
+const teleportState = {
+  active: false,
+  phase: null, // 'out' | 'loading' | 'in'
+  timer: 0,
+  durationOut: 0.48,
+  durationIn: 0.48,
+  targetWorld: null,
+  options: null,
+  color: '#38bdf8',
+  pendingReveal: null
+};
+
+/**
+ * Ejecuta un viaje entre mundos con animación completa de salida, vórtice del Atlas y llegada.
+ * @param {string} targetWorld
+ * @param {Object} [opts={}]
+ */
+function startTeleportTransition(targetWorld, opts = {}) {
+  const custom = getCustomWorld(targetWorld);
+  const destMeta = WORLDS_CATALOG[targetWorld] || custom;
+  if (!destMeta || _isTransitioningWorld || teleportState.active) return;
+
+  if (!opts.animated || !worldInitialized || !player) {
+    void loadWorld(targetWorld, opts);
+    return;
+  }
+
+  const color = opts.portalColor || destMeta.accentColor || '#38bdf8';
+  teleportState.active = true;
+  teleportState.phase = 'out';
+  teleportState.timer = 0;
+  teleportState.targetWorld = targetWorld;
+  teleportState.options = opts;
+  teleportState.color = color;
+  teleportState.pendingReveal = null;
+
+  player.teleportState = 'out';
+  player.teleportProgress = 0;
+  player.teleportColor = color;
+  player.velocity.set(0, 0);
+  inputManager.resetTouchSprint();
+
+  const px = opts.portalX ?? (player.pos.x + player.width * 0.5);
+  const py = opts.portalY ?? (player.pos.y + player.height * 0.5);
+  if (typeof vfxRenderer.spawnCoreAwakening === 'function') {
+    vfxRenderer.spawnCoreAwakening(px, py, color);
+  }
+  if (audioManager) {
+    if (typeof audioManager.playCoreAwakening === 'function') audioManager.playCoreAwakening(destMeta.coreElement || 'Éter');
+    else if (typeof audioManager.playRunicResonance === 'function') audioManager.playRunicResonance();
+  }
+  camera.addTrauma(0.28);
+
+  if (worldTeleportOverlay) {
+    worldTeleportOverlay.style.setProperty('--teleport-accent', color);
+    if (teleportDestTitle) {
+      teleportDestTitle.textContent = (opts.worldLabel || destMeta.name || 'NUEVO BIOMA').toUpperCase();
+    }
+    worldTeleportOverlay.classList.remove('hidden');
+    requestAnimationFrame(() => {
+      if (worldTeleportOverlay) worldTeleportOverlay.classList.add('active');
+    });
+  }
+}
+
+/**
+ * Avanza por fotograma la animación de teletransporte entre mundos.
+ * @param {number} dt
+ */
+function updateTeleportTransition(dt) {
+  if (!teleportState.active || !player) return;
+
+  if (teleportState.phase === 'out') {
+    teleportState.timer += dt;
+    player.teleportProgress = Math.min(1, teleportState.timer / teleportState.durationOut);
+    if (teleportState.timer >= teleportState.durationOut) {
+      teleportState.phase = 'loading';
+      const target = teleportState.targetWorld;
+      const opts = teleportState.options || {};
+      void loadWorld(target, opts).then(() => {
+        if (!teleportState.active) return;
+        teleportState.phase = 'in';
+        teleportState.timer = 0;
+        player.teleportState = 'in';
+        player.teleportProgress = 0;
+        player.teleportColor = teleportState.color;
+        if (typeof vfxRenderer.spawnCoreAwakening === 'function') {
+          vfxRenderer.spawnCoreAwakening(
+            player.pos.x + player.width * 0.5,
+            player.pos.y + player.height * 0.5,
+            teleportState.color
+          );
+        }
+        if (worldTeleportOverlay) {
+          worldTeleportOverlay.classList.remove('active');
+        }
+      });
+    }
+    return;
+  }
+
+  if (teleportState.phase === 'in') {
+    teleportState.timer += dt;
+    player.teleportProgress = Math.min(1, teleportState.timer / teleportState.durationIn);
+    if (teleportState.timer >= teleportState.durationIn) {
+      teleportState.active = false;
+      teleportState.phase = null;
+      player.teleportState = null;
+      player.teleportProgress = 0;
+      if (worldTeleportOverlay) {
+        worldTeleportOverlay.classList.add('hidden');
+      }
+      if (teleportState.pendingReveal) {
+        const rev = teleportState.pendingReveal;
+        teleportState.pendingReveal = null;
+        startWorldPowerRevealSequence(rev.worldKey, rev.pedestalProp, rev.worldMeta);
+      }
+    }
+  }
+}
+
+stateManager.set('load_world_hook', (targetWorld, opts = {}) => {
+  startTeleportTransition(targetWorld, opts);
+});
 
 // 4. Redimensionado Full-Screen Responsivo Optimizado (Pixel-Art nativo y Compositor Único)
 function resizeCanvases() {
@@ -754,7 +914,9 @@ function update(deltaTime) {
   entityManager.update(gameContext);
   waveManager.update(gameContext);
   interactionSystem.update(deltaTime, gameContext);
+  updateTeleportTransition(deltaTime);
   updateCaveOrbIntroSequence(deltaTime);
+  updateWorldPowerRevealSequence(deltaTime);
   vfxRenderer.update(deltaTime, combatManager.activeAttacks);
   vfxRenderer.updateBiomeWeather(deltaTime, camera, currentWorldMeta.weather || 'pollen');
 
@@ -953,6 +1115,7 @@ const introSequenceState = {
  * enfocando el choque del Orbe de Fuego en el pedestal suroeste y el acecho de las bestias.
  */
 function startCaveOrbIntroSequence() {
+  progressionManager.markWorldRevealSeen('cave_exit_intro');
   introSequenceState.active = true;
   introSequenceState.elapsed = 0;
   introSequenceState.fireImpacted = false;
@@ -1055,6 +1218,204 @@ function updateCaveOrbIntroSequence(dt) {
   }
 }
 
+/** Estado de la guía cinemática de ubicación del Núcleo Elemental (1ra visita a Mundos 2, 3 y 4) */
+const worldPowerRevealState = {
+  active: false,
+  elapsed: 0,
+  impacted: false,
+  sx: 0,
+  sy: 0,
+  tx: 0,
+  ty: 0,
+  color: '#2dd4bf',
+  coreName: 'Raíces',
+  dialogueText: '',
+  orb: null
+};
+
+const WORLD_REVEAL_HINTS = {
+  marsh_of_spores: '¡El Núcleo de Raíces descansa en la Isla Druídica del Norte! Quema las zarzas del puente oeste con Fuego y encuéntralo.',
+  ash_caldera: '¡El Núcleo Cinético (Embestida) aguarda en el Yunque del Noreste! Toma el desvío del puente norte entre los géiseres.',
+  astral_citadel: '¡El Núcleo de Éter Magnético brilla en el Observatorio Norte! Quema las zarzas del puente norte en el Vestíbulo.'
+};
+
+/**
+ * Inicia la guía in-engine (solo en la primera entrada al mundo) lanzando un orbe guía
+ * hacia el Pedestal del Núcleo Elemental y enfocando brevemente la cámara en su ubicación.
+ * @param {string} worldKey
+ * @param {Object} pedestalProp
+ * @param {Object} worldMeta
+ */
+function startWorldPowerRevealSequence(worldKey, pedestalProp, worldMeta) {
+  if (!player || !pedestalProp) return;
+  const sx = player.pos.x + player.width * 0.5;
+  const sy = player.pos.y + player.height * 0.5;
+  const tx = (pedestalProp.x || 0) + 28;
+  const ty = (pedestalProp.y || 0) + 34;
+  const color = worldMeta?.accentColor || '#38bdf8';
+
+  worldPowerRevealState.active = true;
+  worldPowerRevealState.elapsed = 0;
+  worldPowerRevealState.impacted = false;
+  worldPowerRevealState.sx = sx;
+  worldPowerRevealState.sy = sy;
+  worldPowerRevealState.tx = tx;
+  worldPowerRevealState.ty = ty;
+  worldPowerRevealState.color = color;
+  worldPowerRevealState.coreName = worldMeta?.coreElement || 'Elemental';
+  worldPowerRevealState.dialogueText = WORLD_REVEAL_HINTS[worldKey]
+    || `El Núcleo de ${worldPowerRevealState.coreName} resuena en esta región. ¡Encuéntralo para liberar el sello!`;
+
+  worldPowerRevealState.orb = {
+    id: worldKey,
+    color,
+    radius: 9,
+    sx,
+    sy,
+    tx,
+    ty,
+    arc: 56,
+    x: sx,
+    y: sy,
+    trail: []
+  };
+
+  vfxRenderer.setIntroOrbs([worldPowerRevealState.orb]);
+  camera.cinematicTarget = { x: sx, y: sy };
+  if (audioManager && typeof audioManager.playRunicResonance === 'function') {
+    audioManager.playRunicResonance();
+  }
+}
+
+/**
+ * Actualiza por fotograma la guía de ubicación del Núcleo Elemental (0s -> 3.05s).
+ * @param {number} dt
+ */
+function updateWorldPowerRevealSequence(dt) {
+  if (!worldPowerRevealState.active) return;
+  worldPowerRevealState.elapsed += dt;
+  const t = worldPowerRevealState.elapsed;
+  const orb = worldPowerRevealState.orb;
+
+  if (t < 1.1 && orb) {
+    const p = Math.min(1, t / 1.1);
+    const ease = 1 - Math.pow(1 - p, 2);
+    orb.trail.push({ x: orb.x, y: orb.y });
+    if (orb.trail.length > 7) orb.trail.shift();
+    orb.x = orb.sx + (orb.tx - orb.sx) * ease;
+    orb.y = orb.sy + (orb.ty - orb.sy) * ease - Math.sin(p * Math.PI) * orb.arc;
+    camera.cinematicTarget = { x: Math.round(orb.x), y: Math.round(orb.y) };
+    return;
+  }
+
+  if (!worldPowerRevealState.impacted) {
+    worldPowerRevealState.impacted = true;
+    vfxRenderer.setIntroOrbs([]);
+    chunkManager.update({ x: worldPowerRevealState.tx, y: worldPowerRevealState.ty }, 0, true);
+    if (typeof vfxRenderer.spawnCoreAwakening === 'function') {
+      vfxRenderer.spawnCoreAwakening(worldPowerRevealState.tx, worldPowerRevealState.ty, worldPowerRevealState.color);
+    } else {
+      vfxRenderer.spawnImpact('parry_spark', worldPowerRevealState.tx, worldPowerRevealState.ty, {
+        radius: 52,
+        duration: 0.55,
+        color: worldPowerRevealState.color
+      });
+    }
+    camera.addTrauma(0.32);
+    if (audioManager && typeof audioManager.playCoreAwakening === 'function') {
+      audioManager.playCoreAwakening(worldPowerRevealState.coreName);
+    }
+    stateManager.set('active_dialogue', {
+      speaker: 'ECO DE LA RELIQUIA',
+      text: worldPowerRevealState.dialogueText,
+      timer: 5.0
+    });
+  }
+
+  if (t < 2.3) {
+    camera.cinematicTarget = { x: worldPowerRevealState.tx, y: worldPowerRevealState.ty };
+    return;
+  }
+
+  if (t < 3.05 && player) {
+    camera.cinematicTarget = { x: Math.round(player.pos.x + player.width * 0.5), y: Math.round(player.pos.y + player.height * 0.5) };
+    return;
+  }
+
+  worldPowerRevealState.active = false;
+  worldPowerRevealState.orb = null;
+  camera.cinematicTarget = null;
+  vfxRenderer.setIntroOrbs([]);
+}
+
+/**
+ * Abre el Epílogo Final tras derrotar al Arconte del Eclipse y activar el Altar de la Unificación.
+ */
+function openVictoryEpilogue() {
+  if (!victoryEpilogueOverlay) return;
+  const karma = progressionManager.karmaLevel || 0;
+  const highKarma = karma >= 2;
+  const coresCount = progressionManager.getWorldTier();
+  const worldsCount = progressionManager.completedWorlds.size;
+  const essence = skillTreeManager.getEssence();
+
+  if (victoryEyebrow) {
+    victoryEyebrow.textContent = highKarma
+      ? 'FINAL LUMINOSO · RELIQUIA UNIFICADA EN ARMONÍA'
+      : 'FINAL DEL CENIT · RELIQUIA FORJADA EN VOLUNTAD';
+  }
+  if (victoryTitle) {
+    victoryTitle.textContent = highKarma
+      ? 'EL ASCENSO DEL NUEVO AMANECER'
+      : 'EL ECO DEL ACERO SOLITARIO';
+  }
+  if (victoryDesc) {
+    victoryDesc.textContent = highKarma
+      ? 'Valerio, Lira, Borin y Aurelia unen sus juramentos a los cuatro núcleos elementales. La Reliquia brilla sin sombra alguna y la paz regresa a las cuatro regiones.'
+      : 'Con los cuatro núcleos conquistados a fuerza de filo y determinación, el Eclipse cede ante tu voluntad. El Guantelete Ancestral ha completado su ciclo.';
+  }
+  if (victoryCoresVal) victoryCoresVal.textContent = `${coresCount} / 4`;
+  if (victoryWorldsVal) victoryWorldsVal.textContent = `${worldsCount} / 4`;
+  if (victoryEssenceVal) victoryEssenceVal.textContent = String(essence);
+
+  if (audioManager && typeof audioManager.playCoreAwakening === 'function') {
+    audioManager.playCoreAwakening('Éter');
+  }
+  engine.pause(false);
+  victoryEpilogueOverlay.classList.remove('hidden');
+}
+
+stateManager.set('victory_epilogue_hook', () => openVictoryEpilogue());
+
+if (btnVictoryContinue) {
+  addTouchClick(btnVictoryContinue, () => {
+    if (victoryEpilogueOverlay) victoryEpilogueOverlay.classList.add('hidden');
+    engine.resume();
+    startTeleportTransition('cave_exit_intro', {
+      spawnId: 'default',
+      animated: true,
+      portalColor: '#fde047',
+      worldLabel: 'Claro de la Reliquia'
+    });
+  });
+}
+
+if (btnVictoryMenu) {
+  addTouchClick(btnVictoryMenu, () => {
+    if (victoryEpilogueOverlay) victoryEpilogueOverlay.classList.add('hidden');
+    if (mainMenuEl) {
+      mainMenuEl.classList.add('menu-cover-active');
+      mainMenuEl.classList.remove('hidden');
+    }
+    stateManager.set('game_state', 'STATE_MENU');
+    uiManager.setGameState('STATE_MENU');
+    projectileSystem.clear();
+    if (tilemap) tilemap.clearChunks();
+    CelSpriteAtlas.clear();
+    engine.pause(false);
+  });
+}
+
 async function enterCaveExitGameplay() {
   try {
     await ensureInitialWorldData();
@@ -1086,7 +1447,7 @@ async function enterCaveExitGameplay() {
     hasShownCaveOpeningLine = true;
     camera.snapTo({ x: player.pos.x + player.width / 2, y: player.pos.y + player.height / 2 });
     chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
-    if (currentWorldKey === 'cave_exit_intro' && progressionManager.getWorldTier() === 0) {
+    if (currentWorldKey === 'cave_exit_intro' && progressionManager.getWorldTier() === 0 && !progressionManager.hasSeenWorldReveal('cave_exit_intro')) {
       startCaveOrbIntroSequence();
     } else {
       stateManager.set('active_dialogue', {
@@ -1337,9 +1698,14 @@ addTouchClick(btnResetCampaign, async () => {
   equipmentManager.reset();
   worldMemoryStore.clear();
   hasShownCaveOpeningLine = false;
+  worldPowerRevealState.active = false;
+  worldPowerRevealState.orb = null;
   closeSanctuary();
   if (worldInitialized) {
     await loadWorld('cave_exit_intro');
+    if (progressionManager.getWorldTier() === 0 && !progressionManager.hasSeenWorldReveal('cave_exit_intro')) {
+      startCaveOrbIntroSequence();
+    }
   }
   stateManager.set('active_dialogue', {
     speaker: 'RELIQUIA',
@@ -1487,6 +1853,15 @@ inputManager.onPause(() => {
 });
 
 inputManager.setPowerFilter((power) => Boolean(player && player.hasElement(power)));
+
+inputManager.onSinglePowerHint((onlyPower) => {
+  if (stateManager.get('game_state') !== 'STATE_PLAYING') return;
+  stateManager.set('active_dialogue', {
+    speaker: 'GUANTELETE',
+    text: `Solo has despertado ${onlyPower}. Explora los mundos siguientes para desbloquear otros poderes.`,
+    timer: 2.6
+  });
+});
 
 stateManager.subscribe('core_awakened', (ev) => {
   if (!ev || !player) return;

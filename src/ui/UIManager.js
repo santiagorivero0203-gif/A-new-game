@@ -113,6 +113,8 @@ export class UIManager {
     this.joystickThumb = document.getElementById('touch-joystick-thumb');
     this.touchSkillLabel = document.getElementById('touch-skill-label');
     this.touchSwitchLabel = document.getElementById('touch-switch-label');
+    this.touchDashBtn = document.getElementById('touch-btn-dash');
+    this.touchDashLabel = document.getElementById('touch-dash-label');
 
     // Etiqueta de compilación en Ajustes > Sistema (evita ReferenceError fuera de Vite)
     this.buildVersionEl = document.getElementById('st-build-version');
@@ -149,6 +151,9 @@ export class UIManager {
     this._lastJoyX = 0;
     this._lastJoyY = 0;
     this._lastSkillLabel = null;
+    this._lastTouchSprinting = null;
+    this._lastTouchProne = null;
+    this._lastTouchHidden = null;
     this._lastEssence = -1;
     this._lastComboCount = 0;
     this._lastComboRank = 'D';
@@ -650,10 +655,12 @@ export class UIManager {
 
   /**
    * Actualiza el Virtual Gamepad móvil y sincroniza la clase `touch-controls-active` para elevar diálogos.
+   * Incluye estado visual del botón unificado Dash/Correr y del indicador central de agacharse en el stick.
    * @param {import('../core/InputManager.js').InputManager} inputManager
    * @param {string} equippedPower
+   * @param {import('../core/StateManager.js').StateManager|null} [stateManager=null]
    */
-  updateVirtualGamepad(inputManager, equippedPower) {
+  updateVirtualGamepad(inputManager, equippedPower, stateManager = null) {
     if (!this.virtualGamepad || !inputManager) return;
 
     const shouldShow = inputManager.shouldShowTouchControls;
@@ -674,6 +681,26 @@ export class UIManager {
         this._lastJoyY = jy;
         this.joystickThumb.style.transform = `translate(${jx}px, ${jy}px)`;
       }
+    }
+
+    if (this.joystickThumb && stateManager) {
+      const isProne = Boolean(stateManager.get('player_is_prone'));
+      const isHidden = Boolean(stateManager.get('player_stealth_hidden'));
+      if (isProne !== this._lastTouchProne) {
+        this._lastTouchProne = isProne;
+        this.joystickThumb.classList.toggle('is-prone', isProne);
+      }
+      if (isHidden !== this._lastTouchHidden) {
+        this._lastTouchHidden = isHidden;
+        this.joystickThumb.classList.toggle('is-hidden', isHidden);
+      }
+    }
+
+    const isTouchSprint = Boolean(inputManager.isTouchSprintActive || inputManager.isSprintPressed);
+    if (isTouchSprint !== this._lastTouchSprinting) {
+      this._lastTouchSprinting = isTouchSprint;
+      if (this.touchDashBtn) this.touchDashBtn.classList.toggle('sprint-active', isTouchSprint);
+      if (this.touchDashLabel) this.touchDashLabel.textContent = isTouchSprint ? 'CORRER' : 'DASH';
     }
 
     const activeName = (inputManager.hoveredSwipePower || equippedPower || 'Fuego').toUpperCase();
@@ -1329,7 +1356,7 @@ export class UIManager {
       btn.addEventListener('click', () => {
         const targetWorld = btn.dataset.travelWorld;
         if (!targetWorld || typeof travelHook !== 'function') return;
-        travelHook(targetWorld);
+        travelHook(targetWorld, { animated: true });
         const closeBtn = document.getElementById('btn-close-talents') || document.getElementById('btn-close-talents-x');
         if (closeBtn) closeBtn.click();
       });
@@ -1690,7 +1717,7 @@ export class UIManager {
     this.updateHordeHUD(stateManager);
     this.updateDialogue(stateManager, deltaTime);
     this.updateRadialWheel(inputManager, stateManager);
-    this.updateVirtualGamepad(inputManager, equipped);
+    this.updateVirtualGamepad(inputManager, equipped, stateManager);
 
     if (camera) {
       this.updateDamageNumbers(camera, deltaTime);
