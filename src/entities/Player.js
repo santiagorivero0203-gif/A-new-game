@@ -145,6 +145,13 @@ export class Player extends Entity {
     /** @type {number} Temporizador de animación especial al despertar un Núcleo Elemental */
     this.awakeningTimer = 0;
     this.awakeningColor = '#fb923c';
+    /** @type {number} Temporizador de celebración estilo The Legend of Zelda al obtener reliquia/espada */
+    this.itemGetTimer = 0;
+    this.itemGetDuration = 1.65;
+    /** @type {{kind: string, title: string, color: string, element?: string}|null} */
+    this.itemGetConfig = null;
+    /** @type {string} Tinte cromático del encantamiento activo en la Espada del Alba */
+    this.activeSwordTint = '#38bdf8';
     /** @type {'out'|'in'|null} Estado de transición visual de teletransporte por portal */
     this.teleportState = null;
     /** @type {number} Progreso normalizado [0..1] de la animación de teletransporte */
@@ -161,7 +168,10 @@ export class Player extends Entity {
    */
   configureDormantStart() {
     this.unlockedElements.clear();
+    this.currentAbility = null;
     this.hasSword = false;
+    this.itemGetTimer = 0;
+    this.itemGetConfig = null;
   }
 
   /**
@@ -169,6 +179,35 @@ export class Player extends Entity {
    */
   unlockSword() {
     this.hasSword = true;
+  }
+
+  /**
+   * Dispara la pose de celebración al estilo clásico de The Legend of Zelda:
+   * Santi se gira al frente y alza el objeto/núcleo/espada sobre su cabeza rodeado de haces de luz.
+   * @param {{ kind?: 'sword'|'core'|'enchantment'|'shield', title?: string, color?: string, element?: string }} [opts={}]
+   */
+  triggerItemGetAnimation(opts = {}) {
+    const duration = typeof opts.duration === 'number' ? opts.duration : 1.65;
+    const color = opts.color || '#facc15';
+    this.itemGetDuration = duration;
+    this.itemGetTimer = duration;
+    this.itemGetConfig = {
+      kind: opts.kind || 'sword',
+      title: opts.title || '¡ESPADA DEL ALBA!',
+      color,
+      element: opts.element || null
+    };
+    this.awakeningTimer = duration;
+    this.awakeningColor = color;
+    this.facing = 'down';
+    this.fsmState = 'STATE_IDLE';
+    this.isDashing = false;
+    this.isSprinting = false;
+    this.isProne = false;
+    this.lowProfile = false;
+    this.attackTimer = 0;
+    this.stateTimer = 0;
+    this.velocity.set(0, 0);
   }
 
   /**
@@ -224,6 +263,7 @@ export class Player extends Entity {
    * @returns {boolean}
    */
   hasElement(name) {
+    if (!name) return false;
     const targetName = this._normalizeElementName(name);
     return this.unlockedElements.has(targetName);
   }
@@ -449,7 +489,7 @@ export class Player extends Entity {
    * @param {Object} context - Contexto global del motor
    */
   takeDamage(amount, attack, context = {}) {
-    if (this.hasTag('iframe') || this.teleportState) return;
+    if (this.hasTag('iframe') || this.teleportState || this.itemGetTimer > 0) return;
 
     // 1. Verificar Escudo de Vitalidad / Halo de la Égida Eterna (absorbe 1 golpe completo sin perder vida)
     if (this.hasTag('vitality_shield')) {
@@ -614,7 +654,9 @@ export class Player extends Entity {
    * @private
    */
   _executeSwordCombo(context, input, physics, combatManager, equipmentManager, skillTree) {
+    if (!this.hasSword) return;
     const weapon = equipmentManager && equipmentManager.getWeapon ? equipmentManager.getWeapon() : null;
+    this.activeSwordTint = (weapon && weapon.enchantmentColor) ? weapon.enchantmentColor : '#38bdf8';
     const baseDamage = weapon ? weapon.damage : 16;
     const baseKnockback = weapon ? weapon.knockback : 32;
     const baseLunge = weapon ? weapon.lungeForce : 11;
@@ -1035,6 +1077,12 @@ export class Player extends Entity {
     if (this.hurtTimer > 0) this.hurtTimer -= deltaTime;
     if (this.dashCooldown > 0) this.dashCooldown -= deltaTime;
     if (this.awakeningTimer > 0) this.awakeningTimer = Math.max(0, this.awakeningTimer - deltaTime);
+    if (this.itemGetTimer > 0) {
+      this.itemGetTimer = Math.max(0, this.itemGetTimer - deltaTime);
+      if (this.itemGetTimer <= 0) {
+        this.itemGetConfig = null;
+      }
+    }
     if (this._dormantHintCooldown > 0) this._dormantHintCooldown -= deltaTime;
     if (this.comboWindowTimer > 0) {
       this.comboWindowTimer -= deltaTime;
@@ -1113,7 +1161,7 @@ export class Player extends Entity {
 
     let moveX = 0;
     let moveY = 0;
-    const controlsLocked = Boolean(this.teleportState || (camera && camera.cinematicTarget));
+    const controlsLocked = Boolean(this.teleportState || this.itemGetTimer > 0 || (camera && camera.cinematicTarget));
 
     if (controlsLocked && (this.fsmState === 'STATE_MOVE' || this.isSprinting)) {
       this.fsmState = 'STATE_IDLE';
@@ -1453,7 +1501,7 @@ export class Player extends Entity {
               if (!prop || prop.propType !== 'starter_sword' || prop.isConsumed) continue;
               const sx = prop.pos.x + prop.width * 0.5;
               const sy = prop.pos.y + prop.height * 0.5;
-              if ((sx - pcx) * (sx - pcx) + (sy - pcy) * (sy - pcy) <= 76 * 76) {
+              if ((sx - pcx) * (sx - pcx) + (sy - pcy) * (sy - pcy) <= 42 * 42) {
                 nearbySwordProp = prop;
                 break;
               }
@@ -1582,9 +1630,9 @@ export class Player extends Entity {
       if (this.velocity.lengthSquared() > 1) {
         this.velocity.normalize();
       }
-      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Sprint (+62%), Sigilo (-48%) y Esporas (-38%)
+      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Sprint (+38%), Sigilo (-48%) y Esporas (-38%)
       let speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.08 : 1.0;
-      if (this.isSprinting) speedMult *= 1.62;
+      if (this.isSprinting) speedMult *= 1.38;
       else if (this.isProne) speedMult *= 0.52;
       if (this.hasTag('enredado_espinas')) speedMult *= 0.62;
       this.velocity.multiplyScalar(this.speed * speedMult * deltaTime);
@@ -1750,7 +1798,7 @@ export class Player extends Entity {
       ctx.fillRect(x + 4, y, 24, 28);
     }
 
-    // 3. Hoja de Espada Rúnica direccional activa durante el swing físico en `aimAngle`
+    // 3. Hoja de Espada del Alba direccional activa durante el swing físico en `aimAngle` (teñida por su encantamiento)
     if (this.hasSword && this.attackTimer > 0 && (this.fsmState === 'STATE_ATTACK_WEAK' || this.fsmState === 'STATE_ATTACK_STRONG')) {
       ctx.save();
       ctx.translate(x + 16, y + 18);
@@ -1759,9 +1807,16 @@ export class Player extends Entity {
       ctx.fillRect(7, -3, 20, 6);
       ctx.fillStyle = this.fsmState === 'STATE_ATTACK_STRONG' ? '#fef08a' : '#e2e8f0';
       ctx.fillRect(8, -2, 17, 4);
+      ctx.fillStyle = this.activeSwordTint || '#38bdf8';
+      ctx.fillRect(9, -1, 14, 2);
       ctx.fillStyle = '#facc15';
       ctx.fillRect(5, -5, 3, 10);
       ctx.restore();
+    }
+
+    // 3.5 Celebración icónica estilo The Legend of Zelda al obtener la Espada del Alba, Núcleo Elemental o Encantamiento
+    if (this.itemGetTimer > 0 && this.itemGetConfig) {
+      this._drawZeldaItemGetOverlay(ctx, x, y);
     }
 
     // 4. Destello de "Tempo Perfecto" cuando está abierta la ventana rítmica de combo
@@ -1797,5 +1852,165 @@ export class Player extends Entity {
         ctx.fillRect(sx - 2, sy - 2, 4, 4);
       }
     }
+  }
+
+  /**
+   * Renderiza la pose de adquisición estilo The Legend of Zelda:
+   * haces solares giratorios, manos alzadas de Santi, la Espada del Alba / Núcleo Elemental / Égida
+   * suspendida sobre su cabeza con destello rúnico y una cinta flotante con el nombre de la reliquia.
+   * @private
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} x
+   * @param {number} y
+   */
+  _drawZeldaItemGetOverlay(ctx, x, y) {
+    const cfg = this.itemGetConfig;
+    if (!cfg) return;
+    const dur = Math.max(0.1, this.itemGetDuration || 1.65);
+    const elapsed = Math.max(0, dur - this.itemGetTimer);
+    const introScale = Math.min(1, elapsed / 0.20);
+    const fadeOut = this.itemGetTimer < 0.25 ? (this.itemGetTimer / 0.25) : 1.0;
+    const accent = cfg.color || '#facc15';
+    const cx = x + 16;
+    const bob = Math.round(Math.sin(this.animClock * 9) * 1.5);
+    const itemY = Math.round(y - 21 + (1 - introScale) * 10 + bob);
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, fadeOut));
+
+    // 1. Haces de luz giratorios (Sunburst de 8 rayos estilo Triforce / Reliquia)
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 8; i++) {
+      const rayAngle = this.animClock * 2.4 + (i * Math.PI * 0.25);
+      const rayLen = (i % 2 === 0 ? 28 : 20) * introScale;
+      ctx.save();
+      ctx.translate(cx, itemY);
+      ctx.rotate(rayAngle);
+      ctx.fillStyle = i % 2 === 0 ? accent : '#fef08a';
+      ctx.globalAlpha = (i % 2 === 0 ? 0.34 : 0.22) * fadeOut;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-3, -rayLen);
+      ctx.lineTo(3, -rayLen);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Halo diamantino interior
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.65 * fadeOut;
+    ctx.beginPath();
+    ctx.arc(cx, itemY, Math.max(4, 13 * introScale), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Manos alzadas de Santi sosteniendo la reliquia en alto sobre su cabeza
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(x + 8, y - 5, 5, 7);
+    ctx.fillRect(x + 19, y - 5, 5, 7);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(x + 9, y - 4, 3, 4);
+    ctx.fillRect(x + 20, y - 4, 3, 4);
+    ctx.fillStyle = accent;
+    ctx.fillRect(x + 9, y - 1, 3, 2);
+    ctx.fillRect(x + 20, y - 1, 3, 2);
+
+    // 3. Icono Pixel-Art de la Reliquia / Espada del Alba / Encantamiento / Égida alzada
+    if (cfg.kind === 'sword' || cfg.kind === 'enchantment') {
+      // Espada del Alba alzada verticalmente hacia el cielo con destello de encantamiento
+      const sy = itemY + 8;
+      // Contorno de tinta cel-shaded
+      ctx.fillStyle = '#050811';
+      ctx.fillRect(cx - 3, sy - 24, 6, 20);
+      ctx.fillRect(cx - 7, sy - 6, 14, 4);
+      ctx.fillRect(cx - 2, sy - 2, 4, 6);
+      // Hoja de acero perlado + canal rúnico del encantamiento
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(cx - 2, sy - 23, 4, 17);
+      ctx.fillStyle = accent;
+      ctx.fillRect(cx - 1, sy - 21, 2, 14);
+      // Guarda dorada y pomo
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(cx - 6, sy - 5, 12, 2);
+      ctx.fillRect(cx - 2, sy + 2, 4, 2);
+      // Destello móvil que recorre la hoja (sheen)
+      const glintOffset = Math.floor((elapsed * 22) % 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx - 2, sy - 22 + glintOffset, 4, 2);
+    } else if (cfg.kind === 'shield') {
+      // Égida / Blasón alzado
+      ctx.fillStyle = '#050811';
+      ctx.fillRect(cx - 7, itemY - 7, 14, 15);
+      ctx.fillStyle = accent;
+      ctx.fillRect(cx - 6, itemY - 6, 12, 13);
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(cx - 4, itemY - 4, 8, 9);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(cx - 2, itemY - 2, 4, 5);
+    } else {
+      // Núcleo Elemental dentro de engarce diamantino dorado
+      ctx.fillStyle = '#050811';
+      ctx.beginPath();
+      ctx.moveTo(cx, itemY - 10);
+      ctx.lineTo(cx + 10, itemY);
+      ctx.lineTo(cx, itemY + 10);
+      ctx.lineTo(cx - 10, itemY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(cx, itemY - 8);
+      ctx.lineTo(cx + 8, itemY);
+      ctx.lineTo(cx, itemY + 8);
+      ctx.lineTo(cx - 8, itemY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx - 2, itemY - 2, 4, 4);
+    }
+
+    // 4. Cuatro chispas estelares orbitando el objeto
+    for (let i = 0; i < 4; i++) {
+      const ang = this.animClock * 4.5 + (i * Math.PI * 0.5);
+      const sx = Math.round(cx + Math.cos(ang) * 14);
+      const sy = Math.round(itemY + Math.sin(ang) * 8);
+      ctx.fillStyle = i % 2 === 0 ? '#fef08a' : '#ffffff';
+      ctx.fillRect(sx - 1, sy - 1, 3, 3);
+    }
+
+    // 5. Cinta flotante superior con el título de la reliquia obtenida
+    if (cfg.title) {
+      ctx.font = '900 8px Outfit, sans-serif';
+      const label = String(cfg.title).toUpperCase();
+      const textW = typeof ctx.measureText === 'function' ? (ctx.measureText(label).width || 76) : 76;
+      const bw = Math.max(68, Math.round(textW + 14));
+      const bx = Math.round(cx - bw * 0.5);
+      const by = Math.round(itemY - 31);
+
+      ctx.fillStyle = 'rgba(5, 8, 17, 0.94)';
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1.5;
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bw, 14, 4);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillRect(bx, by, bw, 14);
+        ctx.strokeRect(bx, by, bw, 14);
+      }
+
+      ctx.fillStyle = '#fef08a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx, by + 7.5);
+    }
+
+    ctx.restore();
   }
 }

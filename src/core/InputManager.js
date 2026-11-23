@@ -742,7 +742,7 @@ export class InputManager {
     // 3.6 Botón de Curación Milenaria del Guante
     bindBtn('touch-btn-heal', () => { this.isHealPressed = true; }, () => { this.isHealPressed = false; }, 'heal');
 
-    // 3.7 Selector Rápido de Elemento (Cicla entre poderes desbloqueados con disparo único por toque/clic)
+    // 3.7 Selector Rápido de Elemento (Cicla entre poderes desbloqueados con disparo único por toque o clic)
     const btnSwitch = document.getElementById('touch-btn-switch');
     if (btnSwitch) {
       let lastTouchSwitchMs = -Infinity;

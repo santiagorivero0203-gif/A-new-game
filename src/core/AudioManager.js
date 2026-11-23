@@ -499,13 +499,68 @@ export class AudioManager {
     }
   }
 
+  /**
+   * Fanfarria cromática triunfal de 4 tiempos al estilo clásico de The Legend of Zelda ("Da-da-da-DAAA!")
+   * al obtener la Espada del Alba, un Núcleo Elemental o un Encantamiento de Filo / Égida.
+   * @param {'sword'|'core'|'enchantment'|'shield'} [kind='core']
+   */
+  playZeldaItemFanfare(kind = 'core') {
+    if (!this._canPlay()) return;
+    // Transposición sutil según el tipo de reliquia obtenida
+    const mult = kind === 'sword' ? 1.0 : kind === 'enchantment' ? 1.05946 : kind === 'shield' ? 0.94387 : 1.0;
+    const notes = [
+      { f1: 392.00 * mult, f2: 523.25 * mult, delay: 0.00, dur: 0.12 }, // G4 + C5
+      { f1: 415.30 * mult, f2: 554.37 * mult, delay: 0.12, dur: 0.12 }, // Ab4 + Db5
+      { f1: 440.00 * mult, f2: 587.33 * mult, delay: 0.24, dur: 0.12 }, // A4 + D5
+      { f1: 466.16 * mult, f2: 698.46 * mult, delay: 0.36, dur: 0.68 }  // Bb4 + F5 (Acorde triunfal sostenido)
+    ];
+    for (let i = 0; i < notes.length; i++) {
+      const n = notes[i];
+      const isFinal = i === notes.length - 1;
+      this._playTone({
+        type: 'triangle',
+        freqStart: n.f1,
+        freqEnd: isFinal ? n.f1 * 1.004 : n.f1,
+        duration: n.dur,
+        gain: isFinal ? 0.20 : 0.15,
+        delay: n.delay
+      });
+      this._playTone({
+        type: 'sine',
+        freqStart: n.f2,
+        freqEnd: isFinal ? n.f2 * 1.005 : n.f2,
+        duration: n.dur,
+        gain: isFinal ? 0.16 : 0.11,
+        delay: n.delay
+      });
+      if (isFinal) {
+        // Octava brillante + tercera mayor del acorde de triunfo
+        this._playTone({
+          type: 'sine',
+          freqStart: 587.33 * mult,
+          freqEnd: 589.00 * mult,
+          duration: 0.64,
+          gain: 0.12,
+          delay: n.delay + 0.02
+        });
+        this._playTone({
+          type: 'triangle',
+          freqStart: 932.33 * mult,
+          freqEnd: 936.00 * mult,
+          duration: 0.60,
+          gain: 0.10,
+          delay: n.delay + 0.04
+        });
+      }
+    }
+  }
+
   /** Acorde épico ascendente al despertar un Núcleo Elemental del Brazalete */
   playCoreAwakening(element = 'Fuego') {
     if (!this._canPlay()) return;
+    this.playZeldaItemFanfare('core');
     const base = element === 'Éter' ? 523.25 : element === 'Embestida' ? 440.0 : element === 'Raíces' || element === 'Plantas' ? 392.0 : 349.23;
-    this._playTone({ type: 'sine', freqStart: base, freqEnd: base * 1.5, duration: 0.45, gain: 0.18, delay: 0 });
-    this._playTone({ type: 'triangle', freqStart: base * 1.25, freqEnd: base * 2.0, duration: 0.50, gain: 0.14, delay: 0.08 });
-    this._playTone({ type: 'sine', freqStart: base * 2.0, freqEnd: base * 2.5, duration: 0.55, gain: 0.12, delay: 0.16 });
+    this._playTone({ type: 'sine', freqStart: base, freqEnd: base * 1.5, duration: 0.45, gain: 0.12, delay: 0.05 });
   }
 
   /** Desbloqueo armónico de compuerta rúnica o portal sellado */

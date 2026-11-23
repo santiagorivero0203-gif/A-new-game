@@ -123,7 +123,7 @@
       "id": "m4_shrine_relic_blade",
       "propType": "weapon_shrine",
       "grantsWeapon": "relic_blade",
-      "label": "Espada de la Reliquia",
+      "label": "Cenit Astral del Alba",
       "x": 608,
       "y": 976
     },
@@ -219,7 +219,7 @@
         "highKarma": "Incluso en la cima del mundo no abandonas a nadie. Ese Blasón del Cenit brilla con tu nobleza.",
         "lowKarma": "Gracias por liberar el paso. Usa el Blasón del Cenit si quieres sobrevivir al Arconte del Eclipse.",
         "lines": [
-          "Energiza el Pilón Voltaico del este con Éter Magnético y reclama la Espada de la Reliquia en el relicario cercano.",
+          "Energiza el Pilón Voltaico del este con Éter Magnético y consagra el Cenit Astral de tu Espada del Alba en el relicario cercano.",
           "Cuando caiga el Arconte del Eclipse, cruza el Altar de la Unificación para sellar la leyenda."
         ]
       }

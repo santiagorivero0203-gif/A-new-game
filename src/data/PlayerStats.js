@@ -1,8 +1,8 @@
 /**
  * @file PlayerStats.js
  * @description Parámetros y estadísticas base calibradas para el héroe (Santi).
- * Velocidad ágil y responsiva (190 px/s) con tasa de recarga de energía táctica medida (2.2/s),
- * evitando tanto el desplazamiento pesado como la recarga instantánea de energía.
+ * Velocidad controlada y precisa (168 px/s) con tasa de recarga de energía táctica medida (2.2/s),
+ * brindando un desplazamiento con peso táctico sin sentirse excesivamente rápido.
  */
 export const PLAYER_STATS = {
   health: 3,
@@ -12,19 +12,19 @@ export const PLAYER_STATS = {
   energy_regen_rate: 2.2, // Tasa moderada para que la energía sea un recurso táctico medido
   guard_meter: 100,
   max_guard: 100,
-  speed: 190, // Velocidad base ágil y precisa para exploración y combate fluido
+  speed: 168, // Velocidad base calibrada para exploración precisa y combate con control táctico
   
   // Combate & Utilidad
   dash_cost: 15,
   dash_cooldown_base: 0.36,
   dash_cooldown_upgraded: 0.22,
-  dash_speed: 400, // Deslizamiento ágil y responsivo sin salto desmedido
+  dash_speed: 365, // Deslizamiento ágil y controlado sin salto desmedido
   dash_duration: 0.20,
-  slide_speed: 330,
+  slide_speed: 300,
   slide_duration: 0.34,
   slide_cooldown: 0.25,
   dive_cost: 12,
-  dive_speed: 445,
+  dive_speed: 405,
   dive_duration: 0.30,
   dive_cooldown: 0.42,
   heal_cost: 35,

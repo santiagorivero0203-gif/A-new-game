@@ -407,7 +407,12 @@ function ensureWorldInitialized() {
     waveManager.setArenaCenter(levelInfo.arenaCenter.x, levelInfo.arenaCenter.y);
   }
 
-  if (levelInfo.startDormant && progressionManager.getWorldTier() === 0) {
+  if (levelInfo.startDormant) {
+    // Al iniciar partida en la boca de la cueva (donde m1_starter_sword y m1_relic_fuego están sin reclamar),
+    // garantizar que Santi comience siempre sin la Espada del Alba ni Fuego hasta obtenerlos en el mundo.
+    progressionManager.hasSword = false;
+    progressionManager.unlockedElements.clear();
+    progressionManager.seenWorldReveals.delete('cave_exit_intro');
     player.configureDormantStart();
   }
   progressionManager.syncPlayerFromCampaign(player, stateManager, {
@@ -1018,12 +1023,12 @@ function update(deltaTime) {
   // Viñeta de amenaza solo activa cuando StealthSystem está habilitado
   const currentThreat = stealthSystem.enabled
     ? ((waveManager && waveManager.isWaveActive) || hasAggroEnemy
-        ? 'danger'
-        : hasAlertEnemy
-          ? 'alert'
-          : player.isStealthHidden
-            ? 'stealth'
-            : 'calm')
+      ? 'danger'
+      : hasAlertEnemy
+        ? 'alert'
+        : player.isStealthHidden
+          ? 'stealth'
+          : 'calm')
     : 'calm';
   if (stateManager.get('threat_level') !== currentThreat) {
     stateManager.set('threat_level', currentThreat);
@@ -1695,17 +1700,19 @@ stateManager.set('open_sanctuary_hook', (tab = 'skills') => {
 // Enlazar botones de navegación del Santuario y HUD
 const hudRelicBadge = document.getElementById('hud-relic-badge');
 if (hudRelicBadge) {
+  const onBadgeSwitch = (e) => {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (stateManager.get('game_state') === 'STATE_PLAYING') {
+      inputManager.cyclePower(1);
+    }
+  };
   hudRelicBadge.addEventListener('touchstart', (e) => {
     if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
   }, { passive: true });
   hudRelicBadge.addEventListener('mousedown', (e) => {
     if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
   });
-  addTouchClick(hudRelicBadge, () => {
-    if (stateManager.get('game_state') === 'STATE_PLAYING') {
-      inputManager.cyclePower(1);
-    }
-  });
+  addTouchClick(hudRelicBadge, onBadgeSwitch);
 }
 addTouchClick(btnSettings, () => openSanctuary('system'));
 addTouchClick(btnQuickTalents, () => toggleSanctuaryTab('skills'));

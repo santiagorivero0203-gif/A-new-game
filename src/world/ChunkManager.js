@@ -337,6 +337,21 @@ export class ChunkManager {
             entity.restoreChunkState(remembered);
           } else if (
             this.progressionManager &&
+            bp.propType === 'starter_sword' &&
+            this.progressionManager.hasSword
+          ) {
+            entity.restoreChunkState({ isConsumed: true });
+          } else if (
+            this.progressionManager &&
+            bp.propType === 'relic_pedestal' &&
+            bp.propConfig?.grantsElement &&
+            this.progressionManager.unlockedElements.has(
+              this.progressionManager.normalizeElement(bp.propConfig.grantsElement)
+            )
+          ) {
+            entity.restoreChunkState({ isConsumed: true });
+          } else if (
+            this.progressionManager &&
             this.currentWorldId &&
             bp.propConfig?.id &&
             (bp.propType === 'elemental_brazier' || bp.propType === 'root_totem' || bp.propType === 'kinetic_pillar' || bp.propType === 'ether_pylon') &&

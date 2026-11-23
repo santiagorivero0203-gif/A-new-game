@@ -703,7 +703,11 @@ export class UIManager {
       if (this.touchDashLabel) this.touchDashLabel.textContent = isTouchSprint ? 'CORRER' : 'DASH';
     }
 
-    const activeName = (inputManager.hoveredSwipePower || equippedPower || 'Fuego').toUpperCase();
+    const gauntletTier = stateManager ? (stateManager.get('gauntlet_tier') ?? 1) : 1;
+    const rawPower = (gauntletTier <= 0 || equippedPower === 'Dormido')
+      ? 'LATENTE'
+      : (inputManager.hoveredSwipePower || equippedPower || 'Fuego');
+    const activeName = rawPower.toUpperCase();
     if (this.touchSkillLabel && activeName !== this._lastSkillLabel) {
       this._lastSkillLabel = activeName;
       this.touchSkillLabel.textContent = activeName;
@@ -1030,9 +1034,13 @@ export class UIManager {
     const currentShieldId = equipmentManager?.getShield()?.id || 'wooden_shield';
     const equippedPower = stateManager?.get('equipped_power') || 'Fuego';
 
+    const hasSword = player ? Boolean(player.hasSword) : (stateManager ? stateManager.get('has_sword') !== false : true);
     const weaponCardsHtml = Object.values(WEAPONS).map((w) => {
-      const isUnlocked = equipmentManager ? equipmentManager.isWeaponUnlocked(w.id) : w.id === 'training_sword';
-      const isEq = w.id === currentWeaponId;
+      const isUnlocked = hasSword && (equipmentManager ? equipmentManager.isWeaponUnlocked(w.id) : w.id === 'training_sword');
+      const isEq = isUnlocked && w.id === currentWeaponId;
+      const tierChip = w.tierLabel
+        ? `<span class="st-stat-chip" style="border-color:${w.enchantmentColor || '#38bdf8'};color:${w.enchantmentColor || '#38bdf8'};">${w.tierLabel}</span>`
+        : '';
       const finisherChip = w.finisherEffect
         ? `<span class="st-stat-chip">REMATE: ${w.finisherEffect.tag === 'armor_break' ? 'ROMPE-ARMADURA' : 'SANGRADO'}</span>`
         : '';
@@ -1041,10 +1049,11 @@ export class UIManager {
           <div class="st-equip-info">
             <div class="st-equip-title-row">
               <h4>${w.name}</h4>
-              ${!isUnlocked ? '<span class="st-lock-pill">BLOQUEADA 🔒</span>' : ''}
+              ${!isUnlocked ? '<span class="st-lock-pill">SELLADO 🔒</span>' : ''}
             </div>
-            <p>${!isUnlocked ? (w.unlockHint || 'Arma arcana oculta en el mundo o tras rescates heroicos.') : w.description}</p>
+            <p>${!isUnlocked ? (w.unlockHint || 'Encantamiento arcano de la Espada del Alba.') : w.description}</p>
             <div class="st-equip-stats">
+              ${tierChip}
               <span class="st-stat-chip">DAÑO ${w.damage}</span>
               <span class="st-stat-chip">AVANCE ${w.lungeForce}</span>
               <span class="st-stat-chip">+${w.energyOnHit} ENERGÍA/GOLPE</span>
@@ -1052,9 +1061,9 @@ export class UIManager {
             </div>
           </div>
           ${!isUnlocked
-            ? `<button type="button" class="cel-action-btn locked-badge" disabled>BLOQUEADA</button>`
+            ? `<button type="button" class="cel-action-btn locked-badge" disabled>SELLADO</button>`
             : `<button type="button" class="cel-action-btn ${isEq ? 'equipped-badge' : 'primary'}" data-equip-weapon="${w.id}" ${isEq ? 'disabled' : ''}>
-                 ${isEq ? 'EQUIPADA' : 'EQUIPAR'}
+                 ${isEq ? 'IMBUIDA' : 'IMBUIR'}
                </button>`
           }
         </div>
@@ -1119,8 +1128,8 @@ export class UIManager {
 
     this.arsenalContainer.innerHTML = `
       <div class="st-pane-section">
-        <div class="st-card-header-eyebrow">ARMAMENTO FORJADO</div>
-        <h3 class="st-pane-heading">ESPADAS Y ÉGIDAS</h3>
+        <div class="st-card-header-eyebrow">ESPADA DEL ALBA & ÉGIDAS</div>
+        <h3 class="st-pane-heading">ENCANTAMIENTOS DE FILO Y ESCUDOS</h3>
         <div class="st-equip-cards-list">
           ${weaponCardsHtml}
           ${shieldCardsHtml}
@@ -1157,6 +1166,10 @@ export class UIManager {
       bindArsenalBtn(btn, () => {
         if (equipmentManager) {
           equipmentManager.equipWeapon(btn.dataset.equipWeapon);
+          const wp = equipmentManager.getWeapon();
+          if (player && wp?.enchantmentColor) {
+            player.activeSwordTint = wp.enchantmentColor;
+          }
           if (audioManager) audioManager.playHeal();
           this.renderArsenalTab(deps);
         }

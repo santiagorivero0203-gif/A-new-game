@@ -513,7 +513,7 @@ export class InteractableProp extends Entity {
       }
 
       // Auto-despertar inmediato cuando el jugador se acerca o toca la Espada del Alba o cualquier Pedestal Elemental
-      if (this.propType === 'starter_sword' && !this.isConsumed && distSq <= 50 * 50) {
+      if (this.propType === 'starter_sword' && !this.isConsumed && distSq <= 38 * 38) {
         const msg = this.interact(context.state, context);
         if (msg && context.state) {
           context.state.set('active_dialogue', {
@@ -867,8 +867,17 @@ export class InteractableProp extends Entity {
         return null;
       }
       this.isConsumed = true;
-      if (player && typeof player.unlockSword === 'function') {
+      if (context && context.progressionManager && typeof context.progressionManager.unlockSword === 'function') {
+        context.progressionManager.unlockSword(player, stateManager);
+      } else if (player && typeof player.unlockSword === 'function') {
         player.unlockSword();
+      }
+      if (player && typeof player.triggerItemGetAnimation === 'function') {
+        player.triggerItemGetAnimation({
+          kind: 'sword',
+          title: '¡ESPADA DEL ALBA!',
+          color: '#facc15'
+        });
       }
       const isMobile = this._isMobileSession(context);
       if (stateManager) {
@@ -882,14 +891,22 @@ export class InteractableProp extends Entity {
         );
       }
       if (context && context.audioManager) {
-        if (typeof context.audioManager.playParry === 'function') context.audioManager.playParry();
-        if (typeof context.audioManager.playHeal === 'function') context.audioManager.playHeal();
+        if (typeof context.audioManager.playZeldaItemFanfare === 'function') {
+          context.audioManager.playZeldaItemFanfare('sword');
+        } else {
+          if (typeof context.audioManager.playParry === 'function') context.audioManager.playParry();
+          if (typeof context.audioManager.playHeal === 'function') context.audioManager.playHeal();
+        }
       }
       if (context && context.vfxRenderer) {
-        context.vfxRenderer.spawnImpact('parry_spark', this.pos.x + this.width / 2, this.pos.y + 24, {
-          radius: 36,
-          duration: 0.42
-        });
+        if (typeof context.vfxRenderer.spawnCoreAwakening === 'function') {
+          context.vfxRenderer.spawnCoreAwakening(this.pos.x + this.width / 2, this.pos.y + 24, '#facc15');
+        } else {
+          context.vfxRenderer.spawnImpact('parry_spark', this.pos.x + this.width / 2, this.pos.y + 24, {
+            radius: 36,
+            duration: 0.42
+          });
+        }
       }
       if (context && context.camera) {
         context.camera.shake(0.26, 0.15);
@@ -932,6 +949,21 @@ export class InteractableProp extends Entity {
       if (player) {
         player.health = player.max_health;
         player.energy = player.max_energy || 100;
+        const coreColor = displayElem === 'Fuego'
+          ? '#fb923c'
+          : displayElem === 'Embestida'
+            ? '#38bdf8'
+            : displayElem === 'Éter'
+              ? '#c084fc'
+              : '#4ade80';
+        if (typeof player.triggerItemGetAnimation === 'function') {
+          player.triggerItemGetAnimation({
+            kind: 'core',
+            title: `¡NÚCLEO DE ${displayElem.toUpperCase()}!`,
+            color: coreColor,
+            element: displayElem
+          });
+        }
       }
       if (context && context.input && typeof context.input.setPower === 'function') {
         context.input.setPower(displayElem);
@@ -1095,30 +1127,53 @@ export class InteractableProp extends Entity {
 
     if (this.propType === 'weapon_shrine') {
       if (this.isConsumed) {
-        return 'El relicario ya entregó su armamento ancestral.';
+        return 'El relicario ya consagró tu Espada del Alba.';
       }
       this.isConsumed = true;
-      let unlockedName = this.label || 'Reliquia Forjada';
+      let unlockedName = this.label || 'Encantamiento del Alba';
+      let shrineColor = '#facc15';
       if (context && context.equipmentManager) {
         if (this.grantsWeapon) {
           context.equipmentManager.unlockWeapon(this.grantsWeapon);
           context.equipmentManager.equipWeapon(this.grantsWeapon);
-          unlockedName = context.equipmentManager.getWeapon()?.name || unlockedName;
+          const wp = context.equipmentManager.getWeapon();
+          unlockedName = wp?.name || unlockedName;
+          shrineColor = wp?.enchantmentColor || '#fb923c';
+          if (player) player.activeSwordTint = shrineColor;
         }
         if (this.grantsShield) {
           context.equipmentManager.unlockShield(this.grantsShield);
           context.equipmentManager.equipShield(this.grantsShield);
           unlockedName = context.equipmentManager.getShield()?.name || unlockedName;
+          shrineColor = '#38bdf8';
         }
       }
+      if (player && typeof player.triggerItemGetAnimation === 'function') {
+        player.triggerItemGetAnimation({
+          kind: this.grantsWeapon ? 'enchantment' : 'shield',
+          title: `¡${(this.label || unlockedName).toUpperCase()}!`,
+          color: shrineColor
+        });
+      }
       if (context && context.audioManager) {
-        if (typeof context.audioManager.playCoreAwakening === 'function') context.audioManager.playCoreAwakening('Éter');
-        else context.audioManager.playHeal();
+        if (typeof context.audioManager.playZeldaItemFanfare === 'function') {
+          context.audioManager.playZeldaItemFanfare(this.grantsWeapon ? 'enchantment' : 'shield');
+        } else if (typeof context.audioManager.playCoreAwakening === 'function') {
+          context.audioManager.playCoreAwakening('Éter');
+        } else {
+          context.audioManager.playHeal();
+        }
       }
       if (context && context.vfxRenderer) {
-        context.vfxRenderer.spawnImpact('parry_spark', this.pos.x + this.width * 0.5, this.pos.y + 24, { radius: 42, duration: 0.45 });
+        if (typeof context.vfxRenderer.spawnCoreAwakening === 'function') {
+          context.vfxRenderer.spawnCoreAwakening(this.pos.x + this.width * 0.5, this.pos.y + 24, shrineColor);
+        } else {
+          context.vfxRenderer.spawnImpact('parry_spark', this.pos.x + this.width * 0.5, this.pos.y + 24, { radius: 42, duration: 0.45 });
+        }
       }
-      return `¡Has consagrado y equipado ${unlockedName}! Revisa el Arsenal [I] cuando quieras.`;
+      return this.grantsWeapon
+        ? `¡Tu Espada del Alba resuena con un nuevo temple: ${unlockedName}! Revisa el Arsenal [I] cuando quieras.`
+        : `¡Has consagrado y equipado ${unlockedName}! Revisa el Arsenal [I] cuando quieras.`;
     }
 
     if (this.propType === 'root_totem') {

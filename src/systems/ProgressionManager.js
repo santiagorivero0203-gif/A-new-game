@@ -38,6 +38,9 @@ export class ProgressionManager {
     /** @type {Set<string>} Elementos canónicos despertados ('Fuego', 'Plantas', 'Embestida', 'Éter') */
     this.unlockedElements = new Set();
 
+    /** @type {boolean} Indica si la Espada del Alba ya fue reclamada por Santi */
+    this.hasSword = false;
+
     /** @type {Set<string>} Mundos cuyo Guardián Regional fue derrotado */
     this.completedWorlds = new Set();
 
@@ -109,11 +112,31 @@ export class ProgressionManager {
   syncState(stateManager = this.state) {
     const st = stateManager || this.state;
     if (!st || typeof st.set !== 'function') return;
+    st.set('has_sword', Boolean(this.hasSword));
     st.set('gauntlet_tier', this.getWorldTier());
     st.set('unlocked_powers', Array.from(this.unlockedElements).map((e) => this.toDisplayElement(e)));
+    if (this.unlockedElements.size === 0) {
+      st.set('equipped_power', 'Dormido');
+    }
     st.set('completed_worlds', Array.from(this.completedWorlds));
     st.set('visited_worlds', Array.from(this.visitedWorlds));
     st.set('karma_level', this.karmaLevel);
+  }
+
+  /**
+   * Registra la obtención de la Espada del Alba frente a la cueva inicial.
+   * @param {import('../entities/Player.js').Player|null} [player=null]
+   * @param {import('../core/StateManager.js').StateManager|null} [stateManager=this.state]
+   */
+  unlockSword(player = null, stateManager = this.state) {
+    this.hasSword = true;
+    if (player && typeof player.unlockSword === 'function') {
+      player.unlockSword();
+    } else if (player) {
+      player.hasSword = true;
+    }
+    this.syncState(stateManager);
+    this._scheduleSave();
   }
 
   /**
@@ -128,10 +151,12 @@ export class ProgressionManager {
     if (!norm) return false;
     const isNew = !this.unlockedElements.has(norm);
     this.unlockedElements.add(norm);
+    this.hasSword = true;
 
     const display = this.toDisplayElement(norm);
-    if (player && typeof player.unlockElement === 'function') {
-      player.unlockElement(norm);
+    if (player) {
+      if (typeof player.unlockSword === 'function') player.unlockSword();
+      if (typeof player.unlockElement === 'function') player.unlockElement(norm);
     }
 
     const st = stateManager || this.state;
@@ -155,9 +180,11 @@ export class ProgressionManager {
     const st = stateManager || this.state;
 
     if (isPlaytest) {
+      this.hasSword = true;
       if (typeof player.unlockSword === 'function') player.unlockSword();
       if (typeof player.unlockAllElements === 'function') player.unlockAllElements();
       if (st && typeof st.set === 'function') {
+        st.set('has_sword', true);
         st.set('gauntlet_tier', 4);
         st.set('unlocked_powers', ['Fuego', 'Raíces', 'Embestida', 'Éter']);
         if (!player.currentAbility || !player.hasElement(player.currentAbility)) {
@@ -175,13 +202,14 @@ export class ProgressionManager {
       }
     }
 
-    if (player.unlockedElements.size > 0 || !startDormant) {
+    if (this.hasSword || player.unlockedElements.size > 0 || !startDormant) {
+      this.hasSword = true;
       if (typeof player.unlockSword === 'function') {
         player.unlockSword();
       } else {
         player.hasSword = true;
       }
-    } else if (startDormant && this.unlockedElements.size === 0) {
+    } else {
       player.hasSword = false;
     }
 
@@ -192,6 +220,11 @@ export class ProgressionManager {
       }
       if (st && typeof st.set === 'function') {
         st.set('equipped_power', this.toDisplayElement(player.currentAbility));
+      }
+    } else {
+      player.currentAbility = null;
+      if (st && typeof st.set === 'function') {
+        st.set('equipped_power', 'Dormido');
       }
     }
 
@@ -441,6 +474,7 @@ export class ProgressionManager {
     if (typeof localStorage === 'undefined') return;
     try {
       const payload = {
+        hasSword: Boolean(this.hasSword),
         unlockedElements: Array.from(this.unlockedElements),
         completedWorlds: Array.from(this.completedWorlds),
         visitedWorlds: Array.from(this.visitedWorlds),
@@ -470,6 +504,11 @@ export class ProgressionManager {
       if (parsed && typeof parsed === 'object') {
         if (Array.isArray(parsed.unlockedElements)) {
           this.unlockedElements = new Set(parsed.unlockedElements.map((e) => this.normalizeElement(e)).filter(Boolean));
+        }
+        if (typeof parsed.hasSword === 'boolean') {
+          this.hasSword = parsed.hasSword;
+        } else if (this.unlockedElements.size > 0) {
+          this.hasSword = true;
         }
         if (Array.isArray(parsed.completedWorlds)) {
           this.completedWorlds = new Set(parsed.completedWorlds);
@@ -501,6 +540,7 @@ export class ProgressionManager {
    * Reinicia íntegramente el progreso de campaña a estado inicial dormido.
    */
   resetCampaign() {
+    this.hasSword = false;
     this.unlockedElements.clear();
     this.completedWorlds.clear();
     this.visitedWorlds = new Set(['cave_exit_intro']);

@@ -164,12 +164,44 @@ export class NPC extends Entity {
     }
 
     let rewardLabel = '';
+    const player = (context && context.player) || (stateManager && stateManager.get ? stateManager.get('player') : null);
+    let playedZeldaFanfare = false;
     if (context && context.equipmentManager) {
       if (this.rewardWeapon && context.equipmentManager.unlockWeapon(this.rewardWeapon)) {
-        rewardLabel = ` y desbloquea nueva arma en tu Arsenal [I]`;
+        context.equipmentManager.equipWeapon(this.rewardWeapon);
+        const wp = context.equipmentManager.getWeapon();
+        const enchantColor = wp?.enchantmentColor || '#4ade80';
+        if (player) {
+          player.activeSwordTint = enchantColor;
+          if (typeof player.triggerItemGetAnimation === 'function') {
+            player.triggerItemGetAnimation({
+              kind: 'enchantment',
+              title: `¡${(wp?.name || 'ENCANTAMIENTO DEL ALBA').toUpperCase()}!`,
+              color: enchantColor
+            });
+          }
+        }
+        if (context.audioManager && typeof context.audioManager.playZeldaItemFanfare === 'function') {
+          context.audioManager.playZeldaItemFanfare('enchantment');
+          playedZeldaFanfare = true;
+        }
+        rewardLabel = ` e imbuye tu Espada del Alba en el Arsenal [I]`;
       }
       if (this.rewardShield && context.equipmentManager.unlockShield(this.rewardShield)) {
-        rewardLabel = rewardLabel ? `${rewardLabel} y nuevo escudo` : ` y revisa tu nuevo escudo en el Arsenal [I]`;
+        context.equipmentManager.equipShield(this.rewardShield);
+        const sh = context.equipmentManager.getShield();
+        if (player && typeof player.triggerItemGetAnimation === 'function' && !this.rewardWeapon) {
+          player.triggerItemGetAnimation({
+            kind: 'shield',
+            title: `¡${(sh?.name || 'NUEVA ÉGIDA').toUpperCase()}!`,
+            color: '#38bdf8'
+          });
+        }
+        if (!playedZeldaFanfare && context.audioManager && typeof context.audioManager.playZeldaItemFanfare === 'function') {
+          context.audioManager.playZeldaItemFanfare('shield');
+          playedZeldaFanfare = true;
+        }
+        rewardLabel = rewardLabel ? `${rewardLabel} y nueva égida` : ` y equipa tu nueva égida en el Arsenal [I]`;
       }
     }
 
@@ -188,7 +220,7 @@ export class NPC extends Entity {
     if (context && context.skillTreeManager) {
       context.skillTreeManager.addEssence(rescueEssence);
     }
-    if (context && context.audioManager) {
+    if (context && context.audioManager && !playedZeldaFanfare) {
       context.audioManager.playHeal();
     }
   }

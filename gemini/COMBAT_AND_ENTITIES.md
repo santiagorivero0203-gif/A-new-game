@@ -28,21 +28,25 @@ El método `hasTag(tag)` verifica simultáneamente:
 
 ### Máquina de Estados del Jugador (`fsmState`)
 * `'STATE_IDLE'`: En reposo, listo para moverse o iniciar acciones.
-* `'STATE_WALK'`: Desplazamiento omnidireccional con *bobbing* procedural y rotación fluida.
-* `'STATE_ATTACK'`: Ejecutando uno de los tajos de la cadena rítmica.
-* `'STATE_DASH'`: Desplazamiento balístico a alta velocidad (420 px/s, 0.22s) con *iframes*.
-* `'STATE_PARRY'`: Alza de la Égida Rúnica; ventana activa de desvío perfecto (0.16s - 0.26s).
-* `'STATE_HURT'`: Breve aturdimiento tras recibir un golpe no bloqueado.
-* `'STATE_STAGGERED'`: Rotura total de postura (1.8s) al agotar el *Guard Meter*.
+* `'STATE_MOVE'`: Desplazamiento omnidireccional calibrado (`168 px/s` base, `1.38x` en sprint) con *bobbing* procedural y rotación fluida.
+* `'STATE_ATTACK_WEAK'` / `'STATE_ATTACK_STRONG'`: Ejecutando uno de los tajos de la cadena rítmica de la **Espada del Alba**.
+* `'STATE_DASH'`: Desplazamiento balístico controlado (`365 px/s`, `0.20s`; `300 px/s` en slide y `405 px/s` en dive) con *iframes*.
+* `'STATE_DEFEND'`: Alza de la Égida Rúnica; ventana activa de desvío perfecto (`0.16s - 0.26s`).
+* `'STATE_GUARD_BREAK'`: Rotura total de postura (`1.8s`) al agotar el *Guard Meter*.
 
-### Mecánicas Núcleo de Combate
-1. **Cadena Rítmica de 3 Golpes (Espada):**
+### Mecánicas Núcleo de Combate y Progresión de la Espada del Alba
+1. **Inicio Latente Estricto y Adquisición Estilo *The Legend of Zelda*:**
+   * Al emerger de la Cueva Hendida (`startDormant: true`), Santi inicia con `hasSword = false` y `unlockedElements` vacío (`currentAbility = null`), impidiendo usar la espada o el Fuego antes de obtenerlos físicamente en el mapa (`radio <= 38–42 px`).
+   * Reclamar la **Espada del Alba** (`starter_sword`), un **Núcleo Elemental** (`relic_pedestal`) o un **Encantamiento / Égida** (`weapon_shrine` / rescate de NPC) dispara `player.triggerItemGetAnimation(...)` y `audioManager.playZeldaItemFanfare(...)`: Santi se gira al frente, alza la reliquia sobre su cabeza con haces solares giratorios, cinta flotante e inmunidad temporal al daño.
+2. **Encantamientos Progresivos de la Espada del Alba (`src/data/weapons.js`):**
+   * En lugar de reemplazar la espada principal por armas genéricas, los 4 niveles (`training_sword`, `thorn_saber`, `forge_claymore`, `relic_blade`) son **Encantamientos y Temples de la Espada del Alba** (*Filo Despierto*, *Encantamiento de Zarza*, *Temple de Magma*, *Cenit Astral*) que tiñen el canal rúnico de la hoja (`activeSwordTint`) y escalan daño, recarga elemental y efectos de remate (`finisherEffect`).
+3. **Cadena Rítmica de 3 Golpes (Espada del Alba):**
    * *Golpe 1:* Tajo diestro rápido (`comboStep = 0`).
    * *Golpe 2:* Revés cruzado ascendente (`comboStep = 1`).
    * *Golpe 3 (Finisher):* Tajo sacro circular 360° con gran retroceso y screen shake (`comboStep = 2`).
    * *Micro-Recarga Post-Swing y Pre-Buffer:* `swordCooldown` comienza a descontarse únicamente al finalizar `attackTimer` (`75 ms` base en golpes 1–2 y `95–130 ms` en el 3er golpe), evitando spam en 0 ms mientras `queuedAction` encadena la entrada siguiente.
-2. **Recarga Activa de Energía e Inmunidad de Portal:** Cada tajo conectado con la espada restaura automáticamente **+2 a +6 de Energía Elemental** (según arma), y `takeDamage()` ignora impactos mientras `player.teleportState` esté activo.
-3. **Inmovilidad de Props Frente a Poderes:** `KineticAbility` (Embestida/Taladro) y `EarthAbility` (Látigo de Espinas) filtran explícitamente `!ent.hasTag('prop') && !ent.hasTag('solid')` para arrastrar solo enemigos móviles sin desplazar rocas ni tótems sobre el jugador.
+4. **Recarga Activa de Energía e Inmunidad de Portal / Adquisición:** Cada tajo conectado con la espada restaura automáticamente **+2 a +6 de Energía Elemental** (según el encantamiento activo), y `takeDamage()` ignora impactos mientras `player.teleportState` o `player.itemGetTimer > 0` estén activos.
+5. **Inmovilidad de Props Frente a Poderes:** `KineticAbility` (Embestida/Taladro) y `EarthAbility` (Látigo de Espinas) filtran explícitamente `!ent.hasTag('prop') && !ent.hasTag('solid')` para arrastrar solo enemigos móviles sin desplazar rocas ni tótems sobre el jugador.
 3. **Defensa, Guardia y Parry Deportivo:**
    * Mantener Bloqueo absorbe daño físico a costa de *Guard Meter*.
    * Si se pulsa bloqueo en los primeros **0.16s (base)** o **0.26s (con talento)** del golpe enemigo:

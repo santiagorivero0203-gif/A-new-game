@@ -188,9 +188,9 @@
       "y": 976,
       "dialogues": {
         "underThreat": "¡Cuidado! ¡Esas babas se dividen al morir y las esporas bloquean mi retirada!",
-        "rescueComplete": "¡Me salvaste de quedar sepultada en esporas! Acepta mi Sable de Espinas en el Arsenal [I]: su remate desangra a tus enemigos.",
-        "highKarma": "Nadie en la ciénaga olvidará tu auxilio. Ese Sable de Espinas corta incluso entre raíces espesas.",
-        "lowKarma": "Salí viva por tu intervención. Llévate el Sable de Espinas y sigue hacia el tótem sur.",
+        "rescueComplete": "¡Me salvaste de quedar sepultada en esporas! He imbuido tu Espada del Alba con el Encantamiento de Zarza Viva: su tercer tajo desangra a tus enemigos.",
+        "highKarma": "Nadie en la ciénaga olvidará tu auxilio. El Encantamiento de Zarza en tu Espada del Alba corta incluso entre raíces espesas.",
+        "lowKarma": "Salí viva por tu intervención. Tu Espada del Alba lleva ahora mi Encantamiento de Zarza; sigue hacia el tótem sur.",
         "lines": [
           "Dispara el poder de Raíces sobre el tótem oriental de esta isla para abrir el sello hacia la Matriarca.",
           "Evita pisar los charcos de esporas en el cruce central: agotan tu estamina si no usas Dash."
