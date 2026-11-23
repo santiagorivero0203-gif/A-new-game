@@ -200,14 +200,16 @@ export class ProgressionManager {
 
   /**
    * Garantiza coherencia retroactiva en partidas guardadas: si el jugador ya accedió
-   * a un mundo posterior en la campaña, asegura que los Núcleos Elementales obligatorios
-   * de los mundos previos estén despiertos en `unlockedElements`.
+   * a un mundo posterior en la campaña (o ya visitó/avanzó en esos mundos en un save previo),
+   * asegura que los Núcleos Elementales correspondientes estén despiertos en `unlockedElements`.
    * @private
+   * @param {boolean} [fromLoadedSave=false]
    */
-  _healPrerequisiteCores() {
+  _healPrerequisiteCores(fromLoadedSave = false) {
     const entries = Object.entries(CAMPAIGN_WORLD_ORDER);
+    const hasMultipleVisited = this.visitedWorlds.size > 1;
     for (let i = 0; i < entries.length; i++) {
-      const [, cfg] = entries[i];
+      const [worldId, cfg] = entries[i];
       if (!cfg || !cfg.coreElement) continue;
       let laterVisited = false;
       for (let j = i + 1; j < entries.length; j++) {
@@ -217,7 +219,15 @@ export class ProgressionManager {
           break;
         }
       }
-      if (laterVisited) {
+      let savedWorldProgress = false;
+      if (fromLoadedSave) {
+        const hasLink = Array.from(this.resolvedLinks).some((k) => k.startsWith(`${worldId}:`));
+        savedWorldProgress =
+          this.completedWorlds.has(worldId) ||
+          hasLink ||
+          (hasMultipleVisited && this.visitedWorlds.has(worldId));
+      }
+      if (laterVisited || savedWorldProgress) {
         const norm = this.normalizeElement(cfg.coreElement);
         if (norm) this.unlockedElements.add(norm);
       }
@@ -479,7 +489,7 @@ export class ProgressionManager {
         if (Array.isArray(parsed.seenWorldReveals)) {
           this.seenWorldReveals = new Set(parsed.seenWorldReveals);
         }
-        this._healPrerequisiteCores();
+        this._healPrerequisiteCores(true);
       }
     } catch (e) {
       console.warn('[ProgressionManager] Error cargando campaña:', e);

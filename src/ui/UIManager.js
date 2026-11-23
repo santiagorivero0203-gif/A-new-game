@@ -825,55 +825,16 @@ export class UIManager {
   }
 
   /**
-   * Actualiza la barra central de enemigo enfocado / jefe con anclas separadas.
+   * Mantiene oculta la barra superior de enemigo en el HUD: la vitalidad, escudo, coraza y fase
+   * se dibujan directamente encima de cada enemigo en el campo de batalla (`Enemy.draw`)
+   * para no desorientar al jugador durante el combate.
    * @param {import('../core/StateManager.js').StateManager} stateManager
    */
   updateBossThreat(stateManager) {
     if (!this.bossThreatBar || !stateManager) return;
-
-    const threat = stateManager.get('active_threat');
-    if (!threat || threat.health <= 0) {
-      if (this._bossThreatVisible || !this.bossThreatBar.classList.contains('hidden')) {
-        this.bossThreatBar.classList.add('hidden');
-        this._bossThreatVisible = false;
-      }
-      this._lastThreatPct = -1;
-      return;
-    }
-
-    if (!this._bossThreatVisible) {
-      this.bossThreatBar.classList.remove('hidden');
-      this._bossThreatVisible = true;
-    }
-    const pct = Math.max(0, Math.min(100, (threat.health / threat.maxHealth) * 100));
-
-    if (threat.name !== this._lastThreatName && this.bossThreatName) {
-      this._lastThreatName = threat.name;
-      this.bossThreatName.textContent = threat.name.toUpperCase();
-    }
-
-    const statusKey = `${threat.isBoss ? 'B' : 'E'}_${threat.phase || 1}_${Boolean(threat.hasMetalArmor)}_${Boolean(threat.hasShield)}`;
-    if (statusKey !== this._lastThreatStatusKey && this.bossThreatStatus) {
-      this._lastThreatStatusKey = statusKey;
-      if (threat.isBoss && threat.phase >= 2) {
-        const defSuffix = threat.hasMetalArmor ? ' · CORAZA' : threat.hasShield ? ' · ESCUDO' : '';
-        this.bossThreatStatus.textContent = `FASE II · FURIA${defSuffix}`;
-        this.bossThreatStatus.className = 'boss-threat-status phase2';
-      } else if (threat.hasMetalArmor) {
-        this.bossThreatStatus.textContent = 'CORAZA VOLCÁNICA';
-        this.bossThreatStatus.className = 'boss-threat-status armor';
-      } else if (threat.hasShield) {
-        this.bossThreatStatus.textContent = 'ESCUDO DE ROBLE';
-        this.bossThreatStatus.className = 'boss-threat-status shield';
-      } else {
-        this.bossThreatStatus.textContent = 'VULNERABLE';
-        this.bossThreatStatus.className = 'boss-threat-status vulnerable';
-      }
-    }
-
-    if (Math.abs(pct - this._lastThreatPct) > 0.5) {
-      this._lastThreatPct = pct;
-      if (this.bossThreatFill) this.bossThreatFill.style.transform = `scaleX(${pct / 100})`;
+    if (this._bossThreatVisible || !this.bossThreatBar.classList.contains('hidden')) {
+      this.bossThreatBar.classList.add('hidden');
+      this._bossThreatVisible = false;
     }
   }
 
@@ -1176,8 +1137,24 @@ export class UIManager {
       </div>
     `;
 
+    const bindArsenalBtn = (btn, handler) => {
+      let lastTap = -Infinity;
+      const run = (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        const now = performance.now();
+        if (now - lastTap < 200) return;
+        lastTap = now;
+        handler();
+      };
+      btn.addEventListener('click', run);
+      btn.addEventListener('touchend', (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        run(e);
+      }, { passive: false });
+    };
+
     this.arsenalContainer.querySelectorAll('[data-equip-weapon]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      bindArsenalBtn(btn, () => {
         if (equipmentManager) {
           equipmentManager.equipWeapon(btn.dataset.equipWeapon);
           if (audioManager) audioManager.playHeal();
@@ -1187,7 +1164,7 @@ export class UIManager {
     });
 
     this.arsenalContainer.querySelectorAll('[data-equip-shield]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      bindArsenalBtn(btn, () => {
         if (equipmentManager) {
           equipmentManager.equipShield(btn.dataset.equipShield);
           if (audioManager) audioManager.playHeal();
@@ -1197,12 +1174,14 @@ export class UIManager {
     });
 
     this.arsenalContainer.querySelectorAll('[data-equip-element]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      bindArsenalBtn(btn, () => {
         const elem = btn.dataset.equipElement;
         if (player && player.hasElement(elem)) {
           player.equipAbility(elem);
           if (stateManager) stateManager.set('equipped_power', elem);
           if (deps.inputManager) deps.inputManager.setPower(elem);
+          this.updateHUD(stateManager, elem);
+          if (deps.inputManager) this.updateVirtualGamepad(deps.inputManager, elem, stateManager);
           if (audioManager) audioManager.playHeal();
           this.renderArsenalTab(deps);
         }

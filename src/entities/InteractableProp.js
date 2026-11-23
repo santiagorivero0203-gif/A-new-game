@@ -479,7 +479,12 @@ export class InteractableProp extends Entity {
       const py = player.pos.y + player.height / 2;
       const cx = this.pos.x + this.width / 2;
       const cy = this.pos.y + this.height / 2;
-      const distSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+      const baseCy = this.hitbox
+        ? this.pos.y + this.hitbox.offsetY + this.hitbox.height * 0.5
+        : cy;
+      const distCenterSq = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+      const distBaseSq = (px - cx) * (px - cx) + (py - baseCy) * (py - baseCy);
+      const distSq = Math.min(distCenterSq, distBaseSq);
       this.playerNearby = distSq <= 68 * 68;
 
       // Resonancia reactiva automática de obeliscos rúnicos al acercarse con el Guantelete
@@ -507,8 +512,8 @@ export class InteractableProp extends Entity {
         }
       }
 
-      // Auto-despertar opcional si el jugador toca directamente la Espada del Alba o el Núcleo de Fuego
-      if (this.propType === 'starter_sword' && !this.isConsumed && distSq <= 34 * 34) {
+      // Auto-despertar inmediato cuando el jugador se acerca o toca la Espada del Alba o cualquier Pedestal Elemental
+      if (this.propType === 'starter_sword' && !this.isConsumed && distSq <= 50 * 50) {
         const msg = this.interact(context.state, context);
         if (msg && context.state) {
           context.state.set('active_dialogue', {
@@ -518,8 +523,15 @@ export class InteractableProp extends Entity {
           });
         }
       }
-      if (this.propType === 'relic_pedestal' && !this.isConsumed && distSq <= 38 * 38) {
-        this.interact(context.state, context);
+      if (this.propType === 'relic_pedestal' && !this.isConsumed && distSq <= 60 * 60) {
+        const msg = this.interact(context.state, context);
+        if (msg && context.state) {
+          context.state.set('active_dialogue', {
+            speaker: (this.label || 'PEDESTAL DE LA RELIQUIA').toUpperCase(),
+            text: msg,
+            timer: 4.4
+          });
+        }
       }
     } else {
       this.playerNearby = false;

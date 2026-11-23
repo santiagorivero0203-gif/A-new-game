@@ -161,6 +161,8 @@ export class InputManager {
     this._onTalentsCallback = null;
     /** @type {((powerName: string) => boolean)|null} Filtro opcional para ciclar solo poderes desbloqueados */
     this._canSelectPowerFn = null;
+    /** @type {(() => string)|null} Lector opcional del poder actualmente activo en Player/State */
+    this._getCurrentPowerFn = null;
 
     this._bindEvents();
 
@@ -233,6 +235,14 @@ export class InputManager {
   }
 
   /**
+   * Registra un lector sincronizado del poder actualmente activo en `Player`/`StateManager`.
+   * @param {(() => string)|null} fn
+   */
+  setCurrentPowerGetter(fn) {
+    this._getCurrentPowerFn = typeof fn === 'function' ? fn : null;
+  }
+
+  /**
    * Normaliza alias elementales al nombre visible usado en la rueda radial y ciclo rápido.
    * @private
    * @param {string} powerName
@@ -290,7 +300,8 @@ export class InputManager {
     }
 
     const pool = filtered.length > 0 ? filtered : allPowers;
-    const normalizedCurrent = this._normalizeDisplayPower(this.currentPower || pool[0]);
+    const rawCurrent = (this._getCurrentPowerFn && this._getCurrentPowerFn()) || this.currentPower || pool[0];
+    const normalizedCurrent = this._normalizeDisplayPower(rawCurrent);
     let idx = pool.indexOf(normalizedCurrent);
     if (idx === -1) idx = 0;
     idx = (idx + direction + pool.length) % pool.length;
@@ -481,7 +492,13 @@ export class InputManager {
       if (KEYBINDINGS.SPRINT.includes(e.code)) this.isSprintPressed = false;
 
       if (KEYBINDINGS.RADIAL_MENU.includes(e.code)) {
+        if (this.isRadialMenuOpen && this.radialSelectionIndex >= 0) {
+          const radialPowers = ['Fuego', 'Embestida', 'Raíces', 'Éter'];
+          const chosen = radialPowers[this.radialSelectionIndex];
+          if (chosen) this.setPower(chosen);
+        }
         this.isRadialMenuOpen = false;
+        this.radialSelectionIndex = -1;
       }
     });
 
@@ -531,7 +548,7 @@ export class InputManager {
     window.addEventListener('mousedown', (e) => {
       // Ignorar clics sobre botones, tarjetas, medallón del HUD o modales de la interfaz DOM
       if (e.target && typeof e.target.closest === 'function') {
-        if (e.target.closest('button, .modal-box, .menu-card, .radial-sector, .cinematic-overlay, .rpg-crest-module')) {
+        if (e.target.closest('button, .modal-box, .menu-card, .radial-sector, .cinematic-overlay, .rpg-crest-module, .touch-action-btn, .touch-mini-btn')) {
           return;
         }
       }
@@ -574,24 +591,28 @@ export class InputManager {
     // #btn-quick-arsenal y #hud-relic-badge) son gestionados de forma unificada en main.js mediante
     // `addTouchClick` para impedir doble disparo simultáneo (abrir+cerrar en 0ms o salto doble de poder).
 
-    // 1. Sectores de la Rueda Radial de Poderes en DOM
+    // 1. Sectores de la Rueda Radial de Poderes en DOM (Click + Touch directo)
     const sectors = document.querySelectorAll('.radial-sector');
     sectors.forEach((sec) => {
       sec.addEventListener('mouseenter', () => {
         const idx = parseInt(sec.dataset.index, 10);
         if (!isNaN(idx)) this.radialSelectionIndex = idx;
       });
-      sec.addEventListener('click', (e) => {
-        e.stopPropagation();
+      const selectRadialPower = (e) => {
+        if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault();
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
         const power = sec.dataset.power;
         if (sec.classList.contains('locked') || power === 'Sellado') {
-          return; // No se puede equipar el slot sellado
+          return;
         }
-        if (power && this._onSkillEquippedCallback) {
-          this._onSkillEquippedCallback(power);
+        if (power) {
+          this.setPower(power);
         }
         this.isRadialMenuOpen = false;
-      });
+        this.radialSelectionIndex = -1;
+      };
+      sec.addEventListener('touchstart', selectRadialPower, { passive: false });
+      sec.addEventListener('click', selectRadialPower);
     });
 
     // 3. Botones Táctiles del Virtual Gamepad (Botonera Completa Ergonómica con Latching)
@@ -721,16 +742,16 @@ export class InputManager {
     // 3.6 Botón de Curación Milenaria del Guante
     bindBtn('touch-btn-heal', () => { this.isHealPressed = true; }, () => { this.isHealPressed = false; }, 'heal');
 
-    // 3.7 Selector Rápido de Elemento (Cicla entre poderes desbloqueados con debounce estricto touch/click)
+    // 3.7 Selector Rápido de Elemento (Cicla entre poderes desbloqueados con disparo único por toque/clic)
     const btnSwitch = document.getElementById('touch-btn-switch');
     if (btnSwitch) {
       let lastTouchSwitchMs = -Infinity;
       const triggerSwitch = (e, isTouch) => {
-        e.preventDefault();
-        e.stopPropagation();
+        if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault();
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
         const now = performance.now();
         if (!isTouch && now - lastTouchSwitchMs < 450) return;
-        if (now - this._lastSwitchTriggerMs < 220) return;
+        if (now - this._lastSwitchTriggerMs < 160) return;
         if (isTouch) lastTouchSwitchMs = now;
         this._lastSwitchTriggerMs = now;
 
@@ -740,7 +761,16 @@ export class InputManager {
         setTimeout(() => btnSwitch.classList.remove('touch-pressed'), 120);
         this.cyclePower(1);
       };
+      const suppressSyntheticEvent = (e) => {
+        if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault();
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      };
       btnSwitch.addEventListener('touchstart', (e) => triggerSwitch(e, true), { passive: false });
+      btnSwitch.addEventListener('touchend', suppressSyntheticEvent, { passive: false });
+      btnSwitch.addEventListener('touchcancel', suppressSyntheticEvent, { passive: false });
+      btnSwitch.addEventListener('mousedown', (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      });
       btnSwitch.addEventListener('click', (e) => triggerSwitch(e, false));
     }
 
@@ -803,6 +833,16 @@ export class InputManager {
       };
 
       const startJoy = (e) => {
+        if (activeTouchId !== null && e.touches) {
+          let stillPresent = false;
+          for (let i = 0; i < e.touches.length; i++) {
+            if (e.touches[i].identifier === activeTouchId) {
+              stillPresent = true;
+              break;
+            }
+          }
+          if (!stillPresent) activeTouchId = null;
+        }
         if (activeTouchId !== null) return;
         e.preventDefault();
         e.stopPropagation();
@@ -886,15 +926,41 @@ export class InputManager {
       });
     }
 
-    // 5. Botón de Habilidad Táctil en DOM (Swipe multi-touch aislado por identifier)
+    // 5. Botón de Habilidad Táctil en DOM (Swipe multi-touch aislado por identifier + selección de icono)
     const btnSkill = document.getElementById('touch-btn-skill');
     if (btnSkill) {
       let startX = 0;
       let startY = 0;
       let isSwiping = false;
       let activeSkillTouchId = null;
+      let tappedHintPower = null;
+
+      const resolveHintPower = (targetEl) => {
+        if (!targetEl || typeof targetEl.closest !== 'function') return null;
+        const hintEl = targetEl.closest('.swipe-hint');
+        if (!hintEl) return null;
+        if (hintEl.dataset && hintEl.dataset.power) return hintEl.dataset.power;
+        if (hintEl.classList.contains('hint-n')) return 'Fuego';
+        if (hintEl.classList.contains('hint-e')) return 'Embestida';
+        if (hintEl.classList.contains('hint-s')) return 'Raíces';
+        if (hintEl.classList.contains('hint-w')) return 'Éter';
+        return null;
+      };
 
       const startSkill = (e) => {
+        if (activeSkillTouchId !== null && e.touches) {
+          let stillPresent = false;
+          for (let i = 0; i < e.touches.length; i++) {
+            if (e.touches[i].identifier === activeSkillTouchId) {
+              stillPresent = true;
+              break;
+            }
+          }
+          if (!stillPresent) {
+            activeSkillTouchId = null;
+            isSwiping = false;
+          }
+        }
         if (activeSkillTouchId !== null) return;
         e.preventDefault();
         e.stopPropagation();
@@ -906,6 +972,7 @@ export class InputManager {
         isSwiping = true;
         startX = touch.clientX;
         startY = touch.clientY;
+        tappedHintPower = resolveHintPower(e.target);
         this.hoveredSwipePower = null;
         btnSkill.classList.add('touch-pressed');
       };
@@ -928,7 +995,7 @@ export class InputManager {
         e.stopPropagation();
         const dx = touch.clientX - startX;
         const dy = touch.clientY - startY;
-        if (Math.hypot(dx, dy) > 15) {
+        if (Math.hypot(dx, dy) > 12) {
           this.hoveredSwipePower = this._calculateSwipePower(dx, dy);
         } else {
           this.hoveredSwipePower = null;
@@ -937,16 +1004,18 @@ export class InputManager {
 
       const endSkill = (e) => {
         if (!isSwiping || activeSkillTouchId === null) return;
+        let endedTouch = null;
         if (e.changedTouches) {
-          let matched = false;
           for (let i = 0; i < e.changedTouches.length; i++) {
             if (e.changedTouches[i].identifier === activeSkillTouchId) {
-              matched = true;
+              endedTouch = e.changedTouches[i];
               break;
             }
           }
-          if (!matched) return;
-        } else if (activeSkillTouchId !== 'mouse') {
+          if (!endedTouch) return;
+        } else if (activeSkillTouchId === 'mouse') {
+          endedTouch = e;
+        } else {
           return;
         }
         e.preventDefault();
@@ -955,19 +1024,49 @@ export class InputManager {
         activeSkillTouchId = null;
         btnSkill.classList.remove('touch-pressed');
 
-        // Si no hubo swipe direccional, fue un tap -> Disparar con latching seguro la habilidad equipada
-        if (!this.hoveredSwipePower) {
-          this.triggerAction('ability', 180);
-        } else if (this.hoveredSwipePower !== null) {
+        if (endedTouch && typeof endedTouch.clientX === 'number') {
+          const dx = endedTouch.clientX - startX;
+          const dy = endedTouch.clientY - startY;
+          if (Math.hypot(dx, dy) > 12) {
+            this.hoveredSwipePower = this._calculateSwipePower(dx, dy);
+          }
+        }
+
+        // Si hubo swipe direccional o toque en uno de los 4 iconos elementales -> cambiar poder; si no -> lanzar habilidad
+        if (this.hoveredSwipePower !== null) {
           this.setPower(this.hoveredSwipePower);
+        } else if (tappedHintPower) {
+          this.setPower(tappedHintPower);
+        } else {
+          this.triggerAction('ability', 180);
         }
         this.hoveredSwipePower = null;
+        tappedHintPower = null;
+      };
+
+      const cancelSkill = (e) => {
+        if (!isSwiping || activeSkillTouchId === null) return;
+        if (e && e.changedTouches) {
+          let matched = false;
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === activeSkillTouchId) {
+              matched = true;
+              break;
+            }
+          }
+          if (!matched) return;
+        }
+        isSwiping = false;
+        activeSkillTouchId = null;
+        this.hoveredSwipePower = null;
+        tappedHintPower = null;
+        btnSkill.classList.remove('touch-pressed');
       };
 
       btnSkill.addEventListener('touchstart', startSkill, { passive: false });
       window.addEventListener('touchmove', moveSkill, { passive: false });
       window.addEventListener('touchend', endSkill, { passive: false });
-      window.addEventListener('touchcancel', endSkill, { passive: false });
+      window.addEventListener('touchcancel', cancelSkill, { passive: false });
 
       btnSkill.addEventListener('mousedown', startSkill);
       window.addEventListener('mousemove', (e) => {

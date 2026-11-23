@@ -251,6 +251,8 @@ export class Enemy extends Entity {
     this.bobPhase = Math.random() * Math.PI * 2;
     this.scaleX = 1.0;
     this.scaleY = 1.0;
+    /** @type {number} Rastro suavizado de daño [0..1] para la barra de vida flotante sobre el enemigo */
+    this._ghostHealthPct = 1.0;
 
     // Hitbox precisa en la base para colisiones y Y-Sorting
     this.hitbox = this.isBoss
@@ -901,6 +903,7 @@ export class Enemy extends Entity {
       if (this.respawnTimer <= 0) {
         this.isDead = false;
         this.health = this.max_health;
+        this._ghostHealthPct = 1.0;
         this.aiState = 'IDLE';
         this.aiTimer = 0.8;
         this.pos.set(this.initialX, this.initialY);
@@ -923,6 +926,12 @@ export class Enemy extends Entity {
 
     this.animClock = (this.animClock || 0) + dt;
     this.bobPhase += dt * 4.2;
+    const targetHpPct = this.max_health > 0 ? Math.max(0, Math.min(1, this.health / this.max_health)) : 0;
+    if (this._ghostHealthPct > targetHpPct) {
+      this._ghostHealthPct = Math.max(targetHpPct, this._ghostHealthPct - dt * 1.35);
+    } else {
+      this._ghostHealthPct = targetHpPct;
+    }
 
     // 2. Daño periódico por Quemadura Ígnea y Espinas Sifón (DoT)
     if (this.hasTag('quemadura_ignea')) {
@@ -1441,12 +1450,15 @@ export class Enemy extends Entity {
 
     ctx.restore();
 
-    // 3. Señal de Exclamación Roja/Dorada durante Telegrafía (Lectura de Parry Perfecto)
+    // 3. Señal de Exclamación Roja/Dorada durante Telegrafía (elevada sobre la barra de vida)
     if (this.aiState === 'TELEGRAPH') {
+      const exY = this.isBoss ? y - 34 : y - 27;
       ctx.save();
+      ctx.fillStyle = '#050811';
+      ctx.fillRect(cx - 3, exY - 1, 6, 13);
       ctx.fillStyle = '#fde047';
-      ctx.fillRect(cx - 2, y - 14, 4, 7);
-      ctx.fillRect(cx - 2, y - 5, 4, 3);
+      ctx.fillRect(cx - 2, exY, 4, 7);
+      ctx.fillRect(cx - 2, exY + 8, 4, 3);
       ctx.restore();
     }
 
@@ -1506,17 +1518,54 @@ export class Enemy extends Entity {
       }
     }
 
-    // 5. Barra de Salud Táctica Superior (alineada a píxel entero)
-    const barW = this.isBoss ? 40 : 28;
-    const barH = this.isBoss ? 5 : 4;
+    // 5. Barra de Salud Cel-Shaded Flotante sobre el Enemigo (con rastro de daño e indicador de escudo/coraza/fase)
+    const barW = this.isBoss ? 50 : 32;
+    const barH = this.isBoss ? 6 : 4;
     const barX = Math.round(cx - barW / 2);
-    const barY = y - 6;
+    const barY = this.isBoss ? y - 16 : y - 13;
 
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
-    ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+    // Borde de tinta #050811 y fondo oscuro
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(barX, barY, barW, barH);
 
-    const healthPct = Math.max(0, this.health / this.max_health);
-    ctx.fillStyle = this.hasTag('staggered') ? '#fde047' : (healthPct > 0.4 ? (this.isBoss ? '#f97316' : '#22c55e') : '#ef4444');
-    ctx.fillRect(barX, barY, Math.round(barW * healthPct), barH);
+    // Rastro dorado de daño reciente (ghost trail)
+    const healthPct = this.max_health > 0 ? Math.max(0, Math.min(1, this.health / this.max_health)) : 0;
+    const ghostPct = Math.max(healthPct, Math.min(1, this._ghostHealthPct || healthPct));
+    if (ghostPct > healthPct) {
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(barX, barY, Math.round(barW * ghostPct), barH);
+    }
+
+    // Relleno principal de vitalidad
+    const fillW = Math.round(barW * healthPct);
+    if (fillW > 0) {
+      ctx.fillStyle = this.hasTag('staggered')
+        ? '#fde047'
+        : this.isBoss
+          ? (this.phase >= 2 ? '#e879f9' : '#f97316')
+          : (healthPct > 0.5 ? '#22c55e' : healthPct > 0.25 ? '#f59e0b' : '#ef4444');
+      ctx.fillRect(barX, barY, fillW, barH);
+
+      // Brillo especular superior de 1px
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.fillRect(barX, barY, fillW, 1);
+    }
+
+    // Muesca central al 50% en jefes (umbral de Fase II)
+    if (this.isBoss) {
+      ctx.fillStyle = '#050811';
+      ctx.fillRect(barX + Math.round(barW * 0.5), barY, 1, barH);
+    }
+
+    // Insignia lateral de defensa activa (Escudo de Roble dorado / Coraza Volcánica cian)
+    if (this.hasWoodenShield || this.hasMetalArmor) {
+      const pipColor = this.hasMetalArmor ? '#38bdf8' : '#f59e0b';
+      ctx.fillStyle = '#050811';
+      ctx.fillRect(barX - 7, barY - 2, 6, barH + 4);
+      ctx.fillStyle = pipColor;
+      ctx.fillRect(barX - 6, barY - 1, 4, barH + 2);
+    }
   }
 }

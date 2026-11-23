@@ -1694,11 +1694,19 @@ stateManager.set('open_sanctuary_hook', (tab = 'skills') => {
 
 // Enlazar botones de navegación del Santuario y HUD
 const hudRelicBadge = document.getElementById('hud-relic-badge');
-addTouchClick(hudRelicBadge, () => {
-  if (stateManager.get('game_state') === 'STATE_PLAYING') {
-    inputManager.cyclePower(1);
-  }
-});
+if (hudRelicBadge) {
+  hudRelicBadge.addEventListener('touchstart', (e) => {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+  }, { passive: true });
+  hudRelicBadge.addEventListener('mousedown', (e) => {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+  });
+  addTouchClick(hudRelicBadge, () => {
+    if (stateManager.get('game_state') === 'STATE_PLAYING') {
+      inputManager.cyclePower(1);
+    }
+  });
+}
 addTouchClick(btnSettings, () => openSanctuary('system'));
 addTouchClick(btnQuickTalents, () => toggleSanctuaryTab('skills'));
 addTouchClick(btnQuickArsenal, () => toggleSanctuaryTab('arsenal'));
@@ -1896,6 +1904,9 @@ inputManager.onPause(() => {
 });
 
 inputManager.setPowerFilter((power) => Boolean(player && player.hasElement(power)));
+inputManager.setCurrentPowerGetter(() =>
+  progressionManager.toDisplayElement((player && player.currentAbility) || stateManager.get('equipped_power') || 'Fuego')
+);
 
 stateManager.subscribe('equipped_power', (power) => {
   if (power && power !== 'Dormido') {
@@ -1931,10 +1942,11 @@ inputManager.onSkillEquipped((newPower) => {
   if (!player) return;
   if (!player.hasElement(newPower)) {
     // Impedir disonancia ludonarrativa si el engarce aún no ha sido despertado y conservar el poder activo
-    const fallbackPower = player.currentAbility || 'Fuego';
-    inputManager.currentPower = fallbackPower;
-    if (player.hasElement(fallbackPower)) {
-      stateManager.set('equipped_power', progressionManager.toDisplayElement(fallbackPower));
+    const fallbackRaw = player.currentAbility || 'Fuego';
+    const fallbackDisplay = progressionManager.toDisplayElement(fallbackRaw);
+    inputManager.currentPower = fallbackDisplay;
+    if (player.hasElement(fallbackRaw)) {
+      stateManager.set('equipped_power', fallbackDisplay);
     }
     if (stateManager.get('game_state') === 'STATE_PLAYING') {
       const tier = stateManager.get('gauntlet_tier') || 0;
@@ -1950,8 +1962,10 @@ inputManager.onSkillEquipped((newPower) => {
   }
   const displayElem = progressionManager.toDisplayElement(newPower);
   const prevElem = stateManager.get('equipped_power');
-  stateManager.set('equipped_power', displayElem);
   player.equipAbility(newPower);
+  stateManager.set('equipped_power', displayElem);
+  uiManager.updateHUD(stateManager, displayElem);
+  uiManager.updateVirtualGamepad(inputManager, displayElem, stateManager);
   if (prevElem !== displayElem && stateManager.get('game_state') === 'STATE_PLAYING') {
     const pColor = POWER_LIGHT_COLORS[displayElem] || '#facc15';
     vfxRenderer.spawnImpact('parry_spark', player.pos.x + player.width * 0.5, player.pos.y + player.height * 0.5, {
