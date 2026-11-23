@@ -97,12 +97,15 @@ const victoryWorldsVal = document.getElementById('victory-worlds-val');
 const victoryEssenceVal = document.getElementById('victory-essence-val');
 const btnVictoryContinue = document.getElementById('btn-victory-continue');
 const btnVictoryMenu = document.getElementById('btn-victory-menu');
+const tutorialScrimEl = document.getElementById('tutorial-scrim');
 const tutorialGuideOverlay = document.getElementById('tutorial-guide-overlay');
 const tutorialStepBadge = document.getElementById('tutorial-step-badge');
 const tutorialGuideTitle = document.getElementById('tutorial-guide-title');
 const tutorialGuideBody = document.getElementById('tutorial-guide-body');
+const tutorialStepDots = document.getElementById('tutorial-step-dots');
 const btnTutorialNext = document.getElementById('btn-tutorial-next');
 const btnTutorialSkipAll = document.getElementById('btn-tutorial-skip-all');
+const btnReplayTutorial = document.getElementById('btn-replay-tutorial');
 
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
@@ -133,7 +136,8 @@ const tutorialGuideState = {
   currentStepKey: null,
   completedSteps: new Set(),
   skippedAll: false,
-  spotlightIds: []
+  spotlightIds: [],
+  spotlightHostEls: []
 };
 
 function _loadTutorialProgress() {
@@ -173,6 +177,11 @@ function _clearTutorialSpotlights() {
     if (el) el.classList.remove('tutorial-spotlight-active');
   }
   tutorialGuideState.spotlightIds.length = 0;
+  for (let i = 0; i < tutorialGuideState.spotlightHostEls.length; i++) {
+    const host = tutorialGuideState.spotlightHostEls[i];
+    if (host) host.classList.remove('tutorial-spotlight-host');
+  }
+  tutorialGuideState.spotlightHostEls.length = 0;
 }
 
 function _openTutorialStep(stepKey) {
@@ -182,11 +191,13 @@ function _openTutorialStep(stepKey) {
 
   const isTouch = Boolean(inputManager.shouldShowTouchControls || isTouchDevice);
   let badge = 'TUTORIAL · PASO 1 DE 3';
+  let stepNum = 1;
   let title = 'ESTADO VITAL Y BRÚJULA DE RUMBO';
   let bodyHtml = '';
   let spotlights = [];
 
   if (stepKey === 'step_1_hud') {
+    stepNum = 1;
     badge = 'TUTORIAL · PASO 1 DE 3';
     title = 'BARRAS VITALES Y BRÚJULA DE RUMBO';
     spotlights = ['hud-container', 'objective-hud-tracker'];
@@ -207,6 +218,7 @@ function _openTutorialStep(stepKey) {
       </div>
     `;
   } else if (stepKey === 'step_2_combat') {
+    stepNum = 2;
     badge = 'TUTORIAL · PASO 2 DE 3';
     title = 'ESPADA DEL ALBA, GUARDIA Y MOVILIDAD';
     spotlights = isTouch
@@ -239,11 +251,12 @@ function _openTutorialStep(stepKey) {
       </div>
     `;
   } else if (stepKey === 'step_3_powers') {
+    stepNum = 3;
     badge = 'TUTORIAL · PASO 3 DE 3';
     title = 'PODER DÉBIL, PODER FUERTE Y CURACIÓN';
     spotlights = isTouch
-      ? ['touch-btn-skill', 'touch-btn-skill-strong', 'touch-btn-switch', 'touch-btn-heal', 'hud-relic-badge']
-      : ['hud-relic-badge', 'hud-container'];
+      ? ['touch-btn-skill', 'touch-btn-skill-strong', 'touch-btn-switch', 'touch-btn-heal', 'hud-relic-badge', 'btn-quick-talents']
+      : ['hud-relic-badge', 'hud-container', 'btn-quick-talents'];
     bodyHtml = `
       <div class="tutorial-tip-row">
         <span class="tutorial-tip-icon">🔥</span>
@@ -266,6 +279,13 @@ function _openTutorialStep(stepKey) {
           Usa energía para restaurar corazones (o crear un Escudo de Vitalidad si tienes la vida llena) y alterna poderes cuando desbloquees más núcleos.
         </div>
       </div>
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">★</span>
+        <div class="tutorial-tip-text">
+          <strong>Árbol de Habilidades (${isTouch ? 'Botón ★ arriba a la derecha' : 'Tecla [U] o botón ★'}):</strong>
+          Toca cualquier habilidad para <strong>verificar qué hace</strong> y elige libremente cuál desbloquear con tu Esencia.
+        </div>
+      </div>
     `;
   } else {
     return;
@@ -273,18 +293,38 @@ function _openTutorialStep(stepKey) {
 
   tutorialGuideState.active = true;
   tutorialGuideState.currentStepKey = stepKey;
+  if (typeof document !== 'undefined' && document.body) {
+    document.body.classList.add('tutorial-active');
+  }
+  if (tutorialScrimEl) {
+    tutorialScrimEl.classList.remove('hidden');
+  }
   _clearTutorialSpotlights();
   for (let i = 0; i < spotlights.length; i++) {
     const el = document.getElementById(spotlights[i]);
     if (el) {
       el.classList.add('tutorial-spotlight-active');
       tutorialGuideState.spotlightIds.push(spotlights[i]);
+      if (typeof el.closest === 'function') {
+        const host = el.closest('.hud-top-left-dock, .hud-top-right-dock, .touch-actions-cluster, .touch-joystick-zone');
+        if (host && !host.classList.contains('tutorial-spotlight-host')) {
+          host.classList.add('tutorial-spotlight-host');
+          tutorialGuideState.spotlightHostEls.push(host);
+        }
+      }
     }
   }
 
   if (tutorialStepBadge) tutorialStepBadge.textContent = badge;
   if (tutorialGuideTitle) tutorialGuideTitle.textContent = title;
   if (tutorialGuideBody) tutorialGuideBody.innerHTML = bodyHtml;
+  if (tutorialStepDots) {
+    let dotsHtml = '';
+    for (let d = 1; d <= 3; d++) {
+      dotsHtml += `<span class="tutorial-dot ${d === stepNum ? 'active' : ''}"></span>`;
+    }
+    tutorialStepDots.innerHTML = dotsHtml;
+  }
   tutorialGuideOverlay.classList.remove('hidden');
   if (audioManager && typeof audioManager.playRunicResonance === 'function') {
     audioManager.playRunicResonance();
@@ -302,6 +342,12 @@ function _closeTutorialStep(resumeGame = true) {
   }
   tutorialGuideState.active = false;
   tutorialGuideState.currentStepKey = null;
+  if (typeof document !== 'undefined' && document.body) {
+    document.body.classList.remove('tutorial-active');
+  }
+  if (tutorialScrimEl) {
+    tutorialScrimEl.classList.add('hidden');
+  }
   _clearTutorialSpotlights();
   tutorialGuideOverlay.classList.add('hidden');
   _saveTutorialProgress();
@@ -321,6 +367,7 @@ function _updateCompassBearing(px, py) {
   if (!currentLevelData || !player) return;
   let tx = null;
   let ty = null;
+  let targetKind = 'story';
 
   const liveProps = entityManager.getByTag('prop');
 
@@ -331,12 +378,17 @@ function _updateCompassBearing(px, py) {
       if (p && p.propType === 'starter_sword' && !p.isConsumed) {
         tx = p.pos.x + p.width * 0.5;
         ty = p.pos.y + p.height * 0.5;
+        targetKind = 'story';
         break;
       }
     }
     if (tx === null && Array.isArray(currentLevelData.props)) {
       const sp = currentLevelData.props.find((p) => p && p.propType === 'starter_sword');
-      if (sp) { tx = (sp.x || 0) + 24; ty = (sp.y || 0) + 29; }
+      if (sp) {
+        tx = (sp.x || 0) + 24;
+        ty = (sp.y || 0) + 29;
+        targetKind = 'story';
+      }
     }
   }
 
@@ -347,6 +399,7 @@ function _updateCompassBearing(px, py) {
       if (p && p.propType === 'cracked_rock' && !p.isDead && !p.isConsumed) {
         tx = p.pos.x + p.width * 0.5;
         ty = p.pos.y + p.height * 0.5;
+        targetKind = 'story';
         break;
       }
     }
@@ -358,10 +411,11 @@ function _updateCompassBearing(px, py) {
     if (ped) {
       tx = (ped.x || 0) + 28;
       ty = (ped.y || 0) + 34;
+      targetKind = 'core';
     }
   }
 
-  // 4. Mecanismos de sello o barreras activas en el mundo actual
+  // 4. Mecanismos de sello o barreras activas en el mundo actual (vivos o en chunks no montados)
   if (tx === null) {
     let bestDistSq = Infinity;
     for (let i = 0; i < liveProps.length; i++) {
@@ -379,6 +433,37 @@ function _updateCompassBearing(px, py) {
           bestDistSq = dSq;
           tx = cx;
           ty = cy;
+          targetKind = 'core';
+        }
+      }
+    }
+    if (tx === null && Array.isArray(currentLevelData.props)) {
+      for (let i = 0; i < currentLevelData.props.length; i++) {
+        const bp = currentLevelData.props[i];
+        if (!bp) continue;
+        const normType = bp.propType;
+        const isBarrier = normType === 'burnable_vines' || normType === 'kinetic_barrier';
+        const isSealObj =
+          normType === 'elemental_brazier' ||
+          normType === 'root_totem' ||
+          normType === 'kinetic_pillar' ||
+          normType === 'ether_pylon';
+        if (!isBarrier && !isSealObj) continue;
+
+        const mem = bp.id && chunkManager && chunkManager.entityMemory ? chunkManager.entityMemory.get(bp.id) : null;
+        if (mem && (mem.isDead || mem.isConsumed || mem.isActivated)) continue;
+
+        const linkKey = bp.linkId || bp.id;
+        if (linkKey && progressionManager.resolvedLinks.has(`${currentWorldKey}:${linkKey}`)) continue;
+
+        const cx = (bp.x || 0) + 20;
+        const cy = (bp.y || 0) + 20;
+        const dSq = (cx - px) * (cx - px) + (cy - py) * (cy - py);
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          tx = cx;
+          ty = cy;
+          targetKind = 'core';
         }
       }
     }
@@ -392,6 +477,7 @@ function _updateCompassBearing(px, py) {
       if (e && e.isBoss && !e.isDead) {
         tx = e.pos.x + e.width * 0.5;
         ty = e.pos.y + e.height * 0.5;
+        targetKind = 'boss';
         break;
       }
     }
@@ -400,6 +486,7 @@ function _updateCompassBearing(px, py) {
       if (bossBp) {
         tx = (bossBp.x || 0) + 22;
         ty = (bossBp.y || 0) + 22;
+        targetKind = 'boss';
       }
     }
   }
@@ -412,6 +499,7 @@ function _updateCompassBearing(px, py) {
     if (portal) {
       tx = (portal.x || 0) + 28;
       ty = (portal.y || 0) + 36;
+      targetKind = 'story';
     }
   }
 
@@ -421,9 +509,10 @@ function _updateCompassBearing(px, py) {
   const dy = ty - py;
   const distPx = Math.hypot(dx, dy);
   const distM = Math.max(0, Math.round(distPx / 24));
-  // Proyección horizontal suave sobre la tira de la brújula [12% .. 88%]
+  const isSouth = dy > 24;
+  // Proyección horizontal suave sobre la regla cardinal completa [10% .. 90%] (O..E)
   const normHoriz = Math.max(-1, Math.min(1, dx / Math.max(80, distPx)));
-  const bearingPct = Math.round(50 + normHoriz * 38);
+  const bearingPct = Math.round(10 + ((normHoriz + 1) * 0.5) * 80);
   let dirSym = '◆';
   if (distM > 2) {
     if (Math.abs(dy) >= Math.abs(dx) * 0.85) {
@@ -433,9 +522,17 @@ function _updateCompassBearing(px, py) {
     }
   }
 
+  const accentColor = targetKind === 'core'
+    ? (currentWorldMeta?.accentColor || '#fb923c')
+    : targetKind === 'boss'
+      ? '#fb7185'
+      : '#fde047';
+
   stateManager.set('compass_bearing_pct', bearingPct);
   stateManager.set('compass_dir_symbol', dirSym);
   stateManager.set('compass_dist_m', distM);
+  stateManager.set('compass_hemisphere', isSouth ? 'S' : 'N');
+  stateManager.set('compass_accent_color', accentColor);
 }
 let _initialMinimapCollapsed = false;
 try {
@@ -942,6 +1039,19 @@ async function loadWorld(worldKey, options = {}) {
     camera.snapTo(_playerCenterCache);
     chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
     chunkManager.syncFlyweightSprites();
+
+    // Verificación post-carga contra losetas de agua/muros o props montados para garantizar terreno firme
+    if (physicsSystem && typeof physicsSystem.moveWithCollisions === 'function') {
+      const safeSpawn = physicsSystem.moveWithCollisions(player, player.pos.x, player.pos.y);
+      player.pos.set(safeSpawn.x, safeSpawn.y);
+      player.spawnX = safeSpawn.x;
+      player.spawnY = safeSpawn.y;
+      _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
+      _playerCenterCache.y = Math.round(player.pos.y) + player.height * 0.5;
+      playerLight.x = _playerCenterCache.x;
+      playerLight.y = _playerCenterCache.y;
+      camera.snapTo(_playerCenterCache);
+    }
 
     // Guía inicial de ubicación del Núcleo Elemental (solo la 1ra vez que se entra al mundo)
     if (isFirstWorldVisit && worldKey !== 'cave_exit_intro' && !progressionManager.hasUnlockedWorldCore(worldKey)) {
@@ -1964,7 +2074,7 @@ function isMainMenuSettingsOpen() {
 }
 
 function openSanctuary(initialTab = 'skills') {
-  if (!sanctuaryModalEl) return;
+  if (!sanctuaryModalEl || tutorialGuideState.active) return;
   const current = stateManager.get('game_state');
 
   if (current === 'STATE_CINEMATIC') return;
@@ -2250,14 +2360,30 @@ addTouchClick(btnToggleTouchHud, () => {
   syncTouchHudBtnLabel();
 });
 
+if (btnReplayTutorial) {
+  addTouchClick(btnReplayTutorial, () => {
+    _resetTutorialProgress();
+    if (sanctuaryOriginState === 'STATE_PLAYING' && worldInitialized) {
+      closeSanctuary();
+      _openTutorialStep('step_1_hud');
+    } else {
+      const orig = btnReplayTutorial.textContent;
+      btnReplayTutorial.textContent = 'GUÍA REACTIVADA ✓';
+      setTimeout(() => {
+        if (btnReplayTutorial) btnReplayTutorial.textContent = orig;
+      }, 1500);
+    }
+  });
+}
+
 // 13. Callbacks de Entrada (Talentos [U], Pausa [Esc], Selección Elemental Validada)
 inputManager.onTalents(() => {
-  if (stateManager.get('game_state') === 'STATE_MENU' || stateManager.get('game_state') === 'STATE_CINEMATIC') return;
+  if (tutorialGuideState.active || stateManager.get('game_state') === 'STATE_MENU' || stateManager.get('game_state') === 'STATE_CINEMATIC') return;
   toggleSanctuaryTab('skills');
 });
 
 inputManager.onPause(() => {
-  if (stateManager.get('game_state') === 'STATE_CINEMATIC') return;
+  if (tutorialGuideState.active || stateManager.get('game_state') === 'STATE_CINEMATIC') return;
   if (isSanctuaryOpen()) {
     closeSanctuary();
     return;
@@ -2356,9 +2482,11 @@ addTouchClick(btnTutorialSkipAll, () => {
 });
 
 window.addEventListener('keydown', (e) => {
-  if (tutorialGuideState.active && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) {
-    e.preventDefault();
-    _closeTutorialStep(true);
+  if (tutorialGuideState.active) {
+    if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+      e.preventDefault();
+      _closeTutorialStep(true);
+    }
     return;
   }
   // Atajo F9 para retornar inmediatamente del Playtest a la Forja de Niveles
@@ -2397,7 +2525,7 @@ window.addEventListener('keydown', (e) => {
   }
 
   // Accesos rápidos a Arsenal [I], Crónica/Códice [M] y Minimapa [N] durante la partida
-  if ((currentState === 'STATE_PLAYING' || (isSanctuaryOpen() && !isMainMenuSettingsOpen())) && !e.repeat) {
+  if (!tutorialGuideState.active && (currentState === 'STATE_PLAYING' || (isSanctuaryOpen() && !isMainMenuSettingsOpen())) && !e.repeat) {
     if (e.code === 'KeyI') {
       e.preventDefault();
       toggleSanctuaryTab('arsenal');

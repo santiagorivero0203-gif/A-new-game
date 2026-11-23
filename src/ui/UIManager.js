@@ -61,6 +61,9 @@ export class UIManager {
     this.compassMarkerEl = document.getElementById('compass-target-marker');
     this.compassDirEl = document.getElementById('compass-target-dir');
     this.compassDistEl = document.getElementById('compass-target-dist');
+    this.compassCardNW = document.getElementById('compass-card-nw');
+    this.compassCardCenter = document.getElementById('compass-card-center');
+    this.compassCardNE = document.getElementById('compass-card-ne');
     this.comboHud = document.getElementById('combo-hud');
     this.comboRankBadge = document.getElementById('combo-rank-badge');
     this.comboCountText = document.getElementById('combo-count-text');
@@ -100,9 +103,11 @@ export class UIManager {
     this.stInspectorBonusText = document.getElementById('st-inspector-bonus-text');
     this.stInspectorReqLabel = document.getElementById('st-inspector-req-label');
     this.stInspectorReqVal = document.getElementById('st-inspector-req-val');
+    this.stInspectorPanel = document.getElementById('st-inspector-panel');
     this.arsenalContainer = document.getElementById('sanctuary-arsenal-content');
     this.codexContainer = document.getElementById('sanctuary-codex-content');
     this.selectedSkillId = 'parry_window';
+    this._lastUnlockedSkillId = null;
 
     // 3. Diálogo, Rueda Radial y Gamepad Táctil
     this.dialogueCard = document.getElementById('dialogue-card');
@@ -119,6 +124,7 @@ export class UIManager {
     this.touchSwitchLabel = document.getElementById('touch-switch-label');
     this.touchDashBtn = document.getElementById('touch-btn-dash');
     this.touchDashLabel = document.getElementById('touch-dash-label');
+    this.touchSwipeHints = Array.from(document.querySelectorAll('#touch-btn-skill .swipe-hint[data-power]'));
 
     // Etiqueta de compilación en Ajustes > Sistema (evita ReferenceError fuera de Vite)
     this.buildVersionEl = document.getElementById('st-build-version');
@@ -158,6 +164,13 @@ export class UIManager {
     this._lastTouchSprinting = null;
     this._lastTouchProne = null;
     this._lastTouchHidden = null;
+    this._lastSwipeMask = null;
+    this._lastCompassPct = null;
+    this._lastCompassDir = null;
+    this._lastCompassDist = null;
+    this._lastCompassHemi = null;
+    this._lastCompassAccent = null;
+    this._lastCompassArrived = null;
     this._lastEssence = -1;
     this._lastComboCount = 0;
     this._lastComboRank = 'D';
@@ -297,7 +310,18 @@ export class UIManager {
 
     // 1. Medallón y Tema Elemental
     if (signature !== this._lastPowerSignature) {
+      const hadPrevSignature = this._lastPowerSignature !== null;
       this._lastPowerSignature = signature;
+
+      if (hadPrevSignature && !isDormant && this.hudRelicBadge) {
+        this.hudRelicBadge.classList.remove('crest-pulse');
+        void this.hudRelicBadge.offsetWidth;
+        this.hudRelicBadge.classList.add('crest-pulse');
+        clearTimeout(this._crestPulseTimeout);
+        this._crestPulseTimeout = setTimeout(() => {
+          if (this.hudRelicBadge) this.hudRelicBadge.classList.remove('crest-pulse');
+        }, 300);
+      }
 
       if (isDormant) {
         const dormantColor = this.powerColors.Dormido;
@@ -382,14 +406,33 @@ export class UIManager {
       }
     }
 
-    // 2. Barra de Energía Elemental (GPU scaleX libre de Layout Thrashing)
+    // 2. Barra de Energía Elemental (GPU scaleX libre de Layout Thrashing + Rastro de Gasto / Brillo de Carga)
     const energy = stateManager ? (stateManager.get('player_energy') ?? 100) : 100;
     if (Math.abs(energy - this._lastEnergy) > 0.5) {
+      const prevEnergy = this._lastEnergy;
       this._lastEnergy = energy;
       const clampedEnergy = Math.max(0, Math.min(100, energy));
       const ratio = clampedEnergy / 100;
-      if (this.hudEnergyFill) this.hudEnergyFill.style.transform = `scaleX(${ratio})`;
-      if (this.hudEnergyGhostFill) this.hudEnergyGhostFill.style.transform = `scaleX(${ratio})`;
+      if (this.hudEnergyFill) {
+        this.hudEnergyFill.style.transform = `scaleX(${ratio})`;
+        if (prevEnergy >= 0 && energy - prevEnergy >= 4) {
+          this.hudEnergyFill.classList.add('is-gaining');
+          clearTimeout(this._energyGainTimeout);
+          this._energyGainTimeout = setTimeout(() => {
+            if (this.hudEnergyFill) this.hudEnergyFill.classList.remove('is-gaining');
+          }, 320);
+        }
+      }
+      if (this.hudEnergyGhostFill) {
+        if (prevEnergy >= 0 && energy < prevEnergy - 1) {
+          clearTimeout(this._energyGhostTimeout);
+          this._energyGhostTimeout = setTimeout(() => {
+            if (this.hudEnergyGhostFill) this.hudEnergyGhostFill.style.transform = `scaleX(${ratio})`;
+          }, 110);
+        } else {
+          this.hudEnergyGhostFill.style.transform = `scaleX(${ratio})`;
+        }
+      }
       if (this.gaugePct) this.gaugePct.textContent = `${Math.round(clampedEnergy)}%`;
     }
 
@@ -430,10 +473,10 @@ export class UIManager {
           this.hudPostureText.style.color = '#f87171';
         } else if (isDefending) {
           this.hudPostureText.textContent = 'GUARD';
-          this.hudPostureText.style.color = '#7dd3fc';
+          this.hudPostureText.style.color = '#fde68a';
         } else {
           this.hudPostureText.textContent = `${Math.round(clampedPosture)}%`;
-          this.hudPostureText.style.color = '#93c5fd';
+          this.hudPostureText.style.color = '#d6c5a7';
         }
       }
     }
@@ -502,6 +545,17 @@ export class UIManager {
           this._healAnimTimeout = setTimeout(() => {
             if (this.hudHpFill) this.hudHpFill.classList.remove('is-healing');
             if (this.hudHpChassis) this.hudHpChassis.classList.remove('is-healing');
+            if (this.hudHpText) {
+              this.hudHpText.style.color = this._lastCritical ? '#fda4af' : '#fecdd3';
+            }
+            for (let j = 0; j < this.heartElements.length; j++) {
+              if (this.heartElements[j]) {
+                const cls = this.heartElements[j].getAttribute('class') || '';
+                if (cls.includes('heart-restored')) {
+                  this.heartElements[j].setAttribute('class', cls.replace(/\s*heart-restored/g, ''));
+                }
+              }
+            }
           }, 740);
         }
       }
@@ -524,6 +578,14 @@ export class UIManager {
         clearTimeout(this._damageJoltTimeout);
         this._damageJoltTimeout = setTimeout(() => {
           if (this.hudContainer) this.hudContainer.classList.remove('is-damaged');
+          for (let j = 0; j < this.heartElements.length; j++) {
+            if (this.heartElements[j]) {
+              const cls = this.heartElements[j].getAttribute('class') || '';
+              if (cls.includes('heart-shattered')) {
+                this.heartElements[j].setAttribute('class', cls.replace(/\s*heart-shattered/g, ''));
+              }
+            }
+          }
         }, 360);
       }
       if (this.hudHpText) {
@@ -573,7 +635,7 @@ export class UIManager {
       }
       if (this.hudStaminaText) {
         this.hudStaminaText.textContent = staminaExhausted ? 'AGOT.' : `${Math.round(staminaRatio * 100)}%`;
-        this.hudStaminaText.style.color = staminaExhausted ? '#f87171' : '#7dd3fc';
+        this.hudStaminaText.style.color = staminaExhausted ? '#f87171' : '#a7f3d0';
       }
     }
 
@@ -761,6 +823,29 @@ export class UIManager {
       this._lastSkillLabel = activeName;
       this.touchSkillLabel.textContent = activeName;
     }
+
+    if (this.touchSwipeHints && this.touchSwipeHints.length > 0 && stateManager) {
+      const player = stateManager.get('player');
+      const eqNorm = inputManager && typeof inputManager._normalizeDisplayPower === 'function'
+        ? inputManager._normalizeDisplayPower(equippedPower || '')
+        : (equippedPower === 'Plantas' ? 'Raíces' : equippedPower);
+      let mask = `${gauntletTier}:${eqNorm}`;
+      for (let i = 0; i < this.touchSwipeHints.length; i++) {
+        const pName = this.touchSwipeHints[i].dataset?.power;
+        const unlocked = gauntletTier > 0 && (!player || typeof player.hasElement !== 'function' || player.hasElement(pName));
+        mask += unlocked ? '1' : '0';
+      }
+      if (mask !== this._lastSwipeMask) {
+        this._lastSwipeMask = mask;
+        for (let i = 0; i < this.touchSwipeHints.length; i++) {
+          const hintEl = this.touchSwipeHints[i];
+          const pName = hintEl.dataset?.power;
+          const unlocked = gauntletTier > 0 && (!player || typeof player.hasElement !== 'function' || player.hasElement(pName));
+          hintEl.classList.toggle('is-locked', !unlocked);
+          hintEl.classList.toggle('is-active', Boolean(unlocked && pName === eqNorm));
+        }
+      }
+    }
   }
 
   /**
@@ -915,6 +1000,10 @@ export class UIManager {
       const bearingPct = stateManager.get('compass_bearing_pct') ?? 50;
       const dirSym = stateManager.get('compass_dir_symbol') || '▲';
       const distM = stateManager.get('compass_dist_m') ?? 0;
+      const hemi = stateManager.get('compass_hemisphere') || 'N';
+      const accent = stateManager.get('compass_accent_color') || '#fde047';
+      const isArrived = distM <= 2;
+
       if (bearingPct !== this._lastCompassPct) {
         this._lastCompassPct = bearingPct;
         this.compassMarkerEl.style.left = `${bearingPct}%`;
@@ -926,6 +1015,22 @@ export class UIManager {
       if (this.compassDistEl && distM !== this._lastCompassDist) {
         this._lastCompassDist = distM;
         this.compassDistEl.textContent = distM > 0 ? `${distM}m` : 'AQUÍ';
+      }
+      if (accent !== this._lastCompassAccent) {
+        this._lastCompassAccent = accent;
+        if (typeof this.compassMarkerEl.style.setProperty === 'function') {
+          this.compassMarkerEl.style.setProperty('--compass-accent', accent);
+        }
+      }
+      if (isArrived !== this._lastCompassArrived) {
+        this._lastCompassArrived = isArrived;
+        this.compassMarkerEl.classList.toggle('is-arrived', isArrived);
+      }
+      if (hemi !== this._lastCompassHemi) {
+        this._lastCompassHemi = hemi;
+        if (this.compassCardNW) this.compassCardNW.textContent = hemi === 'S' ? 'SO' : 'NO';
+        if (this.compassCardCenter) this.compassCardCenter.textContent = hemi === 'S' ? 'S' : 'N';
+        if (this.compassCardNE) this.compassCardNE.textContent = hemi === 'S' ? 'SE' : 'NE';
       }
     }
 
@@ -1583,13 +1688,15 @@ export class UIManager {
             laneEl.appendChild(connector);
           }
 
+          const isJustUnlocked = skill.id === this._lastUnlockedSkillId;
           const nodeWrap = document.createElement('button');
           nodeWrap.type = 'button';
           nodeWrap.className = [
             'st-octa-node',
             skill.isMastery ? 'mastery-node' : '',
             isMax ? 'state-owned' : canBuy ? 'state-available' : isOwned ? 'state-owned' : depsMet ? 'state-affordable-wait' : 'state-locked',
-            isSelected ? 'is-selected' : ''
+            isSelected ? 'is-selected' : '',
+            isJustUnlocked ? 'just-unlocked' : ''
           ].filter(Boolean).join(' ');
           const statusDesc = isMax ? `Máximo (${rank}/${maxRank})` : `Rango ${rank}/${maxRank} · ${nextCost} Esencia`;
           nodeWrap.setAttribute('aria-label', `${skill.name} (${statusDesc})`);
@@ -1610,16 +1717,35 @@ export class UIManager {
 
           const selectAndInspectNode = (e) => {
             if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+            const changed = this.selectedSkillId !== skill.id;
             this.selectedSkillId = skill.id;
             this._highlightSelectedNode();
             this._updateSkillInspector(skill, skillTreeManager, audioManager);
-            if (this.stInspectorBuyBtn && typeof this.stInspectorBuyBtn.scrollIntoView === 'function' && this._isMobileActive()) {
+            if (changed && this.stInspectorPanel) {
+              this.stInspectorPanel.classList.remove('inspector-flash');
+              void this.stInspectorPanel.offsetWidth;
+              this.stInspectorPanel.classList.add('inspector-flash');
+            }
+            if (this.stInspectorBuyBtn && typeof this.stInspectorBuyBtn.scrollIntoView === 'function' && typeof window !== 'undefined' && window.innerWidth <= 860) {
               this.stInspectorBuyBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
           };
 
+          let touchStartX = 0;
+          let touchStartY = 0;
+          nodeWrap.addEventListener('touchstart', (e) => {
+            const t = e.changedTouches && e.changedTouches[0];
+            if (t) {
+              touchStartX = t.clientX;
+              touchStartY = t.clientY;
+            }
+          }, { passive: true });
           nodeWrap.addEventListener('click', selectAndInspectNode);
           nodeWrap.addEventListener('touchend', (e) => {
+            const t = e.changedTouches && e.changedTouches[0];
+            if (t && Math.hypot(t.clientX - touchStartX, t.clientY - touchStartY) >= 12) {
+              return;
+            }
             if (e && e.cancelable) e.preventDefault();
             selectAndInspectNode(e);
           }, { passive: false });
@@ -1633,6 +1759,8 @@ export class UIManager {
       branchCol.appendChild(lanesWrap);
       this.skillTreeList.appendChild(branchCol);
     }
+
+    this._lastUnlockedSkillId = null;
 
     const activeSkill = skillTreeManager.skills[this.selectedSkillId] || allSkills[0];
     if (activeSkill) {
@@ -1737,6 +1865,7 @@ export class UIManager {
           if (now - lastBuyTap < 220) return;
           lastBuyTap = now;
           if (skillTreeManager.unlockSkill(skill.id)) {
+            this._lastUnlockedSkillId = skill.id;
             if (audioManager) audioManager.playHeal();
             this.renderSkillTree(skillTreeManager, audioManager);
           }

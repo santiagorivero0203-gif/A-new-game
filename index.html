@@ -252,11 +252,11 @@
             <div class="gow-compass-cardinals">
               <span class="gow-cardinal">O</span>
               <span class="gow-tick"></span>
-              <span class="gow-cardinal">NO</span>
+              <span id="compass-card-nw" class="gow-cardinal">NO</span>
               <span class="gow-tick"></span>
-              <span class="gow-cardinal is-north">N</span>
+              <span id="compass-card-center" class="gow-cardinal is-north">N</span>
               <span class="gow-tick"></span>
-              <span class="gow-cardinal">NE</span>
+              <span id="compass-card-ne" class="gow-cardinal">NE</span>
               <span class="gow-tick"></span>
               <span class="gow-cardinal">E</span>
             </div>
@@ -269,7 +269,6 @@
             </div>
           </div>
           <div class="gow-objective-line">
-            <span class="objective-eyebrow">RUMBO</span>
             <span id="objective-hud-text" class="objective-hud-text">Sal de la cueva de cristales y explora el sendero exterior</span>
           </div>
         </div>
@@ -528,18 +527,18 @@
             <section class="st-constellation-board">
               <div class="st-board-header">
                 <div class="st-weapon-diamonds">
-                  <div class="st-diamond-slot" title="Filo Sagrado">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                      <path d="M14.5 9.5L20 4m-1.5 1.5l-3 3M4 20l10.5-10.5M4 16l4 4" />
-                    </svg>
-                  </div>
-                  <div class="st-diamond-slot active" title="Guantelete y Égida del Guardián">
+                  <div class="st-diamond-slot active" title="Égida y Parry">
                     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                       <path d="M12 2L3 7v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V7l-9-5z" />
                       <circle cx="12" cy="11" r="3" fill="currentColor" />
                     </svg>
                   </div>
-                  <div class="st-diamond-slot" title="Conducto Elemental">
+                  <div class="st-diamond-slot" title="Ira del Acero y Cinética">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                      <path d="M14.5 9.5L20 4m-1.5 1.5l-3 3M4 20l10.5-10.5M4 16l4 4" />
+                    </svg>
+                  </div>
+                  <div class="st-diamond-slot" title="Dominio de la Reliquia">
                     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
                       <path d="M12 2C8 6 6 9 6 13a6 6 0 0 0 12 0c0-4-2-7-6-11z" />
                     </svg>
@@ -669,6 +668,23 @@
                     </div>
                     <button type="button" id="btn-toggle-minimap" class="cel-action-btn primary">VISIBLE</button>
                   </div>
+
+                  <div class="st-setting-card">
+                    <div class="st-setting-info">
+                      <div class="st-setting-svg-wrap">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                      </div>
+                      <div>
+                        <strong>Tutorial Guiado de Combate</strong>
+                        <p>Vuelve a activar las pausas interactivas que explican el HUD, combate y poderes.</p>
+                      </div>
+                    </div>
+                    <button type="button" id="btn-replay-tutorial" class="cel-action-btn secondary">VER GUÍA</button>
+                  </div>
                 </div>
 
                 <!-- Acciones exclusivas de Partida en Curso (Pausa / In-Game) -->
@@ -757,7 +773,7 @@
           <footer class="st-footer-bar">
             <div class="st-footer-hints">
               <span class="st-hint-item"><kbd>Q</kbd> / <kbd>E</kbd> Cambiar Pestaña</span>
-              <span class="st-hint-item"><kbd>Clic</kbd> Seleccionar / Equipar</span>
+              <span class="st-hint-item">Toca un nodo para inspeccionar · Pulsa DESPERTAR para comprar</span>
               <span class="st-hint-item"><kbd>Esc</kbd> Volver</span>
             </div>
             <button type="button" id="btn-close-talents" class="st-footer-exit-btn">VOLVER AL JUEGO</button>
@@ -883,8 +899,9 @@
       </div>
 
       <!-- =========================================================================
-           CAPA 7: TUTORIAL GUIADO CON PAUSAS INTERACTIVAS Y RESALTADO DE HUD (Z-64)
+           CAPA 7: TUTORIAL GUIADO CON PAUSAS INTERACTIVAS Y RESALTADO DE HUD (Z-64/Z-68)
            ========================================================================= -->
+      <div id="tutorial-scrim" class="tutorial-scrim hidden" aria-hidden="true"></div>
       <div id="tutorial-guide-overlay" class="tutorial-guide-overlay hidden" role="dialog" aria-modal="true" aria-label="Guía de Aprendizaje de la Reliquia">
         <div class="tutorial-guide-card">
           <div class="tutorial-guide-header">
@@ -894,6 +911,7 @@
           <h3 id="tutorial-guide-title" class="tutorial-guide-title">ESTADO VITAL Y BRÚJULA DE RUMBO</h3>
           <div id="tutorial-guide-body" class="tutorial-guide-body"></div>
           <div class="tutorial-guide-footer">
+            <div id="tutorial-step-dots" class="tutorial-step-dots" aria-hidden="true"></div>
             <button type="button" id="btn-tutorial-next" class="cel-action-btn primary tutorial-next-btn">ENTENDIDO · CONTINUAR</button>
           </div>
         </div>

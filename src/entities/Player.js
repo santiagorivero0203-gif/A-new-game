@@ -1438,7 +1438,19 @@ export class Player extends Entity {
             }
             this.healCooldown = PLAYER_STATS.heal_cooldown || 1.5;
             this.healTimer = 0.85;
+            this.scaleX = 0.86;
+            this.scaleY = 1.18;
             if (context.audioManager) context.audioManager.playHeal();
+            if (context.vfxRenderer) {
+              context.vfxRenderer.spawnImpact('heal_pulse', this.pos.x + 16, this.pos.y + 16, {
+                radius: 34,
+                duration: 0.55,
+                color: '#4ade80'
+              });
+            }
+            if (context.uiManager && context.camera) {
+              context.uiManager.spawnDamageNumber(this.pos.x + 16, this.pos.y - 12, '+1 ♥', '#4ade80');
+            }
             if (isContext && contextOrDt.state) {
               contextOrDt.state.set('player_health', this.health);
               contextOrDt.state.set('health_critical', this.health <= 1);
@@ -1450,11 +1462,23 @@ export class Player extends Entity {
             this.energy -= barrierCost;
             this.healCooldown = 1.8;
             this.healTimer = 0.85;
+            this.scaleX = 0.86;
+            this.scaleY = 1.18;
             this.applyEffect('vitality_shield', 5.0);
             if (hasVitalSurge) {
               this.applyEffect('iframe', 0.6);
             }
             if (context.audioManager) context.audioManager.playHeal();
+            if (context.vfxRenderer) {
+              context.vfxRenderer.spawnImpact('heal_pulse', this.pos.x + 16, this.pos.y + 16, {
+                radius: 34,
+                duration: 0.55,
+                color: '#fde047'
+              });
+            }
+            if (context.uiManager && context.camera) {
+              context.uiManager.spawnDamageNumber(this.pos.x + 16, this.pos.y - 12, '¡ESCUDO VITAL!', '#fde047');
+            }
             if (isContext && contextOrDt.state) {
               contextOrDt.state.set('active_dialogue', {
                 speaker: 'GUANTELETE',

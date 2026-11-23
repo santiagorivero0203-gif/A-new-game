@@ -234,6 +234,20 @@ export class VFXRenderer {
           color: i % 2 === 0 ? (options.color || '#fb923c') : '#fef08a'
         });
       }
+    } else if (type === 'heal_pulse') {
+      for (let i = 0; i < 10; i++) {
+        const ang = (Math.PI * 2 * i) / 10 + (Math.random() - 0.5) * 0.3;
+        const spread = 12 + Math.random() * 18;
+        this.addParticle({
+          x: x + Math.cos(ang) * 8,
+          y: y + Math.sin(ang) * 4,
+          vx: Math.cos(ang) * spread,
+          vy: -(35 + Math.random() * 40),
+          size: i % 2 === 0 ? 3.2 : 2.6,
+          life: 0.45 + Math.random() * 0.2,
+          color: i % 2 === 0 ? '#4ade80' : (options.color || '#fde047')
+        });
+      }
     }
   }
 
@@ -1211,6 +1225,27 @@ export class VFXRenderer {
       ctx.lineWidth = 2.2 * alpha;
       ctx.beginPath();
       ctx.arc(fx.x, fx.y, r * 0.62, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (fx.type === 'heal_pulse') {
+      const col = fx.color || '#4ade80';
+      const r = fx.radius * (0.35 + progress * 0.72);
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = alpha * 0.88;
+      ctx.lineWidth = 3 * alpha;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Runa luminosa de curación ascendente en el centro
+      const crossY = fx.y - progress * 16;
+      const cLen = 5.5 * (1 - progress * 0.25);
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(fx.x - cLen, crossY);
+      ctx.lineTo(fx.x + cLen, crossY);
+      ctx.moveTo(fx.x, crossY - cLen);
+      ctx.lineTo(fx.x, crossY + cLen);
       ctx.stroke();
     } else if (fx.type === 'logic_beam') {
       const bx = fx.x + ((fx.targetX ?? fx.x) - fx.x) * progress;
