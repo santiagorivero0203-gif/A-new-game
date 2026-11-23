@@ -847,6 +847,7 @@ function buildGameContext(deltaTime = 0.016) {
 
 let simClockSec = 0;
 let _lastUpdateMs = 0;
+let _relicGuideSparkAccum = 0;
 
 // 6. Ciclo de Actualización (Update)
 function update(deltaTime) {
@@ -917,6 +918,47 @@ function update(deltaTime) {
   updateTeleportTransition(deltaTime);
   updateCaveOrbIntroSequence(deltaTime);
   updateWorldPowerRevealSequence(deltaTime);
+  // 8.5 Hilo Guía Diegético hacia el Pedestal del Núcleo Elemental si aún no se ha reclamado en este mundo
+  if (
+    player &&
+    !player.isDead &&
+    currentLevelData &&
+    Array.isArray(currentLevelData.props) &&
+    !progressionManager.hasUnlockedWorldCore(currentWorldKey)
+  ) {
+    _relicGuideSparkAccum += deltaTime;
+    if (_relicGuideSparkAccum >= 1.35) {
+      _relicGuideSparkAccum = 0;
+      const ped = currentLevelData.props.find((p) => p && p.propType === 'relic_pedestal');
+      if (ped) {
+        const sx = player.pos.x + player.width * 0.5;
+        const sy = player.pos.y + player.height * 0.5;
+        const tx = (ped.x || 0) + 28;
+        const ty = (ped.y || 0) + 34;
+        const dx = tx - sx;
+        const dy = ty - sy;
+        const dist = Math.hypot(dx, dy) || 1;
+        if (dist > 64) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const guideColor = currentWorldMeta.accentColor || '#fb923c';
+          for (let i = 0; i < 3; i++) {
+            const offset = 16 + i * 14;
+            vfxRenderer.addParticle({
+              x: sx + nx * offset + (Math.random() - 0.5) * 6,
+              y: sy + ny * offset + (Math.random() - 0.5) * 6,
+              vx: nx * (48 + i * 12),
+              vy: ny * (48 + i * 12) - 6,
+              color: guideColor,
+              size: 3.5 - i * 0.4,
+              life: 0.55
+            });
+          }
+        }
+      }
+    }
+  }
+
   vfxRenderer.update(deltaTime, combatManager.activeAttacks);
   vfxRenderer.updateBiomeWeather(deltaTime, camera, currentWorldMeta.weather || 'pollen');
 
@@ -1346,6 +1388,7 @@ function updateWorldPowerRevealSequence(dt) {
   worldPowerRevealState.orb = null;
   camera.cinematicTarget = null;
   vfxRenderer.setIntroOrbs([]);
+  chunkManager.update(camera.getVisibleWorldBounds(64), 0, true);
 }
 
 /**
@@ -1854,6 +1897,12 @@ inputManager.onPause(() => {
 
 inputManager.setPowerFilter((power) => Boolean(player && player.hasElement(power)));
 
+stateManager.subscribe('equipped_power', (power) => {
+  if (power && power !== 'Dormido') {
+    inputManager.currentPower = inputManager._normalizeDisplayPower(power);
+  }
+});
+
 inputManager.onSinglePowerHint((onlyPower) => {
   if (stateManager.get('game_state') !== 'STATE_PLAYING') return;
   stateManager.set('active_dialogue', {
@@ -1899,8 +1948,21 @@ inputManager.onSkillEquipped((newPower) => {
     }
     return;
   }
-  stateManager.set('equipped_power', progressionManager.toDisplayElement(newPower));
+  const displayElem = progressionManager.toDisplayElement(newPower);
+  const prevElem = stateManager.get('equipped_power');
+  stateManager.set('equipped_power', displayElem);
   player.equipAbility(newPower);
+  if (prevElem !== displayElem && stateManager.get('game_state') === 'STATE_PLAYING') {
+    const pColor = POWER_LIGHT_COLORS[displayElem] || '#facc15';
+    vfxRenderer.spawnImpact('parry_spark', player.pos.x + player.width * 0.5, player.pos.y + player.height * 0.5, {
+      radius: 26,
+      duration: 0.24,
+      color: pColor
+    });
+    if (audioManager && typeof audioManager.playRunicResonance === 'function') {
+      audioManager.playRunicResonance();
+    }
+  }
 });
 
 window.addEventListener('keydown', (e) => {

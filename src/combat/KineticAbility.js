@@ -109,7 +109,10 @@ export class KineticAbility extends Ability {
             const dragStepX = dx * dashSpeed * dt;
             const dragStepY = dy * dashSpeed * dt;
             for (const ent of this.hitEntities) {
-              if (ent.hasTag('player') || ent.isDead) continue;
+              // Solo arrastrar enemigos móviles; jamás desplazar rocas, pilares o props estáticos
+              if (!ent || ent.isDead || typeof ent.hasTag !== 'function' || !ent.hasTag('enemy') || ent.hasTag('prop') || ent.hasTag('destructible_prop')) {
+                continue;
+              }
               if (context.physics && typeof context.physics.moveWithCollisions === 'function') {
                 const safe = context.physics.moveWithCollisions(ent, ent.pos.x + dragStepX, ent.pos.y + dragStepY);
                 ent.pos.set(safe.x, safe.y);
@@ -188,7 +191,10 @@ export class KineticAbility extends Ability {
             const dragStepX = dx * dashSpeed * dt;
             const dragStepY = dy * dashSpeed * dt;
             for (const ent of this.hitEntities) {
-              if (ent.hasTag('player') || ent.isDead) continue;
+              // Solo arrastrar enemigos móviles; jamás desplazar rocas, pilares o props estáticos
+              if (!ent || ent.isDead || typeof ent.hasTag !== 'function' || !ent.hasTag('enemy') || ent.hasTag('prop') || ent.hasTag('destructible_prop')) {
+                continue;
+              }
               if (context.physics && typeof context.physics.moveWithCollisions === 'function') {
                 const safe = context.physics.moveWithCollisions(ent, ent.pos.x + dragStepX, ent.pos.y + dragStepY);
                 ent.pos.set(safe.x, safe.y);

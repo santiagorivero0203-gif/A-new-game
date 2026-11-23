@@ -447,7 +447,7 @@ export class Tilemap {
         if (x >= 6 && x <= 13 && y >= 9 && y <= 21) this.grid[y][x] = 1;
         if (y >= 9 && y <= 11 && x >= 11 && x <= 46) this.grid[y][x] = 1;
         if (y >= 18 && y <= 21 && x >= 5 && x <= 33 && (x < 14 || x > 15)) this.grid[y][x] = 1;
-        if (x >= 24 && x <= 26 && y >= 13 && y <= 32) this.grid[y][x] = 1;
+        if (x >= 24 && x <= 25 && y >= 13 && y <= 32) this.grid[y][x] = 1;
         if (y >= 29 && y <= 31 && x >= 7 && x <= 31) this.grid[y][x] = 1;
         if (y >= 19 && y <= 20 && x >= 33 && x <= 48) this.grid[y][x] = 1;
 
@@ -462,7 +462,7 @@ export class Tilemap {
         if (x >= 13 && x <= 16 && y >= 9 && y <= 11) this.grid[y][x] = 4;   // Desvío Norte
         if (x >= 34 && x <= 39 && y >= 9 && y <= 11) this.grid[y][x] = 4;   // Hacia Yunque NE
         if (x >= 13 && x <= 16 && y >= 19 && y <= 20) this.grid[y][x] = 4;  // Atajo Central (sellado con Basalto)
-        if (x >= 24 && x <= 26 && y >= 13 && y <= 16) this.grid[y][x] = 4;  // Conexión Norte -> Central
+        if (x >= 24 && x <= 25 && y >= 13 && y <= 16) this.grid[y][x] = 4;  // Conexión Norte -> Central (sellada con Basalto)
         if (x >= 24 && x <= 26 && y >= 22 && y <= 25) this.grid[y][x] = 4;  // Conexión Central -> Fragua Sur
         if (x >= 11 && x <= 16 && y >= 29 && y <= 31) this.grid[y][x] = 4;  // Puente hacia Cámara Secreta SO
         if (x >= 34 && x <= 39 && y >= 19 && y <= 20) this.grid[y][x] = 4;  // Puente Sellado al Gran Crisol

@@ -147,9 +147,10 @@ sequenceDiagram
 - **Cluster Táctil de Acciones**: Botón `#touch-btn-skill` (`68x68 px`) reespaciado para evitar solapamiento de los iconos direccionales sobre **`FUEGO`**; `#touch-btn-stealth` oculto por defecto salvo en secciones de sigilo.
 - **Joystick Virtual**: Escalado a `0.80` con caché del `DOMRect` en `InputManager.js` (cero reflows en `touchmove`).
 
-### 6.2. Riberas y Colisiones de Agua (`Tilemap.js` y `PhysicsSystem.js`)
+### 6.2. Riberas, Colisiones Continuas Zero-GC y Multi-Touch Táctil (`Tilemap.js`, `PhysicsSystem.js`, `InputManager.js`)
 - **Visual**: Transición orgánica de 3 capas sin costuras discontinuas en los ríos.
-- **Física Estricta**: Bloqueo total de `tile === 3` (agua) y `tile === 2` (acantilados) con broadphase espacial AABB para descartar obstáculos lejanos en `O(1)`.
+- **Física Blindada contra Atrapamientos**: Bloqueo estricto de `tile === 3` (agua/lava/vacío) y `tile === 2` (acantilados) mediante sub-pasos continuos (`<= 8 px` por segmento en `PhysicsSystem.moveWithCollisions`) que evitan *tunneling*, depenetración radial automática Zero-GC (`_tryDepenetrate`) para liberar solapamientos accidentales, y limpieza inmediata de `solidGrid`/`_solidsCache` vía `EntityManager.unregisterSolid()` al destruir obstáculos.
+- **Multi-Touch Independiente y Sincronización Elemental**: El joystick y `#touch-btn-skill` aíslan cada dedo mediante `changedTouches` + `touch.identifier` propio (evitando interferencias al caminar y deslizar habilidades a la vez), sincronizando `inputManager.currentPower` con `StateManager('equipped_power')`.
 
 ### 6.3. Calibración Cinemática y Recurso Táctico (`PlayerStats.js`, `Player.js`, `weapons.js`)
 - **Velocidad de Movimiento**: Ajustada a `190 px/s` (`dash_speed: 400`) para desplazamiento ágil y sin pesadez.

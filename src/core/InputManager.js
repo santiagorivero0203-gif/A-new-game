@@ -714,7 +714,7 @@ export class InputManager {
     }
 
     // 3.5 Botón de Guardia y Defensa con Escudo / Parry
-    bindBtn('touch-btn-defend', () => { this.isDefendPressed = true; }, () => { 
+    bindBtn('touch-btn-defend', () => { this.isDefendPressed = true; }, () => {
       setTimeout(() => { this.isDefendPressed = false; }, 140);
     });
 
@@ -762,7 +762,7 @@ export class InputManager {
         const dy = clientY - centerY;
         const distSq = dx * dx + dy * dy;
         const maxDist = rect.width * 0.5;
-        const centerTapRadius = maxDist * 0.44;
+        const centerTapRadius = maxDist * 0.50;
 
         if (maxDist <= 0) {
           this.joystickVector.set(0, 0);
@@ -778,8 +778,8 @@ export class InputManager {
           joyStayedInCenter = false;
         }
 
-        // Pequeña zona muerta central para evitar micro-giros al tocar el centro para agacharse
-        if (dist <= maxDist * 0.22 && joyStayedInCenter) {
+        // Zona muerta central amplia mientras el dedo permanece en el botón central para agacharse sin moverse por error
+        if (dist <= maxDist * 0.34 && joyStayedInCenter) {
           this.joystickVector.set(0, 0);
           if (this._joyThumbEl) this._joyThumbEl.style.transform = 'translate(0px, 0px)';
           return;
@@ -803,14 +803,16 @@ export class InputManager {
       };
 
       const startJoy = (e) => {
+        if (activeTouchId !== null) return;
         e.preventDefault();
         e.stopPropagation();
         this.isTouchDevice = true;
         this.lastActionSource = 'touch';
         this.isMouseAiming = false;
         this._joyRectCache = joyBase.getBoundingClientRect();
-        const touch = e.touches ? e.touches[0] : e;
-        activeTouchId = e.touches ? touch.identifier : 'mouse';
+        const touch = e.changedTouches ? e.changedTouches[0] : e;
+        if (!touch) return;
+        activeTouchId = e.changedTouches ? touch.identifier : 'mouse';
         handleJoy(touch.clientX, touch.clientY, true);
       };
 
@@ -884,30 +886,46 @@ export class InputManager {
       });
     }
 
-    // 5. Botón de Habilidad Táctil en DOM (Swipe)
+    // 5. Botón de Habilidad Táctil en DOM (Swipe multi-touch aislado por identifier)
     const btnSkill = document.getElementById('touch-btn-skill');
     if (btnSkill) {
       let startX = 0;
       let startY = 0;
       let isSwiping = false;
+      let activeSkillTouchId = null;
 
       const startSkill = (e) => {
+        if (activeSkillTouchId !== null) return;
         e.preventDefault();
         e.stopPropagation();
         this.isTouchDevice = true;
         this.lastActionSource = 'touch';
+        const touch = e.changedTouches ? e.changedTouches[0] : e;
+        if (!touch) return;
+        activeSkillTouchId = e.changedTouches ? touch.identifier : 'mouse';
         isSwiping = true;
-        const touch = e.touches ? e.touches[0] : e;
         startX = touch.clientX;
         startY = touch.clientY;
         this.hoveredSwipePower = null;
+        btnSkill.classList.add('touch-pressed');
       };
 
       const moveSkill = (e) => {
-        if (!isSwiping) return;
+        if (!isSwiping || activeSkillTouchId === null) return;
+        let touch = null;
+        if (e.touches) {
+          for (let i = 0; i < e.touches.length; i++) {
+            if (e.touches[i].identifier === activeSkillTouchId) {
+              touch = e.touches[i];
+              break;
+            }
+          }
+        } else if (activeSkillTouchId === 'mouse') {
+          touch = e;
+        }
+        if (!touch) return;
         e.preventDefault();
         e.stopPropagation();
-        const touch = e.touches ? e.touches[0] : e;
         const dx = touch.clientX - startX;
         const dy = touch.clientY - startY;
         if (Math.hypot(dx, dy) > 15) {
@@ -918,11 +936,25 @@ export class InputManager {
       };
 
       const endSkill = (e) => {
-        if (!isSwiping) return;
+        if (!isSwiping || activeSkillTouchId === null) return;
+        if (e.changedTouches) {
+          let matched = false;
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === activeSkillTouchId) {
+              matched = true;
+              break;
+            }
+          }
+          if (!matched) return;
+        } else if (activeSkillTouchId !== 'mouse') {
+          return;
+        }
         e.preventDefault();
         e.stopPropagation();
         isSwiping = false;
-        
+        activeSkillTouchId = null;
+        btnSkill.classList.remove('touch-pressed');
+
         // Si no hubo swipe direccional, fue un tap -> Disparar con latching seguro la habilidad equipada
         if (!this.hoveredSwipePower) {
           this.triggerAction('ability', 180);
@@ -1063,5 +1095,5 @@ export class InputManager {
   /**
    * Actualización por fotograma (mantenida por uniformidad de interfaz).
    */
-  update() {}
+  update() { }
 }

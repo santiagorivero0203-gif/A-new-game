@@ -449,7 +449,7 @@ export class Player extends Entity {
    * @param {Object} context - Contexto global del motor
    */
   takeDamage(amount, attack, context = {}) {
-    if (this.hasTag('iframe')) return;
+    if (this.hasTag('iframe') || this.teleportState) return;
 
     // 1. Verificar Escudo de Vitalidad / Halo de la Égida Eterna (absorbe 1 golpe completo sin perder vida)
     if (this.hasTag('vitality_shield')) {
@@ -656,7 +656,7 @@ export class Player extends Entity {
       this.fsmState = 'STATE_ATTACK_WEAK';
       this.attackTimer = duration;
       this.stateTimer = duration;
-      this.swordCooldown = 0.04;
+      this.swordCooldown = Math.max(0.055, 0.075 - tempoRank * 0.008);
       this.comboStep = 1; // Encadena directo al Golpe 2 tras el Dash-Strike
       this.comboWindowTimer = 0.72;
       this.scaleX = 1.28;
@@ -770,14 +770,15 @@ export class Player extends Entity {
     if (isFinisher) {
       this.comboStep = 0;
       this.comboWindowTimer = 0;
-      const baseFinisherRecovery = weaponRecovery + 0.04;
-      this.swordCooldown = baseFinisherRecovery * Math.max(0.65, 1.0 - masteryRank * 0.09);
+      const baseFinisherRecovery = Math.max(0.095, weaponRecovery * 0.72);
+      this.swordCooldown = baseFinisherRecovery * Math.max(0.70, 1.0 - masteryRank * 0.09);
       this.scaleX = 1.26;
       this.scaleY = 0.82;
     } else {
+      const stepMicroRecovery = Math.max(0.055, 0.075 - tempoRank * 0.008);
       this.comboStep = currentStep;
-      this.comboWindowTimer = stepDuration + 0.65;
-      this.swordCooldown = 0.02;
+      this.comboWindowTimer = stepDuration + stepMicroRecovery + 0.62;
+      this.swordCooldown = stepMicroRecovery;
       this.scaleX = currentStep === 2 ? 0.88 : 1.16;
       this.scaleY = currentStep === 2 ? 1.14 : 0.88;
     }
@@ -1024,7 +1025,10 @@ export class Player extends Entity {
     if (this.fsmState !== 'STATE_GUARD_BREAK') {
       this.energy = Math.min(this.max_energy, this.energy + this.energy_regen_rate * deltaTime);
     }
-    if (this.swordCooldown > 0) this.swordCooldown -= deltaTime;
+    // La recarga mínima de espada corre al finalizar el tajo activo para garantizar un respiro real entre golpes
+    if (this.attackTimer <= 0 && this.swordCooldown > 0) {
+      this.swordCooldown = Math.max(0, this.swordCooldown - deltaTime);
+    }
     if (this.parryCooldown > 0) this.parryCooldown -= deltaTime;
     if (this.healCooldown > 0) this.healCooldown -= deltaTime;
     if (this.healTimer > 0) this.healTimer -= deltaTime;
@@ -1157,11 +1161,12 @@ export class Player extends Entity {
 
       if (input.isStealthPressed) {
         if (typeof input.consumeStealth === 'function') input.consumeStealth();
-        const canSlideFromSprint = isMoving && this.isSprinting && !this.isDashing && this.dashCooldown <= 0;
+        const canSlideFromSprint = (isMoving || input.isTouchSprintActive) && (this.isSprinting || input.isTouchSprintActive) && !this.isDashing && this.dashCooldown <= 0;
         const canSlideFromDash = this.fsmState === 'STATE_DASH';
         if ((canSlideFromSprint || canSlideFromDash) && this.fsmState !== 'STATE_GUARD_BREAK') {
           this.isProne = false;
           this.isStealthHidden = false;
+          if (typeof input.resetTouchSprint === 'function') input.resetTouchSprint();
           this.dashCooldown = PLAYER_STATS.slide_cooldown || 0.25;
           this.attackTimer = 0;
           this.queuedAction = null;

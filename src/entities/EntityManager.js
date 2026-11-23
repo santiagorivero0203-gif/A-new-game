@@ -152,6 +152,17 @@ export class EntityManager {
   }
 
   /**
+   * Retira inmediatamente una entidad de la rejilla de sólidos e invalida el caché
+   * al destruirse obstáculos sin retirarla de la lista de render si hiciera falta.
+   * @param {import('./Entity.js').Entity|null} entity
+   */
+  unregisterSolid(entity) {
+    if (!entity) return;
+    this.solidGrid.remove(entity);
+    this._solidsCache = null;
+  }
+
+  /**
    * Actualiza exclusivamente las entidades dinámicas y sincroniza sus celdas espaciales.
    * @param {Object|number} contextOrDt
    * @param {import('../core/InputManager.js').InputManager} [legacyInput]

@@ -1334,7 +1334,7 @@ body.dialogue-open .combo-hud {
   padding: 5px 2px;
 }
 .skill-btn > svg { font-size: 15px; margin-top: 3px; }
-.skill-btn .btn-subtext { font-size: clamp(7.5px, 2vh, 8.5px); letter-spacing: 0; line-height: 1; margin-bottom: 6px; white-space: nowrap; }
+.skill-btn .btn-subtext { font-size: 9px; letter-spacing: -0.02em; line-height: 1; margin-bottom: 6px; white-space: nowrap; }
 .skill-strong-btn {
   right: calc(4px + var(--btn-main) + var(--btn-sec) + var(--btn-gap) * 2);
   bottom: 16px;

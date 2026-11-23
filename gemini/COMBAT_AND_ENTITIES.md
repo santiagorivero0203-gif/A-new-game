@@ -40,8 +40,9 @@ El método `hasTag(tag)` verifica simultáneamente:
    * *Golpe 1:* Tajo diestro rápido (`comboStep = 0`).
    * *Golpe 2:* Revés cruzado ascendente (`comboStep = 1`).
    * *Golpe 3 (Finisher):* Tajo sacro circular 360° con gran retroceso y screen shake (`comboStep = 2`).
-   * *Pre-Buffer (Input Queueing):* Comandos pulsados en los últimos milisegundos se encolan en `this.queuedAction` para garantizar cero pulsaciones perdidas.
-2. **Recarga Activa de Energía:** Cada tajo conectado con la espada restaura automáticamente **+6 a +10 de Energía Elemental**, forzando al jugador a alternar entre combate cuerpo a cuerpo y magia.
+   * *Micro-Recarga Post-Swing y Pre-Buffer:* `swordCooldown` comienza a descontarse únicamente al finalizar `attackTimer` (`75 ms` base en golpes 1–2 y `95–130 ms` en el 3er golpe), evitando spam en 0 ms mientras `queuedAction` encadena la entrada siguiente.
+2. **Recarga Activa de Energía e Inmunidad de Portal:** Cada tajo conectado con la espada restaura automáticamente **+2 a +6 de Energía Elemental** (según arma), y `takeDamage()` ignora impactos mientras `player.teleportState` esté activo.
+3. **Inmovilidad de Props Frente a Poderes:** `KineticAbility` (Embestida/Taladro) y `EarthAbility` (Látigo de Espinas) filtran explícitamente `!ent.hasTag('prop') && !ent.hasTag('solid')` para arrastrar solo enemigos móviles sin desplazar rocas ni tótems sobre el jugador.
 3. **Defensa, Guardia y Parry Deportivo:**
    * Mantener Bloqueo absorbe daño físico a costa de *Guard Meter*.
    * Si se pulsa bloqueo en los primeros **0.16s (base)** o **0.26s (con talento)** del golpe enemigo:

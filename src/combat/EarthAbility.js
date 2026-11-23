@@ -73,7 +73,10 @@ export class EarthAbility extends Ability {
         update: function(dt) {
           if (this.hitEntities && this.hitEntities.size > 0) {
             for (const ent of this.hitEntities) {
-              if (ent.hasTag('player') || ent.isDead) continue;
+              // Solo atraer enemigos móviles; jamás mover piedras, tótems o props estáticos encima del jugador
+              if (!ent || ent.isDead || typeof ent.hasTag !== 'function' || !ent.hasTag('enemy') || ent.hasTag('prop') || ent.hasTag('destructible_prop')) {
+                continue;
+              }
               const toPlayerX = (player.pos.x + 16) - (ent.pos.x + ent.width / 2);
               const toPlayerY = (player.pos.y + 16) - (ent.pos.y + ent.height / 2);
               const dist = Math.hypot(toPlayerX, toPlayerY) || 1;

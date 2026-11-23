@@ -88,6 +88,13 @@
       "y": 608
     },
     {
+      "id": "ash_north_pass_barrier",
+      "propType": "kinetic_barrier",
+      "label": "Sello de Basalto del Paso Norte",
+      "x": 768,
+      "y": 452
+    },
+    {
       "id": "m3_geyser_north_1",
       "propType": "hazard_vent",
       "hazardKind": "magma_geyser",

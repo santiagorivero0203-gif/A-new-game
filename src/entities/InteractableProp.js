@@ -788,6 +788,9 @@ export class InteractableProp extends Entity {
     this.tags = this.tags.filter(t => t !== 'solid' && t !== 'destructible_prop' && t !== 'interactable');
 
     if (context) {
+      if (context.entityManager && typeof context.entityManager.unregisterSolid === 'function') {
+        context.entityManager.unregisterSolid(this);
+      }
       if (context.audioManager) context.audioManager.playExplosion();
       if (context.camera) context.camera.shake(0.42, 0.22);
       if (context.vfxRenderer) {
@@ -825,6 +828,20 @@ export class InteractableProp extends Entity {
   }
 
   /**
+   * Determina si la sesión activa usa interfaz táctil leyendo `context.input` o el DOM.
+   * @private
+   * @param {Object|null} context
+   * @returns {boolean}
+   */
+  _isMobileSession(context) {
+    return Boolean(
+      context?.input?.shouldShowTouchControls ||
+      context?.inputManager?.shouldShowTouchControls ||
+      (typeof document !== 'undefined' && document.body && document.body.classList.contains('touch-controls-active'))
+    );
+  }
+
+  /**
    * Ejecuta la interacción contextual cuando el jugador pulsa [E] o activa el prop.
    * @param {import('../core/StateManager.js').StateManager} stateManager
    * @param {Object} [context=null]
@@ -841,7 +858,7 @@ export class InteractableProp extends Entity {
       if (player && typeof player.unlockSword === 'function') {
         player.unlockSword();
       }
-      const isMobile = context?.inputManager?.shouldShowTouchControls || (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active'));
+      const isMobile = this._isMobileSession(context);
       if (stateManager) {
         stateManager.set('has_sword', true);
         if ((stateManager.get('intro_stage') || 0) < 1) {
@@ -908,7 +925,7 @@ export class InteractableProp extends Entity {
         context.input.setPower(displayElem);
       }
 
-      const isMobile = context?.inputManager?.shouldShowTouchControls || (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active'));
+      const isMobile = this._isMobileSession(context);
       const coreMeta = {
         Fuego: {
           title: 'NÚCLEO DE FUEGO DESPERTADO',
@@ -962,7 +979,7 @@ export class InteractableProp extends Entity {
     }
 
     if (this.propType === 'sanctuary_altar') {
-      const isMobile = context?.inputManager?.shouldShowTouchControls || (typeof document !== 'undefined' && document.body.classList.contains('touch-controls-active'));
+      const isMobile = this._isMobileSession(context);
       if (stateManager) {
         stateManager.set('intro_stage', Math.max(4, stateManager.get('intro_stage') || 0));
         stateManager.set(

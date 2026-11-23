@@ -199,14 +199,43 @@ export class ProgressionManager {
   }
 
   /**
+   * Garantiza coherencia retroactiva en partidas guardadas: si el jugador ya accedió
+   * a un mundo posterior en la campaña, asegura que los Núcleos Elementales obligatorios
+   * de los mundos previos estén despiertos en `unlockedElements`.
+   * @private
+   */
+  _healPrerequisiteCores() {
+    const entries = Object.entries(CAMPAIGN_WORLD_ORDER);
+    for (let i = 0; i < entries.length; i++) {
+      const [, cfg] = entries[i];
+      if (!cfg || !cfg.coreElement) continue;
+      let laterVisited = false;
+      for (let j = i + 1; j < entries.length; j++) {
+        const [laterId] = entries[j];
+        if (this.visitedWorlds.has(laterId) || this.completedWorlds.has(laterId)) {
+          laterVisited = true;
+          break;
+        }
+      }
+      if (laterVisited) {
+        const norm = this.normalizeElement(cfg.coreElement);
+        if (norm) this.unlockedElements.add(norm);
+      }
+    }
+  }
+
+  /**
    * Marca un mundo como visitado para habilitar su acceso directo en sesiones posteriores.
    * @param {string} worldId
    * @param {import('../core/StateManager.js').StateManager|null} [stateManager=this.state]
    */
   markWorldVisited(worldId, stateManager = this.state) {
     if (!worldId) return;
-    if (!this.visitedWorlds.has(worldId)) {
-      this.visitedWorlds.add(worldId);
+    const hadWorld = this.visitedWorlds.has(worldId);
+    this.visitedWorlds.add(worldId);
+    const sizeBefore = this.unlockedElements.size;
+    this._healPrerequisiteCores();
+    if (!hadWorld || this.unlockedElements.size !== sizeBefore) {
       this.syncState(stateManager);
       this._scheduleSave();
     }
@@ -268,7 +297,8 @@ export class ProgressionManager {
     if (!worldId) return false;
     const cfg = CAMPAIGN_WORLD_ORDER[worldId];
     if (!cfg || !cfg.prereq) return true;
-    return this.completedWorlds.has(cfg.prereq) || this.visitedWorlds.has(worldId);
+    if (this.visitedWorlds.has(worldId)) return true;
+    return this.completedWorlds.has(cfg.prereq) && this.hasUnlockedWorldCore(cfg.prereq);
   }
 
   /**
@@ -449,6 +479,7 @@ export class ProgressionManager {
         if (Array.isArray(parsed.seenWorldReveals)) {
           this.seenWorldReveals = new Set(parsed.seenWorldReveals);
         }
+        this._healPrerequisiteCores();
       }
     } catch (e) {
       console.warn('[ProgressionManager] Error cargando campaña:', e);
