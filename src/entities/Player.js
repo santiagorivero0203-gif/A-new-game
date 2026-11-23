@@ -598,8 +598,12 @@ export class Player extends Entity {
     this.applyEffect('vitality_shield', 3.5);
 
     if (!hasSupernova) {
-      // Reposicionar suavemente en el último punto sagrado armonizado
+      // Reposicionar suavemente en el último punto sagrado armonizado del mundo actual
       this.pos.set(this.spawnX, this.spawnY);
+    }
+    if (context && context.physics && typeof context.physics.moveWithCollisions === 'function') {
+      const safePos = context.physics.moveWithCollisions(this, this.pos.x, this.pos.y);
+      this.pos.set(safePos.x, safePos.y);
     }
 
     const cx = this.pos.x + 16;

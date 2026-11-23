@@ -150,13 +150,30 @@ export class ProgressionManager {
     const norm = this.normalizeElement(elem);
     if (!norm) return false;
     const isNew = !this.unlockedElements.has(norm);
+    const chain = ['Fuego', 'Plantas', 'Embestida', 'Éter'];
+    const chainIdx = chain.indexOf(norm);
+    if (chainIdx > 0) {
+      for (let i = 0; i < chainIdx; i++) {
+        this.unlockedElements.add(chain[i]);
+      }
+    }
     this.unlockedElements.add(norm);
     this.hasSword = true;
 
     const display = this.toDisplayElement(norm);
     if (player) {
       if (typeof player.unlockSword === 'function') player.unlockSword();
-      if (typeof player.unlockElement === 'function') player.unlockElement(norm);
+      for (const unlocked of this.unlockedElements) {
+        if (typeof player.unlockElement === 'function') {
+          player.unlockElement(unlocked);
+        }
+      }
+      if (typeof player.unlockElement === 'function') {
+        player.unlockElement(norm);
+      }
+      if (typeof player.equipAbility === 'function') {
+        player.equipAbility(norm);
+      }
     }
 
     const st = stateManager || this.state;
@@ -246,8 +263,13 @@ export class ProgressionManager {
       if (!cfg || !cfg.coreElement) continue;
       let laterVisited = false;
       for (let j = i + 1; j < entries.length; j++) {
-        const [laterId] = entries[j];
-        if (this.visitedWorlds.has(laterId) || this.completedWorlds.has(laterId)) {
+        const [laterId, laterCfg] = entries[j];
+        const laterNorm = laterCfg && laterCfg.coreElement ? this.normalizeElement(laterCfg.coreElement) : '';
+        if (
+          this.visitedWorlds.has(laterId) ||
+          this.completedWorlds.has(laterId) ||
+          (laterNorm && this.unlockedElements.has(laterNorm))
+        ) {
           laterVisited = true;
           break;
         }
@@ -264,6 +286,9 @@ export class ProgressionManager {
         const norm = this.normalizeElement(cfg.coreElement);
         if (norm) this.unlockedElements.add(norm);
       }
+    }
+    if (this.unlockedElements.size > 0 || this.completedWorlds.size > 0 || hasMultipleVisited) {
+      this.hasSword = true;
     }
   }
 

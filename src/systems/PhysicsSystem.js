@@ -269,6 +269,47 @@ export class PhysicsSystem {
       }
     }
 
+    // Rescate de emergencia de largo alcance para el jugador si cayó o reapareció en medio de agua profunda / muro
+    if (entity && typeof entity.hasTag === 'function' && entity.hasTag('player') && this.tilemap) {
+      const ts = this.tilemap.tileSize || 32;
+      if (typeof entity.spawnX === 'number' && typeof entity.spawnY === 'number') {
+        const sx = entity.spawnX;
+        const sy = entity.spawnY;
+        const sSolids = this._querySolidsInRect(sx - 16, sy - 16, sx + 48, sy + 48);
+        if (!this._isBoxBlocked(entity, sx, sy, hbWidth, hbHeight, sSolids, sx - 16, sy - 16, sx + 48, sy + 48)) {
+          this._depenPos.x = sx;
+          this._depenPos.y = sy;
+          return this._depenPos;
+        }
+      }
+
+      const startCol = Math.floor((curX + 16) / ts);
+      const startRow = Math.floor((curY + 24) / ts);
+      const maxRing = Math.max(this.tilemap.cols || 58, this.tilemap.rows || 40);
+      for (let ring = 1; ring <= maxRing; ring++) {
+        for (let dr = -ring; dr <= ring; dr++) {
+          for (let dc = -ring; dc <= ring; dc++) {
+            if (Math.abs(dr) !== ring && Math.abs(dc) !== ring) continue;
+            const c = startCol + dc;
+            const r = startRow + dr;
+            if (r < 1 || c < 1 || r >= this.tilemap.rows - 1 || c >= this.tilemap.cols - 1) continue;
+            const t = this.tilemap.getTile(c, r);
+            if (t === 2 || t === 3) continue;
+            const candX = c * ts;
+            const candY = r * ts;
+            const cSolids = this._querySolidsInRect(candX - 8, candY - 8, candX + 40, candY + 40);
+            if (!this._isBoxBlocked(entity, candX, candY, hbWidth, hbHeight, cSolids, candX - 8, candY - 8, candX + 40, candY + 40)) {
+              this._depenPos.x = candX;
+              this._depenPos.y = candY;
+              entity.spawnX = candX;
+              entity.spawnY = candY;
+              return this._depenPos;
+            }
+          }
+        }
+      }
+    }
+
     this._depenPos.x = curX;
     this._depenPos.y = curY;
     return this._depenPos;

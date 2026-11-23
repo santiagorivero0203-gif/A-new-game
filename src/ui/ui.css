@@ -219,19 +219,27 @@
   transform-origin: top left;
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 11px 7px 7px;
-  background: linear-gradient(180deg, rgba(22, 26, 36, 0.94) 0%, rgba(11, 14, 21, 0.96) 100%);
-  border: 2.5px solid var(--ink-black);
-  border-radius: 13px;
-  box-shadow:
-    0 4px 0 var(--ink-black),
-    inset 0 1.5px 0 rgba(255, 245, 220, 0.14),
-    inset 0 0 0 1px rgba(212, 163, 73, 0.24);
+  gap: 10px;
+  padding: 2px 6px 2px 2px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
   pointer-events: auto;
+  transition: transform 0.16s ease;
 }
 
-/* Medallón Octogonal Cel-Shaded del Guantelete */
+.rpg-player-hud.is-damaged {
+  animation: hud-damage-jolt 0.34s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes hud-damage-jolt {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  20% { transform: translate3d(-5px, 2px, 0); }
+  45% { transform: translate3d(4px, -2px, 0); }
+  70% { transform: translate3d(-3px, 1px, 0); }
+}
+
+/* Medallón Octogonal Esculpido en Obsidiana y Bronce del Guantelete */
 .rpg-crest-module {
   position: relative;
   display: flex;
@@ -246,11 +254,12 @@
   width: 52px;
   height: 52px;
   border-radius: 12px;
-  background: #0d0c10;
+  background: #0d0a08;
   border: 2.5px solid var(--ink-black);
   box-shadow:
-    0 3px 0 var(--ink-black),
-    inset 0 0 0 1.5px rgba(212, 163, 73, 0.52);
+    0 3.5px 0 var(--ink-black),
+    0 4px 12px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 1.5px rgba(212, 163, 73, 0.64);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -269,7 +278,7 @@
   inset: 2px;
   width: calc(100% - 4px);
   height: calc(100% - 4px);
-  color: #94a3b8;
+  color: #cbbda3;
   pointer-events: none;
   transition: color 0.25s ease, filter 0.25s ease;
 }
@@ -280,17 +289,17 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
-  background: #0b1322;
+  padding: 2px 8px;
+  background: #14100d;
   border: 2px solid var(--ink-black);
   border-radius: 999px;
-  box-shadow: 0 2px 0 var(--ink-black);
-  color: #94a3b8;
+  box-shadow: 0 2px 0 var(--ink-black), inset 0 0 0 1px rgba(212, 163, 73, 0.34);
+  color: #cbbda3;
   font-family: 'Outfit', sans-serif;
   font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 0.06em;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition: color 0.2s ease, border-color 0.2s ease, transform 0.18s ease;
 }
 
 .rpg-element-mini-svg {
@@ -432,15 +441,23 @@
 }
 
 .relic-heart-svg.empty .relic-heart-core {
-  fill: #1e293b;
+  fill: #241c18;
 }
 
 .relic-heart-svg.empty .relic-heart-facet {
-  fill: #334155;
+  fill: #3b2e28;
 }
 
 .relic-heart-svg.pulsing {
   animation: heart-cel-pulse 0.7s ease-in-out infinite;
+}
+
+.relic-heart-svg.heart-restored {
+  animation: heart-restore-pop 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.relic-heart-svg.heart-shattered {
+  animation: heart-shatter-recoil 0.38s ease-out;
 }
 
 @keyframes heart-cel-pulse {
@@ -448,41 +465,73 @@
   50% { transform: scale(1.22); }
 }
 
-/* Chasis de Barra Cel-Shaded con Geometría Rúnica y Borde de Tinta */
+@keyframes heart-restore-pop {
+  0% { transform: scale(0.6); filter: drop-shadow(0 0 0 rgba(74, 222, 128, 0)); }
+  45% { transform: scale(1.42); filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.95)); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(74, 222, 128, 0)); }
+}
+
+@keyframes heart-shatter-recoil {
+  0% { transform: scale(1.25); }
+  50% { transform: scale(0.72) rotate(-10deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* Chasis de Barra Esculpido en Obsidiana y Bronce (Cero fondo azul) */
 .rpg-bar-chassis {
   position: relative;
   width: 100%;
   height: 11px;
-  background: #070c16;
+  background: rgba(14, 11, 9, 0.90);
   border: 2px solid var(--ink-black);
   border-radius: 3px;
   clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 5px, 100% 100%, 6px 100%, 0 calc(100% - 5px));
   overflow: hidden;
-  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.65);
+  box-shadow:
+    0 2.5px 0 var(--ink-black),
+    inset 0 0 0 1px rgba(212, 163, 73, 0.24),
+    inset 0 2px 3px rgba(0, 0, 0, 0.78);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .hp-chassis {
   height: 13px;
 }
 
+.hp-chassis.is-healing {
+  border-color: #4ade80;
+  box-shadow:
+    0 2.5px 0 var(--ink-black),
+    0 0 14px rgba(74, 222, 128, 0.75),
+    inset 0 0 0 1px rgba(134, 239, 172, 0.65);
+}
+
+.hp-chassis.has-vitality-shield {
+  border-color: #fde047;
+  box-shadow:
+    0 2.5px 0 var(--ink-black),
+    0 0 12px rgba(250, 204, 21, 0.65),
+    inset 0 0 0 1.5px rgba(74, 222, 128, 0.72);
+}
+
 .posture-chassis {
   height: 9px;
 }
 
-/* Rastro de Daño (Damage Trail): caída suave en ~320ms mientras barra principal responde <16ms */
+/* Rastro de Daño (Damage Trail): caída suave en ~480ms mientras barra principal responde <16ms */
 .rpg-bar-ghost {
   position: absolute;
   inset: 0 auto 0 0;
   width: 100%;
   transform-origin: left center;
   will-change: transform;
-  background: #fde047;
-  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  background: linear-gradient(90deg, #f59e0b 0%, #fef08a 100%);
+  transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 1;
 }
 
 .energy-ghost {
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 247, 220, 0.65);
 }
 
 .posture-ghost {
@@ -496,7 +545,32 @@
   transform-origin: left center;
   will-change: transform;
   z-index: 2;
-  transition: transform 14ms linear;
+  transition: transform 90ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Onda luminosa de curación sobre la barra de vida */
+.hp-fill.is-healing {
+  background: linear-gradient(90deg, #16a34a 0%, #4ade80 48%, #fef08a 100%);
+  animation: hp-heal-surge 0.72s ease-out;
+}
+
+.hp-fill.is-healing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.85) 50%, transparent 100%);
+  animation: hp-heal-sweep 0.68s ease-out;
+  pointer-events: none;
+}
+
+@keyframes hp-heal-surge {
+  0% { filter: brightness(1.45); }
+  100% { filter: brightness(1); }
+}
+
+@keyframes hp-heal-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 /* Franja especular superior 2D Cel-Shaded (sin ruido realista) */
@@ -522,9 +596,9 @@
   pointer-events: none;
 }
 
-/* Rellenos cromáticos Cel-Shaded de 2 tonos */
+/* Rellenos cromáticos Cel-Shaded de 2 tonos (Obsidiana, Rubí y Bronce) */
 .hp-fill {
-  background: linear-gradient(90deg, #e11d48 0%, #fb7185 100%);
+  background: linear-gradient(90deg, #be123c 0%, #f43f5e 65%, #fda4af 100%);
 }
 
 .hp-fill.critical-pulse {
@@ -537,7 +611,7 @@
 }
 
 .hud-energy-fill.energy-dormant {
-  background: linear-gradient(90deg, #475569 0%, #94a3b8 100%);
+  background: linear-gradient(90deg, #57534e 0%, #a8a29e 100%);
 }
 
 .hud-energy-fill.energy-fuego {
@@ -557,11 +631,11 @@
 }
 
 .hud-posture-fill {
-  background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
+  background: linear-gradient(90deg, #b45309 0%, #f59e0b 62%, #fde68a 100%);
 }
 
 .hud-posture-fill.posture-guarding {
-  background: linear-gradient(90deg, #0284c7 0%, #7dd3fc 100%);
+  background: linear-gradient(90deg, #d97706 0%, #fef08a 100%);
 }
 
 .hud-posture-fill.posture-warning {
@@ -641,17 +715,17 @@
   font-size: 13px;
 }
 
-/* Sub-módulo Top-Left: Medidor de Combo Rítmico */
+/* Sub-módulo Top-Left: Medidor de Combo Rítmico (Obsidiana y Bronce) */
 .combo-hud {
   transform-origin: top left;
   display: inline-flex;
   align-items: center;
   gap: 9px;
   padding: 6px 12px 6px 8px;
-  background: linear-gradient(180deg, #1b2842 0%, #0d1526 100%);
+  background: linear-gradient(180deg, rgba(24, 19, 16, 0.94) 0%, rgba(12, 9, 8, 0.96) 100%);
   border: 2.5px solid var(--ink-black);
   border-radius: 12px;
-  box-shadow: 0 3px 0 var(--ink-black);
+  box-shadow: 0 3px 0 var(--ink-black), inset 0 0 0 1px rgba(212, 163, 73, 0.32);
   transition: transform 0.1s ease, opacity 0.16s ease;
 }
 
@@ -813,12 +887,12 @@ body.dialogue-open .combo-hud {
 .icon-pill-btn {
   transform-origin: top right;
   height: 40px;
-  background: linear-gradient(180deg, var(--cel-slate-top) 0%, var(--cel-slate-bot) 100%);
+  background: linear-gradient(180deg, rgba(25, 20, 17, 0.94) 0%, rgba(12, 9, 8, 0.96) 100%);
   border: 2.5px solid var(--ink-black);
   border-radius: 12px;
   box-shadow:
     0 3.5px 0 var(--ink-black),
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.16);
+    inset 0 0 0 1px rgba(212, 163, 73, 0.34);
   color: var(--cel-text);
   cursor: pointer;
   display: inline-flex;
@@ -863,7 +937,7 @@ body.dialogue-open .combo-hud {
 }
 
 /* --- REGLA 3: CONTENEDORES CENTRALES CON ANCLAS SEPARADAS (STRETCH) --- */
-/* Rumbo / Misión Activa (16:9 Top-Center entre Top-Left y Top-Right; cero translateX(-50%)) */
+/* Brújula Minimalista y Funcional estilo God of War Ragnarök (16:9 Top-Center entre Top-Left y Top-Right; cero translateX(-50%)) */
 .objective-hud-tracker {
   position: absolute;
   top: var(--safe-top);
@@ -874,39 +948,126 @@ body.dialogue-open .combo-hud {
   margin-inline: auto;
   transform-origin: top center;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: linear-gradient(180deg, rgba(22, 23, 30, 0.92) 0%, rgba(11, 12, 17, 0.95) 100%);
-  border: 2.5px solid var(--ink-black);
-  border-radius: 11px;
-  box-shadow:
-    0 3px 0 var(--ink-black),
-    inset 0 1px 0 rgba(212, 163, 73, 0.28);
+  gap: 2px;
+  padding: 2px 10px 4px 10px;
+  background: linear-gradient(180deg, rgba(10, 8, 7, 0.68) 0%, rgba(10, 8, 7, 0.25) 68%, transparent 100%);
+  border: none;
+  border-radius: 8px;
+  box-shadow: none;
   pointer-events: none;
+}
+
+.gow-compass-strip {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 3px;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+}
+
+.gow-compass-rule {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 2px;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent 0%, rgba(212, 163, 73, 0.52) 18%, rgba(250, 204, 21, 0.90) 50%, rgba(212, 163, 73, 0.52) 82%, transparent 100%);
+}
+
+.gow-compass-cardinals {
+  width: 88%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'Outfit', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: rgba(226, 212, 183, 0.68);
+  text-shadow: 0 1.5px 2px var(--ink-black);
+}
+
+.gow-cardinal.is-north {
+  color: #fde047;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.gow-tick {
+  width: 1px;
+  height: 5px;
+  background: rgba(212, 163, 73, 0.45);
+}
+
+.gow-compass-marker {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: left 90ms linear;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(14, 11, 9, 0.94);
+  border: 1.5px solid var(--cel-gold);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.9), 0 0 10px rgba(250, 204, 21, 0.35);
+  z-index: 2;
+}
+
+.gow-marker-chevron {
+  font-size: 8px;
+  line-height: 1;
+  color: #fde047;
 }
 
 .objective-compass-svg {
   color: var(--cel-gold);
-  font-size: 16px;
+  font-size: 11px;
   flex-shrink: 0;
+}
+
+.gow-marker-dist {
+  font-family: 'Outfit', sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+  color: #fef08a;
+  letter-spacing: 0.03em;
+}
+
+.gow-objective-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .objective-eyebrow {
   font-family: 'Outfit', sans-serif;
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 900;
-  letter-spacing: 0.08em;
-  color: var(--cel-gold);
+  letter-spacing: 0.14em;
+  color: #e7c97f;
   padding-right: 6px;
-  border-right: 1.5px solid rgba(255, 255, 255, 0.16);
+  border-right: 1px solid rgba(212, 163, 73, 0.38);
+  text-shadow: 0 1.5px 2px var(--ink-black);
   flex-shrink: 0;
 }
 
 .objective-hud-text {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 700;
+  color: #f8fafc;
+  text-shadow: 0 1.5px 3px var(--ink-black), 0 0 8px rgba(0, 0, 0, 0.95);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1066,7 +1227,7 @@ body.dialogue-open .combo-hud {
   to { opacity: 0; transform: translateY(-10px) scale(0.97); }
 }
 
-/* Tarjeta Inferior de Diálogo Inmersivo (Anclas Separadas Bottom-Center) */
+/* Tarjeta Inferior de Diálogo Inmersivo (Anclas Separadas Bottom-Center, Obsidiana y Bronce) */
 .dialogue-card {
   position: absolute;
   bottom: calc(var(--safe-bottom) + 12px);
@@ -1077,12 +1238,12 @@ body.dialogue-open .combo-hud {
   margin-inline: auto;
   transform-origin: bottom center;
   padding: 11px 16px;
-  background: linear-gradient(180deg, #17253d 0%, #0b1322 100%);
+  background: linear-gradient(180deg, rgba(24, 19, 15, 0.95) 0%, rgba(12, 9, 8, 0.97) 100%);
   border: 3px solid var(--ink-black);
   border-radius: 16px;
   box-shadow:
     0 5px 0 var(--ink-black),
-    inset 0 0 0 1.5px rgba(250, 204, 21, 0.42);
+    inset 0 0 0 1.5px rgba(212, 163, 73, 0.45);
   pointer-events: none;
   z-index: 19;
 }
@@ -4621,6 +4782,153 @@ body.touch-controls-active .st-nav-key {
   justify-content: center;
   gap: 10px;
   margin-top: 4px;
+}
+
+/* ============================================================================
+   10. TUTORIAL GUIADO CON PAUSAS INTERACTIVAS Y RESALTADO DE HUD (Z-64)
+   ============================================================================ */
+.tutorial-guide-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 64;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(14px, var(--safe-top)) max(16px, var(--safe-right)) max(14px, var(--safe-bottom)) max(16px, var(--safe-left));
+  background: radial-gradient(circle at center, rgba(8, 7, 6, 0.45) 0%, rgba(5, 8, 17, 0.72) 100%);
+  pointer-events: auto;
+}
+
+.tutorial-guide-card {
+  width: min(470px, 94vw);
+  max-height: min(82vh, 420px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px;
+  background: linear-gradient(175deg, rgba(24, 19, 15, 0.97) 0%, rgba(12, 9, 8, 0.99) 100%);
+  border: 2.5px solid var(--ink-black);
+  border-radius: 16px;
+  box-shadow:
+    0 10px 0 var(--ink-black),
+    0 0 32px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1.5px rgba(212, 163, 73, 0.55);
+  color: #f8fafc;
+}
+
+.tutorial-guide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tutorial-step-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 6px;
+  background: var(--cel-gold);
+  color: var(--ink-black);
+  font-family: 'Outfit', sans-serif;
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.tutorial-skip-link {
+  background: transparent;
+  border: 1px solid rgba(212, 163, 73, 0.35);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: #cbbda3;
+  font-family: 'Outfit', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.tutorial-skip-link:hover {
+  color: #fef08a;
+  border-color: #facc15;
+}
+
+.tutorial-guide-title {
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(15px, 2.6vw, 18.5px);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #fde047;
+}
+
+.tutorial-guide-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.42;
+  color: #e2e8f0;
+}
+
+.tutorial-tip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(18, 14, 12, 0.85);
+  border: 1px solid rgba(212, 163, 73, 0.25);
+}
+
+.tutorial-tip-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(250, 204, 21, 0.16);
+  border: 1.5px solid rgba(250, 204, 21, 0.55);
+  color: #fde047;
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tutorial-tip-text strong {
+  color: #fef08a;
+  font-family: 'Outfit', sans-serif;
+}
+
+.tutorial-guide-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.tutorial-next-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Resaltado luminoso sobre las barras y botones reales del HUD durante las pausas del tutorial */
+.tutorial-spotlight-active {
+  outline: 3px solid #facc15 !important;
+  outline-offset: 3px !important;
+  box-shadow:
+    0 0 0 4px rgba(5, 8, 17, 0.92),
+    0 0 24px rgba(250, 204, 21, 0.95),
+    0 0 42px rgba(56, 189, 248, 0.65) !important;
+  z-index: 65 !important;
+  animation: tutorial-spotlight-pulse 1.05s ease-in-out infinite !important;
+}
+
+@keyframes tutorial-spotlight-pulse {
+  0%, 100% { filter: brightness(1.05); }
+  50% { filter: brightness(1.28); }
 }
 
 

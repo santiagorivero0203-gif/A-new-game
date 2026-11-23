@@ -28,6 +28,8 @@ const _customWorlds = new Map();
  */
 export function registerCustomWorld(worldData) {
   if (!worldData || !worldData.id) return;
+  // Proteger los 4 mundos oficiales de la campaña contra sobreescrituras accidentales en localStorage
+  if (LEVEL_IMPORTERS[worldData.id]) return;
   const normalized = normalizeLevel(worldData);
   normalized.id = worldData.id;
   _customWorlds.set(normalized.id, normalized);

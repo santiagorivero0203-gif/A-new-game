@@ -245,14 +245,33 @@
           </div>
         </div>
 
-        <!-- ANCLA SEPARADA (STRETCH) TOP-CENTER: Rumbo / Objetivo Activo (Baja bajo Top-Left en 9:16) -->
-        <div id="objective-hud-tracker" class="objective-hud-tracker" aria-live="polite">
-          <svg xmlns="http://www.w3.org/2000/svg" class="objective-compass-svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <circle cx="12" cy="12" r="9" />
-            <polygon points="16,8 13.5,13.5 8,16 10.5,10.5" fill="currentColor" />
-          </svg>
-          <span class="objective-eyebrow">RUMBO</span>
-          <span id="objective-hud-text" class="objective-hud-text">Sal de la cueva de cristales y explora el sendero exterior</span>
+        <!-- ANCLA SEPARADA (STRETCH) TOP-CENTER: Brújula Minimalista de Rumbo estilo God of War Ragnarök (Baja bajo Top-Left en 9:16) -->
+        <div id="objective-hud-tracker" class="objective-hud-tracker gow-compass-hud" aria-live="polite">
+          <div class="gow-compass-strip" aria-hidden="true">
+            <div class="gow-compass-rule"></div>
+            <div class="gow-compass-cardinals">
+              <span class="gow-cardinal">O</span>
+              <span class="gow-tick"></span>
+              <span class="gow-cardinal">NO</span>
+              <span class="gow-tick"></span>
+              <span class="gow-cardinal is-north">N</span>
+              <span class="gow-tick"></span>
+              <span class="gow-cardinal">NE</span>
+              <span class="gow-tick"></span>
+              <span class="gow-cardinal">E</span>
+            </div>
+            <div id="compass-target-marker" class="gow-compass-marker" style="left: 50%;">
+              <span id="compass-target-dir" class="gow-marker-chevron">▲</span>
+              <svg xmlns="http://www.w3.org/2000/svg" class="objective-compass-svg gow-marker-diamond" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">
+                <polygon points="12,2 21,12 12,22 3,12" />
+              </svg>
+              <span id="compass-target-dist" class="gow-marker-dist">8m</span>
+            </div>
+          </div>
+          <div class="gow-objective-line">
+            <span class="objective-eyebrow">RUMBO</span>
+            <span id="objective-hud-text" class="objective-hud-text">Sal de la cueva de cristales y explora el sendero exterior</span>
+          </div>
         </div>
 
         <!-- ANCLA SEPARADA (STRETCH) TOP-CENTER: Barra Dinámica de Amenaza / Jefe -->
@@ -859,6 +878,23 @@
           <div class="victory-actions-row">
             <button type="button" id="btn-victory-continue" class="cel-action-btn primary">VOLVER AL CLARO Y SEGUIR EXPLORANDO</button>
             <button type="button" id="btn-victory-menu" class="cel-action-btn secondary">MENÚ PRINCIPAL</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- =========================================================================
+           CAPA 7: TUTORIAL GUIADO CON PAUSAS INTERACTIVAS Y RESALTADO DE HUD (Z-64)
+           ========================================================================= -->
+      <div id="tutorial-guide-overlay" class="tutorial-guide-overlay hidden" role="dialog" aria-modal="true" aria-label="Guía de Aprendizaje de la Reliquia">
+        <div class="tutorial-guide-card">
+          <div class="tutorial-guide-header">
+            <span id="tutorial-step-badge" class="tutorial-step-badge">TUTORIAL · PASO 1 DE 3</span>
+            <button type="button" id="btn-tutorial-skip-all" class="tutorial-skip-link" title="No mostrar más pausas de tutorial">OMITIR TUTORIALES</button>
+          </div>
+          <h3 id="tutorial-guide-title" class="tutorial-guide-title">ESTADO VITAL Y BRÚJULA DE RUMBO</h3>
+          <div id="tutorial-guide-body" class="tutorial-guide-body"></div>
+          <div class="tutorial-guide-footer">
+            <button type="button" id="btn-tutorial-next" class="cel-action-btn primary tutorial-next-btn">ENTENDIDO · CONTINUAR</button>
           </div>
         </div>
       </div>

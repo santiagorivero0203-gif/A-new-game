@@ -1031,8 +1031,8 @@ export class InteractableProp extends Entity {
           formatControlPrompts('Santuario Armonizado • Mejora talentos [U] o desafía al Guardián de la región', isMobile)
         );
         if (player) {
-          player.spawnX = Math.round(this.pos.x);
-          player.spawnY = Math.round(this.pos.y + 42);
+          player.spawnX = Math.round(player.pos.x);
+          player.spawnY = Math.round(player.pos.y);
           player.health = player.max_health;
           player.energy = player.max_energy || 100;
           player.guard_meter = player.max_guard || 100;
@@ -1053,8 +1053,8 @@ export class InteractableProp extends Entity {
       if (context && context.waveManager) {
         if (!context.waveManager.isStarted) {
           if (player) {
-            player.spawnX = Math.round(this.pos.x);
-            player.spawnY = Math.round(this.pos.y + 42);
+            player.spawnX = Math.round(player.pos.x);
+            player.spawnY = Math.round(player.pos.y);
           }
           if (stateManager) {
             stateManager.set('level_objective', 'Supera las Oleadas del Santuario Ancestral');

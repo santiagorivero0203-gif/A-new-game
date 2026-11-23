@@ -97,6 +97,12 @@ const victoryWorldsVal = document.getElementById('victory-worlds-val');
 const victoryEssenceVal = document.getElementById('victory-essence-val');
 const btnVictoryContinue = document.getElementById('btn-victory-continue');
 const btnVictoryMenu = document.getElementById('btn-victory-menu');
+const tutorialGuideOverlay = document.getElementById('tutorial-guide-overlay');
+const tutorialStepBadge = document.getElementById('tutorial-step-badge');
+const tutorialGuideTitle = document.getElementById('tutorial-guide-title');
+const tutorialGuideBody = document.getElementById('tutorial-guide-body');
+const btnTutorialNext = document.getElementById('btn-tutorial-next');
+const btnTutorialSkipAll = document.getElementById('btn-tutorial-skip-all');
 
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
@@ -119,6 +125,318 @@ combatManager.projectileSystem = projectileSystem;
 const worldMemoryStore = new WorldMemoryStore();
 
 const UI_PREFS_STORAGE_KEY = 'be_a_legend_ui_prefs_v1';
+const TUTORIAL_STORAGE_KEY = 'be_a_legend_tutorial_v1';
+
+/** Estado del Tutorial Guiado con Pausas Interactivas y Resaltado de HUD en Mundo 1 */
+const tutorialGuideState = {
+  active: false,
+  currentStepKey: null,
+  completedSteps: new Set(),
+  skippedAll: false,
+  spotlightIds: []
+};
+
+function _loadTutorialProgress() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TUTORIAL_STORAGE_KEY) || '{}');
+    if (Array.isArray(raw.completed)) {
+      tutorialGuideState.completedSteps = new Set(raw.completed);
+    }
+    tutorialGuideState.skippedAll = Boolean(raw.skippedAll);
+  } catch {
+    // Ignorar errores de almacenamiento privado
+  }
+}
+_loadTutorialProgress();
+
+function _saveTutorialProgress() {
+  try {
+    localStorage.setItem(TUTORIAL_STORAGE_KEY, JSON.stringify({
+      completed: Array.from(tutorialGuideState.completedSteps),
+      skippedAll: Boolean(tutorialGuideState.skippedAll)
+    }));
+  } catch {
+    // Ignorar cuota
+  }
+}
+
+function _resetTutorialProgress() {
+  tutorialGuideState.completedSteps.clear();
+  tutorialGuideState.skippedAll = false;
+  _closeTutorialStep(false);
+  _saveTutorialProgress();
+}
+
+function _clearTutorialSpotlights() {
+  for (let i = 0; i < tutorialGuideState.spotlightIds.length; i++) {
+    const el = document.getElementById(tutorialGuideState.spotlightIds[i]);
+    if (el) el.classList.remove('tutorial-spotlight-active');
+  }
+  tutorialGuideState.spotlightIds.length = 0;
+}
+
+function _openTutorialStep(stepKey) {
+  if (!tutorialGuideOverlay || tutorialGuideState.active || tutorialGuideState.skippedAll) return;
+  if (tutorialGuideState.completedSteps.has(stepKey)) return;
+  if (stateManager.get('game_state') !== 'STATE_PLAYING') return;
+
+  const isTouch = Boolean(inputManager.shouldShowTouchControls || isTouchDevice);
+  let badge = 'TUTORIAL · PASO 1 DE 3';
+  let title = 'ESTADO VITAL Y BRÚJULA DE RUMBO';
+  let bodyHtml = '';
+  let spotlights = [];
+
+  if (stepKey === 'step_1_hud') {
+    badge = 'TUTORIAL · PASO 1 DE 3';
+    title = 'BARRAS VITALES Y BRÚJULA DE RUMBO';
+    spotlights = ['hud-container', 'objective-hud-tracker'];
+    bodyHtml = `
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">♥</span>
+        <div class="tutorial-tip-text">
+          <strong>Vitalidad, Energía y Égida (Arriba a la Izquierda):</strong>
+          Los corazones y la barra rubí muestran tu vida. Debajo verás tu <strong>Energía Elemental</strong> y la micro-barra dorada de postura de tu <strong>Escudo</strong>.
+        </div>
+      </div>
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">◆</span>
+        <div class="tutorial-tip-text">
+          <strong>Brújula Minimalista de Rumbo (Arriba al Centro):</strong>
+          El diamante dorado se desliza sobre la línea cardinal e indica la dirección y distancia en metros (<code>m</code>) hacia tu objetivo actual. ¡Camina hacia la <strong>Espada del Alba</strong> clavada frente a la cueva!
+        </div>
+      </div>
+    `;
+  } else if (stepKey === 'step_2_combat') {
+    badge = 'TUTORIAL · PASO 2 DE 3';
+    title = 'ESPADA DEL ALBA, GUARDIA Y MOVILIDAD';
+    spotlights = isTouch
+      ? ['touch-btn-attack', 'touch-btn-defend', 'touch-btn-dash', 'touch-joystick-zone']
+      : ['hud-posture-wrap', 'objective-hud-tracker'];
+    bodyHtml = `
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">⚔</span>
+        <div class="tutorial-tip-text">
+          <strong>Combo de 3 Tajos (${isTouch ? 'Botón ESPADA' : 'Clic Izquierdo o [J]'}):</strong>
+          Encadena 3 cortes rítmicos (con una brevísima pausa táctica entre golpes). Cada tajo conectado recarga tu <strong>Energía Elemental</strong>.
+        </div>
+      </div>
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">🛡</span>
+        <div class="tutorial-tip-text">
+          <strong>Guardia y Parry Perfecto (${isTouch ? 'Botón GUARDIA' : '[Shift] o Clic Central'}):</strong>
+          Mantén para bloquear o púlsalo justo antes de un impacto o proyectil para devolverlo y quebrar la postura enemiga.
+        </div>
+      </div>
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">⚡</span>
+        <div class="tutorial-tip-text">
+          <strong>Esquiva, Carrera y Agacharse:</strong>
+          ${isTouch
+            ? 'Toca <strong>DASH</strong> 1 vez para esquivar o <strong>2 veces seguidas</strong> para correr; toca el <strong>centro del joystick</strong> para agacharte.'
+            : 'Usa <strong>[Espacio]</strong> para esquivar, <strong>[F]</strong> para correr y <strong>[C]</strong> para agacharte.'}
+          ¡Rompe ahora la roca agrietada frente a ti!
+        </div>
+      </div>
+    `;
+  } else if (stepKey === 'step_3_powers') {
+    badge = 'TUTORIAL · PASO 3 DE 3';
+    title = 'PODER DÉBIL, PODER FUERTE Y CURACIÓN';
+    spotlights = isTouch
+      ? ['touch-btn-skill', 'touch-btn-skill-strong', 'touch-btn-switch', 'touch-btn-heal', 'hud-relic-badge']
+      : ['hud-relic-badge', 'hud-container'];
+    bodyHtml = `
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">🔥</span>
+        <div class="tutorial-tip-text">
+          <strong>Poder Elemental Débil / Rápido (${isTouch ? 'Botón FUEGO' : 'Clic Derecho o [K]'}):</strong>
+          Lanza proyectiles o pulsos rápidos (como la Bola de Fuego) que queman las <strong>Zarzas del Puente</strong>, encienden braseros y destruyen escudos de madera.
+        </div>
+      </div>
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">✦</span>
+        <div class="tutorial-tip-text">
+          <strong>Poder Elemental Fuerte (${isTouch ? 'Botón FUERTE' : 'Tecla [L]'}):</strong>
+          Consume más energía para desatar una descarga pesada de alto impacto en área.
+        </div>
+      </div>
+      <div class="tutorial-tip-row">
+        <span class="tutorial-tip-icon">✚</span>
+        <div class="tutorial-tip-text">
+          <strong>Curación (${isTouch ? 'Botón CURAR' : 'Tecla [Q]'}) y Cambio de Poder (${isTouch ? 'Botón FUE o deslizar FUEGO' : '[R], [1]-[4] o Rueda'}):</strong>
+          Usa energía para restaurar corazones (o crear un Escudo de Vitalidad si tienes la vida llena) y alterna poderes cuando desbloquees más núcleos.
+        </div>
+      </div>
+    `;
+  } else {
+    return;
+  }
+
+  tutorialGuideState.active = true;
+  tutorialGuideState.currentStepKey = stepKey;
+  _clearTutorialSpotlights();
+  for (let i = 0; i < spotlights.length; i++) {
+    const el = document.getElementById(spotlights[i]);
+    if (el) {
+      el.classList.add('tutorial-spotlight-active');
+      tutorialGuideState.spotlightIds.push(spotlights[i]);
+    }
+  }
+
+  if (tutorialStepBadge) tutorialStepBadge.textContent = badge;
+  if (tutorialGuideTitle) tutorialGuideTitle.textContent = title;
+  if (tutorialGuideBody) tutorialGuideBody.innerHTML = bodyHtml;
+  tutorialGuideOverlay.classList.remove('hidden');
+  if (audioManager && typeof audioManager.playRunicResonance === 'function') {
+    audioManager.playRunicResonance();
+  }
+  if (engine) {
+    engine.renderOnce();
+    engine.pause(true);
+  }
+}
+
+function _closeTutorialStep(resumeGame = true) {
+  if (!tutorialGuideOverlay) return;
+  if (tutorialGuideState.currentStepKey) {
+    tutorialGuideState.completedSteps.add(tutorialGuideState.currentStepKey);
+  }
+  tutorialGuideState.active = false;
+  tutorialGuideState.currentStepKey = null;
+  _clearTutorialSpotlights();
+  tutorialGuideOverlay.classList.add('hidden');
+  _saveTutorialProgress();
+  if (resumeGame && engine && stateManager.get('game_state') === 'STATE_PLAYING') {
+    engine.resume();
+  }
+}
+
+/**
+ * Calcula en O(1) el objetivo prioritario del mundo actual y actualiza la brújula superior
+ * estilo God of War Ragnarök (posición horizontal en %, símbolo direccional y distancia en metros).
+ * @private
+ * @param {number} px
+ * @param {number} py
+ */
+function _updateCompassBearing(px, py) {
+  if (!currentLevelData || !player) return;
+  let tx = null;
+  let ty = null;
+
+  const liveProps = entityManager.getByTag('prop');
+
+  // 1. Espada del Alba si aún no se ha empuñado
+  if (!player.hasSword) {
+    for (let i = 0; i < liveProps.length; i++) {
+      const p = liveProps[i];
+      if (p && p.propType === 'starter_sword' && !p.isConsumed) {
+        tx = p.pos.x + p.width * 0.5;
+        ty = p.pos.y + p.height * 0.5;
+        break;
+      }
+    }
+    if (tx === null && Array.isArray(currentLevelData.props)) {
+      const sp = currentLevelData.props.find((p) => p && p.propType === 'starter_sword');
+      if (sp) { tx = (sp.x || 0) + 24; ty = (sp.y || 0) + 29; }
+    }
+  }
+
+  // 2. Roca agrietada inicial en Mundo 1 si sigue bloqueando la cueva
+  if (tx === null && currentWorldKey === 'cave_exit_intro') {
+    for (let i = 0; i < liveProps.length; i++) {
+      const p = liveProps[i];
+      if (p && p.propType === 'cracked_rock' && !p.isDead && !p.isConsumed) {
+        tx = p.pos.x + p.width * 0.5;
+        ty = p.pos.y + p.height * 0.5;
+        break;
+      }
+    }
+  }
+
+  // 3. Pedestal del Núcleo Elemental del mundo actual si aún no fue despertado
+  if (tx === null && !progressionManager.hasUnlockedWorldCore(currentWorldKey) && Array.isArray(currentLevelData.props)) {
+    const ped = currentLevelData.props.find((p) => p && p.propType === 'relic_pedestal');
+    if (ped) {
+      tx = (ped.x || 0) + 28;
+      ty = (ped.y || 0) + 34;
+    }
+  }
+
+  // 4. Mecanismos de sello o barreras activas en el mundo actual
+  if (tx === null) {
+    let bestDistSq = Infinity;
+    for (let i = 0; i < liveProps.length; i++) {
+      const p = liveProps[i];
+      if (!p || p.isDead || p.isConsumed) continue;
+      const isSealTarget =
+        p.propType === 'burnable_vines' ||
+        p.propType === 'kinetic_barrier' ||
+        ((p.propType === 'elemental_brazier' || p.propType === 'root_totem' || p.propType === 'kinetic_pillar' || p.propType === 'ether_pylon') && !p.isActivated);
+      if (isSealTarget) {
+        const cx = p.pos.x + p.width * 0.5;
+        const cy = p.pos.y + p.height * 0.5;
+        const dSq = (cx - px) * (cx - px) + (cy - py) * (cy - py);
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          tx = cx;
+          ty = cy;
+        }
+      }
+    }
+  }
+
+  // 5. Guardián Regional (Jefe) si el mundo aún no fue conquistado
+  if (tx === null && !progressionManager.completedWorlds.has(currentWorldKey)) {
+    const enemies = entityManager.getByTag('enemy');
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (e && e.isBoss && !e.isDead) {
+        tx = e.pos.x + e.width * 0.5;
+        ty = e.pos.y + e.height * 0.5;
+        break;
+      }
+    }
+    if (tx === null && Array.isArray(currentLevelData.entities)) {
+      const bossBp = currentLevelData.entities.find((e) => e && e.type === 'enemy' && (e.bossId || String(e.archetype || '').startsWith('boss_')));
+      if (bossBp) {
+        tx = (bossBp.x || 0) + 22;
+        ty = (bossBp.y || 0) + 22;
+      }
+    }
+  }
+
+  // 6. Portal hacia el siguiente mundo / Altar de la Unificación
+  if (tx === null && Array.isArray(currentLevelData.props)) {
+    const portal = currentLevelData.props.find(
+      (p) => p && p.propType === 'world_portal' && (p.isVictoryPortal || (Array.isArray(p.sealedBy) && p.sealedBy.length > 0))
+    ) || currentLevelData.props.find((p) => p && p.propType === 'world_portal');
+    if (portal) {
+      tx = (portal.x || 0) + 28;
+      ty = (portal.y || 0) + 36;
+    }
+  }
+
+  if (tx === null || ty === null) return;
+
+  const dx = tx - px;
+  const dy = ty - py;
+  const distPx = Math.hypot(dx, dy);
+  const distM = Math.max(0, Math.round(distPx / 24));
+  // Proyección horizontal suave sobre la tira de la brújula [12% .. 88%]
+  const normHoriz = Math.max(-1, Math.min(1, dx / Math.max(80, distPx)));
+  const bearingPct = Math.round(50 + normHoriz * 38);
+  let dirSym = '◆';
+  if (distM > 2) {
+    if (Math.abs(dy) >= Math.abs(dx) * 0.85) {
+      dirSym = dy < 0 ? '▲' : '▼';
+    } else {
+      dirSym = dx < 0 ? '◄' : '►';
+    }
+  }
+
+  stateManager.set('compass_bearing_pct', bearingPct);
+  stateManager.set('compass_dir_symbol', dirSym);
+  stateManager.set('compass_dist_m', distM);
+}
 let _initialMinimapCollapsed = false;
 try {
   const savedUiPrefs = JSON.parse(localStorage.getItem(UI_PREFS_STORAGE_KEY) || '{}');
@@ -408,12 +726,23 @@ function ensureWorldInitialized() {
   }
 
   if (levelInfo.startDormant) {
-    // Al iniciar partida en la boca de la cueva (donde m1_starter_sword y m1_relic_fuego están sin reclamar),
-    // garantizar que Santi comience siempre sin la Espada del Alba ni Fuego hasta obtenerlos en el mundo.
-    progressionManager.hasSword = false;
-    progressionManager.unlockedElements.clear();
-    progressionManager.seenWorldReveals.delete('cave_exit_intro');
-    player.configureDormantStart();
+    const hasCampaignProgress =
+      progressionManager.completedWorlds.size > 0 ||
+      progressionManager.visitedWorlds.size > 1 ||
+      progressionManager.resolvedLinks.size > 0 ||
+      progressionManager.unlockedElements.size > 1;
+
+    if (!hasCampaignProgress) {
+      // Al iniciar una partida inicial en la boca de la cueva (sin progreso de campaña posterior),
+      // garantizar que Santi comience siempre sin la Espada del Alba ni Fuego hasta obtenerlos en el mundo.
+      progressionManager.hasSword = false;
+      progressionManager.unlockedElements.clear();
+      progressionManager.seenWorldReveals.delete('cave_exit_intro');
+      player.configureDormantStart();
+      _resetTutorialProgress();
+    } else {
+      progressionManager._healPrerequisiteCores(true);
+    }
   }
   progressionManager.syncPlayerFromCampaign(player, stateManager, {
     isPlaytest: false,
@@ -557,6 +886,8 @@ async function loadWorld(worldKey, options = {}) {
     }
 
     player.pos.set(targetSpawn.x, targetSpawn.y);
+    player.spawnX = targetSpawn.x;
+    player.spawnY = targetSpawn.y;
     player.velocity.set(0, 0);
 
     const isFirstWorldVisit = !isPlaytestSession && !progressionManager.hasSeenWorldReveal(worldKey);
@@ -568,7 +899,10 @@ async function loadWorld(worldKey, options = {}) {
       startDormant: levelInfo.startDormant
     });
     if (player.unlockedElements.size > 0 && player.currentAbility) {
-      inputManager.currentPower = progressionManager.toDisplayElement(player.currentAbility);
+      const displayPow = progressionManager.toDisplayElement(player.currentAbility);
+      inputManager.currentPower = displayPow;
+      uiManager.updateHUD(stateManager, displayPow);
+      uiManager.updateVirtualGamepad(inputManager, displayPow, stateManager);
     }
     inputManager.resetTouchSprint();
 
@@ -923,6 +1257,27 @@ function update(deltaTime) {
   updateTeleportTransition(deltaTime);
   updateCaveOrbIntroSequence(deltaTime);
   updateWorldPowerRevealSequence(deltaTime);
+  _updateCompassBearing(_playerCenterCache.x, _playerCenterCache.y);
+
+  // Evaluar pausas del Tutorial Guiado durante el tramo inicial del Mundo 1
+  if (
+    currentWorldKey === 'cave_exit_intro' &&
+    !introSequenceState.active &&
+    !worldPowerRevealState.active &&
+    !teleportState.active &&
+    player &&
+    player.itemGetTimer <= 0 &&
+    !tutorialGuideState.active &&
+    !tutorialGuideState.skippedAll
+  ) {
+    if (!player.hasSword && !tutorialGuideState.completedSteps.has('step_1_hud')) {
+      _openTutorialStep('step_1_hud');
+    } else if (player.hasSword && !player.hasElement('Fuego') && !tutorialGuideState.completedSteps.has('step_2_combat')) {
+      _openTutorialStep('step_2_combat');
+    } else if (player.hasSword && player.hasElement('Fuego') && !tutorialGuideState.completedSteps.has('step_3_powers')) {
+      _openTutorialStep('step_3_powers');
+    }
+  }
   // 8.5 Hilo Guía Diegético hacia el Pedestal del Núcleo Elemental si aún no se ha reclamado en este mundo
   if (
     player &&
@@ -1755,6 +2110,7 @@ addTouchClick(btnResetCampaign, async () => {
   skillTreeManager.resetCampaign();
   equipmentManager.reset();
   worldMemoryStore.clear();
+  _resetTutorialProgress();
   hasShownCaveOpeningLine = false;
   worldPowerRevealState.active = false;
   worldPowerRevealState.orb = null;
@@ -1779,6 +2135,7 @@ addTouchClick(btnClearSaveData, () => {
   skillTreeManager.resetCampaign();
   equipmentManager.reset();
   worldMemoryStore.clear();
+  _resetTutorialProgress();
   hasShownCaveOpeningLine = false;
   if (btnClearSaveData) {
     btnClearSaveData.disabled = true;
@@ -1986,7 +2343,24 @@ inputManager.onSkillEquipped((newPower) => {
   }
 });
 
+addTouchClick(btnTutorialNext, () => {
+  _closeTutorialStep(true);
+});
+
+addTouchClick(btnTutorialSkipAll, () => {
+  tutorialGuideState.skippedAll = true;
+  tutorialGuideState.completedSteps.add('step_1_hud');
+  tutorialGuideState.completedSteps.add('step_2_combat');
+  tutorialGuideState.completedSteps.add('step_3_powers');
+  _closeTutorialStep(true);
+});
+
 window.addEventListener('keydown', (e) => {
+  if (tutorialGuideState.active && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) {
+    e.preventDefault();
+    _closeTutorialStep(true);
+    return;
+  }
   // Atajo F9 para retornar inmediatamente del Playtest a la Forja de Niveles
   if (e.key === 'F9' && _isPlaytestingLevel && btnEditorReturn) {
     e.preventDefault();

@@ -461,8 +461,24 @@ export class InputManager {
       }
 
       if (KEYBINDINGS.POWER_1.includes(e.code)) this.setPower('Fuego');
-      if (KEYBINDINGS.POWER_2.includes(e.code)) this.setPower('Embestida');
-      if (KEYBINDINGS.POWER_3.includes(e.code)) this.setPower('Raíces');
+      if (KEYBINDINGS.POWER_2.includes(e.code)) {
+        const rawCur = (this._getCurrentPowerFn && this._getCurrentPowerFn()) || this.currentPower;
+        const cur = this._normalizeDisplayPower(rawCur);
+        if (this._canSelectPowerFn && !this._canSelectPowerFn('Embestida') && this._canSelectPowerFn('Raíces')) {
+          this.setPower('Raíces');
+        } else if (cur !== 'Raíces' && (!this._canSelectPowerFn || this._canSelectPowerFn('Raíces'))) {
+          this.setPower('Raíces');
+        } else {
+          this.setPower('Embestida');
+        }
+      }
+      if (KEYBINDINGS.POWER_3.includes(e.code)) {
+        if (this._canSelectPowerFn && !this._canSelectPowerFn('Embestida') && this._canSelectPowerFn('Raíces')) {
+          this.setPower('Raíces');
+        } else {
+          this.setPower('Embestida');
+        }
+      }
       if (KEYBINDINGS.POWER_4.includes(e.code)) this.setPower('Éter');
 
       if (KEYBINDINGS.POWER_CYCLE.includes(e.code)) {
@@ -746,6 +762,7 @@ export class InputManager {
     const btnSwitch = document.getElementById('touch-btn-switch');
     if (btnSwitch) {
       let lastTouchSwitchMs = -Infinity;
+      let switchHandledOnTouchStart = false;
       const triggerSwitch = (e, isTouch) => {
         if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault();
         if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
@@ -765,9 +782,23 @@ export class InputManager {
         if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault();
         if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
       };
-      btnSwitch.addEventListener('touchstart', (e) => triggerSwitch(e, true), { passive: false });
-      btnSwitch.addEventListener('touchend', suppressSyntheticEvent, { passive: false });
-      btnSwitch.addEventListener('touchcancel', suppressSyntheticEvent, { passive: false });
+      btnSwitch.addEventListener('touchstart', (e) => {
+        switchHandledOnTouchStart = true;
+        triggerSwitch(e, true);
+      }, { passive: false });
+      btnSwitch.addEventListener('touchend', (e) => {
+        // Evitar doble cambio de poder si el usuario mantiene pulsado el botón >=160ms tras touchstart
+        if (switchHandledOnTouchStart) {
+          switchHandledOnTouchStart = false;
+          suppressSyntheticEvent(e);
+          return;
+        }
+        triggerSwitch(e, true);
+      }, { passive: false });
+      btnSwitch.addEventListener('touchcancel', (e) => {
+        switchHandledOnTouchStart = false;
+        suppressSyntheticEvent(e);
+      }, { passive: false });
       btnSwitch.addEventListener('mousedown', (e) => {
         if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
       });
@@ -1036,7 +1067,13 @@ export class InputManager {
         if (this.hoveredSwipePower !== null) {
           this.setPower(this.hoveredSwipePower);
         } else if (tappedHintPower) {
-          this.setPower(tappedHintPower);
+          const rawCurrent = (this._getCurrentPowerFn && this._getCurrentPowerFn()) || this.currentPower;
+          const current = this._normalizeDisplayPower(rawCurrent);
+          if (this._canSelectPowerFn && (!this._canSelectPowerFn(tappedHintPower) || tappedHintPower === current)) {
+            this.cyclePower(1);
+          } else {
+            this.setPower(tappedHintPower);
+          }
         } else {
           this.triggerAction('ability', 180);
         }
@@ -1080,7 +1117,9 @@ export class InputManager {
 
   /**
    * Calcula el cuadrante de swipe para habilidades basándose en el ángulo del vector.
-   * Norte: Fuego | Este: Embestida | Sur: Raíces | Oeste: Éter
+   * Norte: Fuego | Este: Embestida | Sur: Raíces | Oeste: Éter.
+   * Si el cuadrante hacia el que el usuario deslizó aún está bloqueado o ya es el poder activo,
+   * cicla automáticamente al siguiente poder desbloqueado para que cualquier deslizamiento cambie de poder.
    * @private
    * @param {number} dx
    * @param {number} dy
@@ -1090,10 +1129,25 @@ export class InputManager {
     const angleRad = Math.atan2(dy, dx);
     const angleDeg = (angleRad * 180) / Math.PI;
 
-    if (angleDeg >= -135 && angleDeg < -45) return 'Fuego';
-    if (angleDeg >= -45 && angleDeg < 45) return 'Embestida';
-    if (angleDeg >= 45 && angleDeg < 135) return 'Raíces';
-    return 'Éter';
+    let target = 'Éter';
+    if (angleDeg >= -135 && angleDeg < -45) target = 'Fuego';
+    else if (angleDeg >= -45 && angleDeg < 45) target = 'Embestida';
+    else if (angleDeg >= 45 && angleDeg < 135) target = 'Raíces';
+
+    if (this._canSelectPowerFn) {
+      const allPowers = ['Fuego', 'Raíces', 'Embestida', 'Éter'];
+      const unlocked = allPowers.filter((p) => this._canSelectPowerFn(p));
+      const rawCurrent = (this._getCurrentPowerFn && this._getCurrentPowerFn()) || this.currentPower || unlocked[0];
+      const current = this._normalizeDisplayPower(rawCurrent);
+
+      if (unlocked.length >= 2 && (!this._canSelectPowerFn(target) || target === current)) {
+        let idx = unlocked.indexOf(current);
+        if (idx === -1) idx = 0;
+        const dir = (dx + dy >= 0) ? 1 : -1;
+        target = unlocked[(idx + dir + unlocked.length) % unlocked.length];
+      }
+    }
+    return target;
   }
 
   /**

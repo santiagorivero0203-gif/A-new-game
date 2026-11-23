@@ -891,24 +891,13 @@ export class SkillTreeManager {
   }
 
   /**
-   * Verifica tanto los nodos padres como los puntos mínimos en la disciplina (`reqTreePoints`).
+   * Permite al jugador elegir libremente qué talento desbloquear en el Árbol de Habilidades
+   * según su estilo de juego, exigiendo únicamente disponer de la Esencia necesaria.
    * @param {string} skillId
    * @returns {boolean}
    */
   areDependenciesMet(skillId) {
-    const sk = this.skills[skillId];
-    if (!sk) return false;
-
-    const reqPts = sk.reqTreePoints !== undefined ? sk.reqTreePoints : (TIER_POINT_REQUIREMENTS[sk.tier] || 0);
-    if (this.getTreePoints(sk.tree) < reqPts) {
-      return false;
-    }
-
-    if (!sk.dependsOn || sk.dependsOn.length === 0) return true;
-    for (let i = 0; i < sk.dependsOn.length; i++) {
-      if (this.getSkillRank(sk.dependsOn[i]) < 1) return false;
-    }
-    return true;
+    return Boolean(this.skills[skillId]);
   }
 
   /**

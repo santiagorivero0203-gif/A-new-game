@@ -31,6 +31,7 @@ export class UIManager {
     this.heartElements = [];
     this.hudHpFill = document.getElementById('hud-hp-fill');
     this.hudHpGhostFill = document.getElementById('hud-hp-ghost-fill');
+    this.hudHpChassis = this.hudHpFill ? this.hudHpFill.parentElement : null;
     this.hudHpSegments = document.getElementById('hud-hp-segments');
     this.hudHpText = document.getElementById('hud-hp-text');
     this.hudEnergyFill = document.getElementById('hud-energy-fill');
@@ -54,9 +55,12 @@ export class UIManager {
     this.btnQuickArsenal = document.getElementById('btn-quick-arsenal');
     this.hudEssenceVal = document.getElementById('hud-essence-val');
 
-    // 1.C Rumbo / Objetivo, Combo, Jefe y Hordas
+    // 1.C Rumbo / Objetivo (Brújula God of War Ragnarök), Combo, Jefe y Hordas
     this.objectiveTracker = document.getElementById('objective-hud-tracker');
     this.objectiveTextEl = document.getElementById('objective-hud-text');
+    this.compassMarkerEl = document.getElementById('compass-target-marker');
+    this.compassDirEl = document.getElementById('compass-target-dir');
+    this.compassDistEl = document.getElementById('compass-target-dist');
     this.comboHud = document.getElementById('combo-hud');
     this.comboRankBadge = document.getElementById('combo-rank-badge');
     this.comboCountText = document.getElementById('combo-count-text');
@@ -469,31 +473,76 @@ export class UIManager {
       this._lastHealth = -1;
     }
 
-    if (health !== this._lastHealth || isCritical !== this._lastCritical) {
+    const player = stateManager ? stateManager.get('player') : null;
+    const isActivelyHealing = Boolean(player && player.healTimer > 0);
+    const hasVitalityShield = Boolean(player && typeof player.hasTag === 'function' && player.hasTag('vitality_shield'));
+
+    if (this.hudHpChassis) {
+      this.hudHpChassis.classList.toggle('has-vitality-shield', hasVitalityShield);
+    }
+
+    if (health !== this._lastHealth || isCritical !== this._lastCritical || isActivelyHealing !== this._lastActivelyHealing) {
+      const prevHealth = this._lastHealth;
+      const isHealGain = (prevHealth >= 0 && health > prevHealth) || (isActivelyHealing && !this._lastActivelyHealing);
+      const isDamageLoss = prevHealth >= 0 && health < prevHealth;
+
       this._lastHealth = health;
       this._lastCritical = isCritical;
+      this._lastActivelyHealing = isActivelyHealing;
 
       const hpPct = maxHealth > 0 ? Math.max(0, Math.min(100, (health / maxHealth) * 100)) : 100;
       const hpRatio = hpPct / 100;
       if (this.hudHpFill) {
         this.hudHpFill.style.transform = `scaleX(${hpRatio})`;
         this.hudHpFill.classList.toggle('critical-pulse', isCritical);
+        if (isHealGain) {
+          this.hudHpFill.classList.add('is-healing');
+          if (this.hudHpChassis) this.hudHpChassis.classList.add('is-healing');
+          clearTimeout(this._healAnimTimeout);
+          this._healAnimTimeout = setTimeout(() => {
+            if (this.hudHpFill) this.hudHpFill.classList.remove('is-healing');
+            if (this.hudHpChassis) this.hudHpChassis.classList.remove('is-healing');
+          }, 740);
+        }
       }
       if (this.hudHpGhostFill) {
-        this.hudHpGhostFill.style.transform = `scaleX(${hpRatio})`;
+        if (isDamageLoss) {
+          clearTimeout(this._ghostHpTimeout);
+          this._ghostHpTimeout = setTimeout(() => {
+            if (this.hudHpGhostFill) {
+              this.hudHpGhostFill.style.transform = `scaleX(${hpRatio})`;
+            }
+          }, 130);
+        } else {
+          this.hudHpGhostFill.style.transform = `scaleX(${hpRatio})`;
+        }
+      }
+      if (isDamageLoss && this.hudContainer) {
+        this.hudContainer.classList.remove('is-damaged');
+        void this.hudContainer.offsetWidth;
+        this.hudContainer.classList.add('is-damaged');
+        clearTimeout(this._damageJoltTimeout);
+        this._damageJoltTimeout = setTimeout(() => {
+          if (this.hudContainer) this.hudContainer.classList.remove('is-damaged');
+        }, 360);
       }
       if (this.hudHpText) {
         this.hudHpText.textContent = `${health} / ${maxHealth}`;
-        this.hudHpText.style.color = isCritical ? '#fda4af' : '#fecdd3';
+        this.hudHpText.style.color = isHealGain ? '#4ade80' : isCritical ? '#fda4af' : '#fecdd3';
       }
 
       for (let i = 0; i < this.heartElements.length; i++) {
         const heart = this.heartElements[i];
         if (!heart) continue;
         if (i < health) {
-          heart.setAttribute('class', health === 1 && i === 0 ? 'relic-heart-svg filled pulsing' : 'relic-heart-svg filled');
+          const restoredClass = (isHealGain && (i >= Math.max(0, prevHealth) || i === health - 1)) ? ' heart-restored' : '';
+          heart.setAttribute(
+            'class',
+            (health === 1 && i === 0 ? 'relic-heart-svg filled pulsing' : 'relic-heart-svg filled') + restoredClass
+          );
         } else {
-          heart.setAttribute('class', 'relic-heart-svg empty');
+          const shatteredClass = (isDamageLoss && i >= health && i < prevHealth) ? ' heart-shattered' : '';
+          heart.setAttribute('class', 'relic-heart-svg empty' + shatteredClass);
         }
       }
 
@@ -849,7 +898,7 @@ export class UIManager {
   updateHordeHUD(stateManager) {
     if (!stateManager) return;
 
-    // 0. Rumbo / Objetivo Activo del Nivel (con caché para evitar RegEx cada frame)
+    // 0. Rumbo / Objetivo Activo del Nivel y Brújula Funcional estilo God of War Ragnarök
     const rawObjective = stateManager.get('level_objective') || 'Explora el Claro del Santuario';
     const isMobile = this._isMobileActive();
     if (rawObjective !== this._lastRawObjective || isMobile !== this._lastObjectiveMobile) {
@@ -859,6 +908,24 @@ export class UIManager {
       if (objective !== this._lastObjectiveText && this.objectiveTextEl) {
         this._lastObjectiveText = objective;
         this.objectiveTextEl.textContent = objective;
+      }
+    }
+
+    if (this.compassMarkerEl) {
+      const bearingPct = stateManager.get('compass_bearing_pct') ?? 50;
+      const dirSym = stateManager.get('compass_dir_symbol') || '▲';
+      const distM = stateManager.get('compass_dist_m') ?? 0;
+      if (bearingPct !== this._lastCompassPct) {
+        this._lastCompassPct = bearingPct;
+        this.compassMarkerEl.style.left = `${bearingPct}%`;
+      }
+      if (this.compassDirEl && dirSym !== this._lastCompassDir) {
+        this._lastCompassDir = dirSym;
+        this.compassDirEl.textContent = dirSym;
+      }
+      if (this.compassDistEl && distM !== this._lastCompassDist) {
+        this._lastCompassDist = distM;
+        this.compassDistEl.textContent = distM > 0 ? `${distM}m` : 'AQUÍ';
       }
     }
 
@@ -1541,27 +1608,21 @@ export class UIManager {
             ${isMax ? '' : `<span class="st-node-cost-pill">${nextCost}</span>`}
           `;
 
-          nodeWrap.addEventListener('mouseenter', () => {
-            if (this.selectedSkillId !== skill.id) {
-              this.selectedSkillId = skill.id;
-              this._highlightSelectedNode();
-              this._updateSkillInspector(skill, skillTreeManager, audioManager);
+          const selectAndInspectNode = (e) => {
+            if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+            this.selectedSkillId = skill.id;
+            this._highlightSelectedNode();
+            this._updateSkillInspector(skill, skillTreeManager, audioManager);
+            if (this.stInspectorBuyBtn && typeof this.stInspectorBuyBtn.scrollIntoView === 'function' && this._isMobileActive()) {
+              this.stInspectorBuyBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
-          });
+          };
 
-          nodeWrap.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (this.selectedSkillId !== skill.id) {
-              this.selectedSkillId = skill.id;
-              this._highlightSelectedNode();
-              this._updateSkillInspector(skill, skillTreeManager, audioManager);
-            } else if (skillTreeManager.canUnlock(skill.id)) {
-              if (skillTreeManager.unlockSkill(skill.id)) {
-                if (audioManager) audioManager.playHeal();
-                this.renderSkillTree(skillTreeManager, audioManager);
-              }
-            }
-          });
+          nodeWrap.addEventListener('click', selectAndInspectNode);
+          nodeWrap.addEventListener('touchend', (e) => {
+            if (e && e.cancelable) e.preventDefault();
+            selectAndInspectNode(e);
+          }, { passive: false });
 
           laneEl.appendChild(nodeWrap);
         });
@@ -1660,6 +1721,7 @@ export class UIManager {
 
     if (this.stInspectorBuyBtn) {
       this.stInspectorBuyBtn.onclick = null;
+      this.stInspectorBuyBtn.ontouchend = null;
       if (isMax) {
         this.stInspectorBuyBtn.textContent = `RANGO MÁXIMO (${rank}/${maxRank})`;
         this.stInspectorBuyBtn.className = 'st-buy-action-btn is-owned';
@@ -1668,12 +1730,21 @@ export class UIManager {
         this.stInspectorBuyBtn.textContent = `${rank > 0 ? 'MEJORAR RANGO' : 'DESPERTAR HABILIDAD'} (${nextCost} ESENCIA)`;
         this.stInspectorBuyBtn.className = 'st-buy-action-btn can-buy';
         this.stInspectorBuyBtn.disabled = false;
-        this.stInspectorBuyBtn.onclick = (e) => {
-          e.stopPropagation();
+        let lastBuyTap = -Infinity;
+        const doBuy = (e) => {
+          if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+          const now = performance.now();
+          if (now - lastBuyTap < 220) return;
+          lastBuyTap = now;
           if (skillTreeManager.unlockSkill(skill.id)) {
             if (audioManager) audioManager.playHeal();
             this.renderSkillTree(skillTreeManager, audioManager);
           }
+        };
+        this.stInspectorBuyBtn.onclick = doBuy;
+        this.stInspectorBuyBtn.ontouchend = (e) => {
+          if (e && e.cancelable) e.preventDefault();
+          doBuy(e);
         };
       } else if (!depsMet) {
         const missingParent = (skill.dependsOn || []).some((depId) => skillTreeManager.getSkillRank(depId) < 1);
