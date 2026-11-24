@@ -75,6 +75,9 @@ export class LevelLoader {
 
     if (chunkManager) {
       chunkManager.clearAll();
+      if (typeof chunkManager.setCurrentBiome === 'function') {
+        chunkManager.setCurrentBiome(level.biome);
+      }
     }
 
     // 2. Instanciar Colisionadores Fluviales / Barrancos Invisibles (pocas franjas anchas compartidas)
@@ -105,30 +108,48 @@ export class LevelLoader {
       }
     }
 
-    // 4. Entidades Principales (Casas, NPCs con variantes, Enemigos tácticos)
+    // 4. Entidades Principales (Casas por bioma/oficio, NPCs con oficios/patrullas, Enemigos y Mini-Jefes)
     if (Array.isArray(levelData.entities)) {
       for (const ent of levelData.entities) {
         if (ent.type === 'house') {
+          const houseCfg = {
+            biome: level.biome,
+            buildingType: ent.buildingType || 'cottage',
+            label: ent.label || null
+          };
           if (chunkManager) {
-            chunkManager.registerBlueprint({ uid: nextUid('house'), kind: 'house', x: ent.x, y: ent.y });
+            chunkManager.registerBlueprint({
+              uid: nextUid('house'),
+              kind: 'house',
+              x: ent.x,
+              y: ent.y,
+              buildingType: houseCfg.buildingType,
+              label: houseCfg.label
+            });
           } else {
-            entityManager.addEntity(new House(ent.x, ent.y));
+            entityManager.addEntity(new House(ent.x, ent.y, houseCfg));
           }
         } else if (ent.type === 'npc') {
           const npcConfig = {
             name: ent.name,
-            variant: ent.variant || 'tarak',
+            role: ent.role || null,
+            biome: level.biome,
+            variant: ent.variant || undefined,
             rescueTag: ent.rescueTag || null,
             worldId: level.id,
             karmaEventId: ent.karmaEventId || null,
             rewardWeapon: ent.rewardWeapon || null,
             rewardShield: ent.rewardShield,
-            rewardEssence: ent.rewardEssence || 6,
-            dialogues: ent.dialogues || null
+            rewardEssence: ent.rewardEssence || 12,
+            dialogues: ent.dialogues || null,
+            patrolPoints: ent.patrolPoints || null,
+            wanderRadius: ent.wanderRadius,
+            shopTitle: ent.shopTitle || null,
+            shopSubtitle: ent.shopSubtitle || null
           };
           if (chunkManager) {
             chunkManager.registerBlueprint({
-              uid: ent.id || nextUid(`npc_${npcConfig.variant}`),
+              uid: ent.id || nextUid(`npc_${ent.role || ent.variant || 'npc'}`),
               kind: 'npc',
               x: ent.x,
               y: ent.y,
@@ -147,6 +168,7 @@ export class LevelLoader {
               element: ent.element,
               name: ent.name,
               archetype: ent.archetype,
+              isMiniBoss: Boolean(ent.isMiniBoss),
               hasWoodenShield: Boolean(ent.hasWoodenShield),
               hasMetalArmor: Boolean(ent.hasMetalArmor),
               noRespawn: Boolean(ent.noRespawn),
@@ -161,6 +183,10 @@ export class LevelLoader {
             });
           } else {
             const enemy = new Enemy(ent.x, ent.y, ent.element, ent.name, ent.archetype);
+            if (ent.isMiniBoss) {
+              enemy.isMiniBoss = true;
+              if (!enemy.tags.includes('miniboss')) enemy.tags.push('miniboss');
+            }
             if (ent.hasWoodenShield) {
               enemy.hasWoodenShield = true;
               enemy._initialWoodenShield = true;
@@ -202,18 +228,20 @@ export class LevelLoader {
         if (chunkManager) {
           chunkManager.registerBlueprint({ uid: nextUid('foliage'), kind: 'foliage', x: fol.x, y: fol.y });
         } else if (foliageSystem) {
-          foliageSystem.addFoliage(fol.x, fol.y);
+          foliageSystem.addFoliage(fol.x, fol.y, { biome: level.biome });
         }
       }
     }
 
     // 6. Árboles Interiores de Composición
     if (Array.isArray(levelData.clearingTrees)) {
-      for (const t of levelData.clearingTrees) {
+      for (let ti = 0; ti < levelData.clearingTrees.length; ti++) {
+        const t = levelData.clearingTrees[ti];
+        const treeCfg = { biome: level.biome, variant: ti & 1 };
         if (chunkManager) {
-          chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: t.x, y: t.y });
+          chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: t.x, y: t.y, variant: treeCfg.variant });
         } else {
-          entityManager.addEntity(new Tree(t.x, t.y));
+          entityManager.addEntity(new Tree(t.x, t.y, treeCfg));
         }
       }
     }
@@ -221,11 +249,13 @@ export class LevelLoader {
     // 7. Perímetro Optimizado de Bosque (fórmula compartida con LevelEditor vía LevelSchema; filtra acantilados/fluidos)
     const activeGrid = tilemap?.grid || physicsSystem?.tilemap?.grid || null;
     const perimeterTrees = computePerimeterTrees(level, activeGrid);
-    for (const pt of perimeterTrees) {
+    for (let pi = 0; pi < perimeterTrees.length; pi++) {
+      const pt = perimeterTrees[pi];
+      const ptCfg = { biome: level.biome, variant: pi & 1 };
       if (chunkManager) {
-        chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: pt.x, y: pt.y });
+        chunkManager.registerBlueprint({ uid: nextUid('tree'), kind: 'tree', x: pt.x, y: pt.y, variant: ptCfg.variant });
       } else {
-        entityManager.addEntity(new Tree(pt.x, pt.y));
+        entityManager.addEntity(new Tree(pt.x, pt.y, ptCfg));
       }
     }
 

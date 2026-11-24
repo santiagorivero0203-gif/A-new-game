@@ -6,35 +6,40 @@
   "zoneOrder": 3,
   "isRootZone": true,
   "name": "Caldera de Ceniza",
-  "worldTitle": "Capítulo III · Yunque Volcánico y Atajo de Basalto",
+  "worldTitle": "Capítulo III · Bastión Forjaceniza",
   "biome": "ash_caldera",
   "layoutPreset": "ash_caldera",
   "weather": "embers",
-  "cols": 58,
-  "rows": 40,
+  "cols": 80,
+  "rows": 50,
   "tileSize": 32,
   "startDormant": false,
   "enableStealth": false,
   "ambientColor": "rgba(38, 18, 28, 0.36)",
-  "initialObjective": "Rodea el atajo sellado por el puente norte, esquiva los géiseres y reclama el Núcleo Cinético en el Yunque NE",
+  "initialObjective": "Cruza el Paso Norte de Géiseres para reclamar el Núcleo Cinético y luego libera Bastión Forjaceniza",
   "playerSpawn": { "x": 224, "y": 620 },
   "spawnPoints": [
     { "id": "default", "label": "Acantilado de Ceniza", "x": 224, "y": 620 },
-    { "id": "east_crucible", "label": "Crisol del Titán", "x": 1412, "y": 688 }
+    { "id": "east_crucible", "label": "Gran Crisol", "x": 2128, "y": 656 }
   ],
-  "arenaCenter": { "x": 1504, "y": 704 },
+  "arenaCenter": { "x": 2220, "y": 672 },
   "perimeterConfig": null,
+  "corridorZones": [
+    { "id": "m3_geyser_canyon", "x": 544, "y": 244, "width": 544, "height": 116, "label": "Cañón Norte de Géiseres" },
+    { "id": "m3_magma_bridge", "x": 1168, "y": 592, "width": 256, "height": 96, "label": "Puente Estrecho de Magma" }
+  ],
   "solidColliders": [],
   "stealthZones": [],
   "lights": [
     { "x": 224, "y": 620, "radius": 185, "color": "#f97316", "intensity": 0.72, "flickerSpeed": 2.8 },
-    { "x": 768, "y": 312, "radius": 230, "color": "#fb923c", "intensity": 0.78, "flickerSpeed": 3.2 },
+    { "x": 800, "y": 300, "radius": 240, "color": "#fb923c", "intensity": 0.78, "flickerSpeed": 3.2 },
     { "x": 1472, "y": 288, "radius": 245, "color": "#38bdf8", "intensity": 0.82, "flickerSpeed": 2.4 },
-    { "x": 832, "y": 620, "radius": 210, "color": "#38bdf8", "intensity": 0.68, "flickerSpeed": 2.2 },
-    { "x": 768, "y": 960, "radius": 220, "color": "#ea580c", "intensity": 0.76, "flickerSpeed": 3.1 },
-    { "x": 240, "y": 960, "radius": 180, "color": "#fbbf24", "intensity": 0.74, "flickerSpeed": 2.6 },
-    { "x": 1504, "y": 704, "radius": 290, "color": "#ef4444", "intensity": 0.80, "flickerSpeed": 3.4 },
-    { "x": 1680, "y": 692, "radius": 195, "color": "#c084fc", "intensity": 0.78, "flickerSpeed": 2.0 }
+    { "x": 832, "y": 624, "radius": 310, "color": "#fbbf24", "intensity": 0.74, "flickerSpeed": 2.3 },
+    { "x": 800, "y": 1152, "radius": 240, "color": "#ea580c", "intensity": 0.76, "flickerSpeed": 3.1 },
+    { "x": 224, "y": 1120, "radius": 185, "color": "#fbbf24", "intensity": 0.74, "flickerSpeed": 2.6 },
+    { "x": 1600, "y": 640, "radius": 250, "color": "#ef4444", "intensity": 0.78, "flickerSpeed": 3.0 },
+    { "x": 2220, "y": 672, "radius": 310, "color": "#ef4444", "intensity": 0.82, "flickerSpeed": 3.4 },
+    { "x": 2400, "y": 660, "radius": 195, "color": "#c084fc", "intensity": 0.78, "flickerSpeed": 2.0 }
   ],
   "props": [
     {
@@ -47,52 +52,23 @@
       "x": 140,
       "y": 548
     },
-    {
-      "id": "m3_broken_statue",
-      "propType": "broken_statue",
-      "x": 584,
-      "y": 524,
-      "biomeTint": "ash",
-      "loreTitle": "Coloso de la Antigua Forja",
-      "loreText": "Aquí se templó el engarce cinético del Guantelete antes de que la caldera despertara con furia.",
-      "essenceReward": 26
-    },
-    {
-      "id": "m3_rusted_greatsword",
-      "propType": "rusted_greatsword",
-      "x": 620,
-      "y": 872,
-      "loreTitle": "Acero del Herrero Caído",
-      "loreText": "El hollín volcánico oscureció la hoja, pero su temple sigue intacto.",
-      "essenceReward": 22
-    },
-    {
-      "id": "m3_runic_obelisk",
-      "propType": "runic_obelisk",
-      "x": 968,
-      "y": 524,
-      "runeColor": "#fb923c",
-      "loreTitle": "Obelisco del Crisol",
-      "loreText": "Las llamas y el basalto responden con reverencia al impulso cinético de la Reliquia.",
-      "essenceReward": 35
-    },
     { "id": "m3_basalt_outcrop_w", "propType": "cliff_rock", "x": 168, "y": 448 },
     { "id": "m3_basalt_outcrop_ne", "propType": "cliff_rock", "x": 1356, "y": 212 },
-    { "id": "m3_basalt_outcrop_e1", "propType": "cliff_rock", "x": 1572, "y": 496 },
-    { "id": "m3_basalt_outcrop_e2", "propType": "cliff_rock", "x": 1548, "y": 864 },
+    { "id": "m3_basalt_outcrop_e1", "propType": "cliff_rock", "x": 2292, "y": 476 },
+    { "id": "m3_basalt_outcrop_e2", "propType": "cliff_rock", "x": 2292, "y": 836 },
     {
       "id": "ash_shortcut_barrier",
       "propType": "kinetic_barrier",
       "label": "Muralla de Basalto (Atajo)",
-      "x": 452,
-      "y": 608
+      "x": 444,
+      "y": 606
     },
     {
       "id": "ash_north_pass_barrier",
       "propType": "kinetic_barrier",
       "label": "Sello de Basalto del Paso Norte",
-      "x": 768,
-      "y": 452
+      "x": 800,
+      "y": 416
     },
     {
       "id": "m3_geyser_north_1",
@@ -100,10 +76,10 @@
       "hazardKind": "magma_geyser",
       "cycleTime": 3.6,
       "activeTime": 0.75,
-      "hazardRadius": 42,
+      "hazardRadius": 40,
       "phaseOffset": 0.0,
-      "x": 612,
-      "y": 296
+      "x": 620,
+      "y": 292
     },
     {
       "id": "m3_geyser_north_2",
@@ -111,10 +87,10 @@
       "hazardKind": "magma_geyser",
       "cycleTime": 3.6,
       "activeTime": 0.75,
-      "hazardRadius": 42,
+      "hazardRadius": 40,
       "phaseOffset": 1.2,
-      "x": 852,
-      "y": 296
+      "x": 856,
+      "y": 292
     },
     {
       "id": "m3_geyser_north_3",
@@ -122,43 +98,72 @@
       "hazardKind": "magma_geyser",
       "cycleTime": 3.6,
       "activeTime": 0.75,
-      "hazardRadius": 42,
+      "hazardRadius": 40,
       "phaseOffset": 2.4,
-      "x": 1020,
-      "y": 296
+      "x": 1036,
+      "y": 292
     },
     {
       "id": "m3_relic_embestida",
       "propType": "relic_pedestal",
       "grantsElement": "Embestida",
-      "essenceReward": 45,
+      "essenceReward": 20,
       "label": "Núcleo Cinético",
       "x": 1444,
-      "y": 256
+      "y": 248
+    },
+    {
+      "id": "m3_broken_statue",
+      "propType": "broken_statue",
+      "x": 736,
+      "y": 540,
+      "biomeTint": "ash",
+      "loreTitle": "Coloso de Bastión Forjaceniza",
+      "loreText": "Aquí se templó el engarce cinético del Guantelete antes de que la caldera despertara con furia.",
+      "essenceReward": 10
+    },
+    {
+      "id": "m3_runic_obelisk",
+      "propType": "runic_obelisk",
+      "x": 804,
+      "y": 728,
+      "runeColor": "#fb923c",
+      "loreTitle": "Obelisco del Crisol",
+      "loreText": "Las llamas y el basalto responden con reverencia al impulso cinético de la Reliquia.",
+      "essenceReward": 12
     },
     {
       "id": "forge_pillar_a",
       "propType": "kinetic_pillar",
-      "label": "Pilar Norte de la Fragua",
+      "label": "Pilar del Bastión",
       "runeColor": "#38bdf8",
-      "x": 824,
-      "y": 588
+      "x": 808,
+      "y": 608
+    },
+    {
+      "id": "m3_rusted_greatsword",
+      "propType": "rusted_greatsword",
+      "x": 624,
+      "y": 1084,
+      "loreTitle": "Acero del Herrero Caído",
+      "loreText": "El hollín volcánico oscureció la hoja, pero su temple sigue intacto.",
+      "essenceReward": 9
     },
     {
       "id": "forge_pillar_b",
       "propType": "kinetic_pillar",
       "label": "Pilar Sur de la Fragua",
       "runeColor": "#38bdf8",
-      "x": 884,
-      "y": 932
+      "x": 912,
+      "y": 1116
     },
-    { "id": "m3_secret_rock_n", "propType": "cliff_rock", "x": 448, "y": 912 },
+    { "id": "m3_secret_rock_n", "propType": "cliff_rock", "x": 416, "y": 1068 },
     {
       "id": "ash_secret_barrier",
       "propType": "kinetic_barrier",
       "label": "Sello de Basalto Secreto",
-      "x": 444,
-      "y": 966
+      "x": 416,
+      "y": 1118
     },
     {
       "id": "m3_shrine_claymore",
@@ -166,20 +171,20 @@
       "grantsWeapon": "forge_claymore",
       "label": "Temple de Magma del Alba",
       "x": 224,
-      "y": 936
+      "y": 1120
     },
     {
       "id": "m3_east_gate",
       "propType": "runic_gate",
-      "sealedBy": ["forge_pillar_a", "forge_pillar_b"],
+      "sealedBy": ["forge_pillar_a", "forge_pillar_b", "miniboss_m3"],
       "runeColor": "#38bdf8",
       "label": "Compuerta del Crisol",
-      "sealedHint": "Activa los 2 Pilares Cinéticos (Bastión Central y Fragua Sur) con Embestida [Clic Der / K].",
-      "x": 1152,
-      "y": 604
+      "sealedHint": "Activa ambos Pilares Cinéticos y derrota al Alcaide de Magma.",
+      "x": 1852,
+      "y": 602
     },
-    { "id": "m3_sanctuary_altar", "propType": "sanctuary_altar", "x": 1372, "y": 548 },
-    { "id": "m3_horde_totem", "propType": "horde_totem", "x": 1364, "y": 820 },
+    { "id": "m3_sanctuary_altar", "propType": "sanctuary_altar", "x": 2080, "y": 504 },
+    { "id": "m3_horde_totem", "propType": "horde_totem", "x": 2080, "y": 808 },
     {
       "id": "m3_geyser_arena_1",
       "propType": "hazard_vent",
@@ -188,8 +193,8 @@
       "activeTime": 0.72,
       "hazardRadius": 40,
       "phaseOffset": 0.5,
-      "x": 1444,
-      "y": 604
+      "x": 2168,
+      "y": 568
     },
     {
       "id": "m3_geyser_arena_2",
@@ -199,8 +204,8 @@
       "activeTime": 0.72,
       "hazardRadius": 40,
       "phaseOffset": 2.3,
-      "x": 1548,
-      "y": 776
+      "x": 2268,
+      "y": 768
     },
     {
       "id": "m3_portal_to_astral",
@@ -211,25 +216,101 @@
       "portalColor": "#c084fc",
       "sealedBy": ["boss_m3"],
       "sealedHint": "El Coloso de la Fragua custodia el pasaje astral tras el Crisol.",
-      "x": 1660,
-      "y": 668
+      "x": 2384,
+      "y": 636
     }
   ],
   "entities": [
+    { "type": "house", "biome": "ash_caldera", "buildingType": "cottage", "label": "Barracón de Ceniza", "x": 564, "y": 472 },
+    { "type": "house", "biome": "ash_caldera", "buildingType": "forge", "label": "Gran Fragua Forjaceniza", "x": 924, "y": 472 },
+    { "type": "house", "biome": "ash_caldera", "buildingType": "alchemist", "label": "Alambique Ígneo", "x": 564, "y": 696 },
+    { "type": "house", "biome": "ash_caldera", "buildingType": "civic", "label": "Salón del Yunque", "x": 924, "y": 696 },
     {
       "type": "npc",
       "id": "valerio_m3_npc",
       "name": "Valerio el Explorador",
       "variant": "valerio",
+      "role": "sage",
       "x": 276,
       "y": 556,
       "dialogues": {
-        "highKarma": "Volver a encontrarte aquí da ánimos, Santi. El puente central lleva basaltos que cederán cuando despiertes la Embestida en el nordeste.",
-        "lowKarma": "Santi... La caldera devora a quienes confían solo en su fuerza bruta. Usa el desvío del puente norte primero.",
+        "highKarma": "Volver a encontrarte aquí da ánimos, Santi. El puente norte conduce al Yunque del Núcleo Cinético.",
+        "lowKarma": "Santi... La caldera devora a quienes confían solo en su fuerza bruta. Toma primero el desvío norte.",
         "lines": [
-          "Los guerreros de la Caldera visten coraza volcánica: el Fuego los resiste, mas la Embestida la hace trizas.",
-          "Tras demoler el atajo del puente central o las rocas del suroeste aguardan antiguos forjados."
+          "Los guerreros de la Caldera visten coraza volcánica: la Embestida la hace trizas.",
+          "Bastión Forjaceniza aún resiste en el centro; visita su forja y alambique antes de cruzar el puente de magma."
         ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "brasa_m3_npc",
+      "name": "Maestra Brasa",
+      "variant": "blacksmith",
+      "role": "blacksmith",
+      "biome": "ash_caldera",
+      "shopTitle": "Gran Fragua Forjaceniza",
+      "shopSubtitle": "«Acero volcánico para demoler armaduras del Crisol.»",
+      "x": 1004,
+      "y": 632,
+      "dialogues": {
+        "lines": [
+          "¡Mi yunque arde sin descanso! Trae tu Esencia para templar la Espada del Alba contra corazas pesadas."
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "ignis_m3_npc",
+      "name": "Alquimista Ignis",
+      "variant": "alchemist",
+      "role": "alchemist",
+      "biome": "ash_caldera",
+      "shopTitle": "Alambique del Magma",
+      "shopSubtitle": "«Elixires templados en ceniza azul para resistir el calor del Crisol.»",
+      "x": 644,
+      "y": 852,
+      "dialogues": {
+        "lines": [
+          "Un buen frasco de Furia Arcana hará temblar hasta al mismísimo Alcaide de Magma."
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "guard_m3_npc",
+      "name": "Centinela Durn",
+      "variant": "guard",
+      "role": "guard",
+      "biome": "ash_caldera",
+      "x": 884,
+      "y": 572,
+      "patrolPoints": [
+        { "x": 884, "y": 572 },
+        { "x": 884, "y": 692 }
+      ],
+      "dialogues": {
+        "lines": [
+          "El Puente Estrecho de Magma está vigilado por el Alcaide. Rompe sus escudos con Embestida."
+        ],
+        "liberated": "¡El Coloso ha caído! ¡Los yunques de Forjaceniza vuelven a cantar en paz!"
+      }
+    },
+    {
+      "type": "npc",
+      "id": "villager_m3_npc",
+      "name": "Fundidor Torg",
+      "variant": "villager",
+      "role": "villager",
+      "biome": "ash_caldera",
+      "wanderRadius": 44,
+      "x": 728,
+      "y": 684,
+      "dialogues": {
+        "lines": [
+          "El herrero Borin bajó a la Fragua Sur y no ha regresado; por favor échale un ojo."
+        ],
+        "liberated": "¡Eres una leyenda viviente en la Caldera, Santi!"
       }
     },
     {
@@ -237,20 +318,21 @@
       "id": "borin_m3_npc",
       "name": "Herrero Borin",
       "variant": "tarak",
+      "role": "rescue",
       "rescueTag": "ambush_forge",
       "karmaEventId": "forge_keeper_m3",
       "rewardShield": "obsidian_aegis",
       "rewardEssence": 26,
       "x": 704,
-      "y": 952,
+      "y": 1136,
       "dialogues": {
         "underThreat": "¡Por la fragua! ¡Esos acorazados han tomado mi yunque sur! ¡Usa Embestida para romper su coraza!",
         "rescueComplete": "¡Qué impacto tan certero! Toma esta Égida de Obsidiana en el Arsenal [I]: resiste el fuego sin fisuras.",
         "highKarma": "Tu temple bajo las brasas honra a la vieja orden. Esa Égida de Obsidiana te salvará en la Ciudadela Astral.",
         "lowKarma": "Gracias por despejar mi fragua. Quédate con la Égida de Obsidiana para resistir al Coloso.",
         "lines": [
-          "Si cruzas el puente occidental de esta misma galería hallarás mi obra maestra: el Mandoble de la Fragua.",
-          "Impacta los dos Pilares Cinéticos para abrir el Crisol del este."
+          "Si cruzas el puente occidental hallarás mi obra maestra: el Temple de Magma del Alba.",
+          "Impacta los dos Pilares Cinéticos y vence al Alcaide para abrir el Crisol del este."
         ]
       }
     },
@@ -261,8 +343,8 @@
       "element": "fuego",
       "name": "Coloso Acorazado",
       "hasMetalArmor": true,
-      "x": 756,
-      "y": 296
+      "x": 748,
+      "y": 292
     },
     {
       "type": "enemy",
@@ -271,7 +353,7 @@
       "element": "fuego",
       "name": "Duelista de Brasa",
       "x": 948,
-      "y": 304
+      "y": 296
     },
     {
       "type": "enemy",
@@ -279,8 +361,8 @@
       "archetype": "duelist",
       "element": "kinetic",
       "name": "Vanguardia Cinética",
-      "x": 728,
-      "y": 608
+      "x": 1120,
+      "y": 620
     },
     {
       "type": "enemy",
@@ -290,8 +372,8 @@
       "name": "Guarda del Crisol",
       "hasMetalArmor": true,
       "customTags": ["ambush_forge"],
-      "x": 776,
-      "y": 968
+      "x": 780,
+      "y": 1144
     },
     {
       "type": "enemy",
@@ -301,7 +383,29 @@
       "name": "Espadachín de Escoria",
       "customTags": ["ambush_forge"],
       "x": 664,
-      "y": 992
+      "y": 1188
+    },
+    {
+      "type": "enemy",
+      "id": "m3_pyro_warden",
+      "archetype": "pyro_smith",
+      "element": "fuego",
+      "name": "Forjador Piroclástico",
+      "x": 1520,
+      "y": 560
+    },
+    {
+      "type": "enemy",
+      "id": "m3_miniboss_warden",
+      "archetype": "miniboss_warden",
+      "element": "fuego",
+      "name": "Alcaide de Magma",
+      "isMiniBoss": true,
+      "bossId": "miniboss_m3",
+      "hasMetalArmor": true,
+      "noRespawn": true,
+      "x": 1600,
+      "y": 624
     },
     {
       "type": "enemy",
@@ -314,14 +418,14 @@
       "hasMetalArmor": true,
       "noRespawn": true,
       "scaleWithRelicTier": true,
-      "x": 1504,
-      "y": 700
+      "x": 2220,
+      "y": 656
     }
   ],
   "clearingTrees": [],
   "foliage": [
     { "x": 284, "y": 672 },
-    { "x": 584, "y": 648 },
-    { "x": 968, "y": 560 }
+    { "x": 1112, "y": 556 },
+    { "x": 1520, "y": 720 }
   ]
 }

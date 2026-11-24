@@ -129,44 +129,44 @@ export const WORLDS_CATALOG = {
     index: 1,
     coreElement: 'Fuego',
     name: 'Claro de las Reliquias',
-    subtitle: 'Mundo 1 · Valle del Despertar',
+    subtitle: 'Mundo 1 · Aldea del Alba y Garganta del Roble',
     biome: 'cave_exit_intro',
     weather: 'pollen',
     accentColor: '#4ade80',
-    description: 'Praderas musgosas y la Cueva Hendida donde Santi empuña la Espada del Alba y despierta el Núcleo de Fuego.'
+    description: 'Praderas musgosas, la Cueva Hendida y la Aldea del Alba con herrero, botica, desfiladeros y el Guardián Zarza.'
   },
   marsh_of_spores: {
     id: 'marsh_of_spores',
     index: 2,
     coreElement: 'Raíces',
     name: 'Pantano de Esporas',
-    subtitle: 'Mundo 2 · Marismas Bioluminiscentes',
+    subtitle: 'Mundo 2 · Poblado Velo Hongar',
     biome: 'marsh_of_spores',
     weather: 'spores',
     accentColor: '#2dd4bf',
-    description: 'Islas cenagosas con charcos tóxicos, tótems druídicos y el Núcleo de Raíces custodiado por la Matriarca.'
+    description: 'Poblado sobre palafitos entre canales cenagosos, tótems druídicos, la Tejedora del Cieno y la Matriarca.'
   },
   ash_caldera: {
     id: 'ash_caldera',
     index: 3,
     coreElement: 'Embestida',
     name: 'Caldera de Ceniza',
-    subtitle: 'Mundo 3 · Forja Volcánica',
+    subtitle: 'Mundo 3 · Bastión Forjaceniza',
     biome: 'ash_caldera',
     weather: 'embers',
     accentColor: '#fb923c',
-    description: 'Ríos de magma, géiseres ardientes, colosos acorazados y el Yunque del Núcleo Cinético.'
+    description: 'Fortaleza volcánica de artesanos del magma, puentes sobre lava, el Alcaide Acorazado y el Coloso de la Fragua.'
   },
   astral_citadel: {
     id: 'astral_citadel',
     index: 4,
     coreElement: 'Éter',
     name: 'Ciudadela Astral',
-    subtitle: 'Mundo 4 · Santuario del Cenit',
+    subtitle: 'Mundo 4 · Enclave del Prisma',
     biome: 'astral_citadel',
     weather: 'stardust',
     accentColor: '#c084fc',
-    description: 'Terrazas suspendidas sobre el vacío estelar donde aguarda el Éter Magnético y el Heraldo de Obsidiana.'
+    description: 'Ciudadela celeste suspendida sobre el vacío estelar donde el Segador Astral y el Arconte custodian el Cenit.'
   }
 };
 

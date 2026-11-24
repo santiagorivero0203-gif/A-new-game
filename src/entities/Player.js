@@ -661,7 +661,8 @@ export class Player extends Entity {
     if (!this.hasSword) return;
     const weapon = equipmentManager && equipmentManager.getWeapon ? equipmentManager.getWeapon() : null;
     this.activeSwordTint = (weapon && weapon.enchantmentColor) ? weapon.enchantmentColor : '#38bdf8';
-    const baseDamage = weapon ? weapon.damage : 16;
+    const artisan = context && context.artisanSystem ? context.artisanSystem : null;
+    const baseDamage = (weapon ? weapon.damage : 16) + (artisan ? artisan.getSwordDamageBonus() : 0);
     const baseKnockback = weapon ? weapon.knockback : 32;
     const baseLunge = weapon ? weapon.lungeForce : 11;
     const weaponRecovery = weapon && typeof weapon.recoveryTime === 'number' ? weapon.recoveryTime : 0.16;
@@ -1006,12 +1007,19 @@ export class Player extends Entity {
     const camera = isContext ? contextOrDt.camera : null;
     const equipmentManager = isContext ? contextOrDt.equipmentManager : null;
     const skillTree = isContext ? contextOrDt.skillTreeManager : null;
+    const artisanSystem = isContext ? contextOrDt.artisanSystem : null;
 
-    // 0. Aplicar bonificaciones pasivas multi-rango del Árbol de Habilidades
+    // 0. Aplicar bonificaciones pasivas multi-rango del Árbol de Habilidades y Oficios RPG
+    const artisanHp = artisanSystem ? artisanSystem.getMaxHealthBonus() : 0;
+    const artisanEnergyMax = artisanSystem ? artisanSystem.getMaxEnergyBonus() : 0;
+    const artisanEnergyRegen = artisanSystem ? artisanSystem.getEnergyRegenBonus() : 0;
+    const artisanGuardMax = artisanSystem ? artisanSystem.getMaxGuardBonus() : 0;
+    this.max_health = PLAYER_STATS.max_health + (skillTree ? skillTree.getSkillRank('max_health_up') : 0) + artisanHp;
+    this.max_energy = (PLAYER_STATS.max_energy || 100) + (skillTree && skillTree.hasSkill('omega_catalyst') ? 35 : 0) + artisanEnergyMax;
+    this.energy_regen_rate = PLAYER_STATS.energy_regen_rate + (skillTree ? skillTree.getSkillRank('energy_regen') * 2.4 : 0) + artisanEnergyRegen;
+    this.max_guard = (PLAYER_STATS.guard_meter || 100) + artisanGuardMax;
+
     if (skillTree) {
-      this.max_health = PLAYER_STATS.max_health + skillTree.getSkillRank('max_health_up');
-      this.max_energy = (PLAYER_STATS.max_energy || 100) + (skillTree.hasSkill('omega_catalyst') ? 35 : 0);
-      this.energy_regen_rate = PLAYER_STATS.energy_regen_rate + skillTree.getSkillRank('energy_regen') * 2.4;
       this.parryWindowDuration = 0.16 + skillTree.getSkillRank('parry_window') * 0.04;
 
       if (this._undyingCooldown > 0) this._undyingCooldown = Math.max(0, this._undyingCooldown - deltaTime);
@@ -1149,7 +1157,12 @@ export class Player extends Entity {
 
     // Sincronizar con StateManager para el HUD
     if (isContext && contextOrDt.state) {
+      const vitalRankHud = skillTree ? skillTree.getSkillRank('vital_surge') : 0;
+      const healCostHud = Math.max(12, (PLAYER_STATS.heal_cost || 30) - vitalRankHud * 4);
       contextOrDt.state.set('player_energy', this.energy);
+      contextOrDt.state.set('player_max_energy', this.max_energy);
+      contextOrDt.state.set('player_heal_cost', healCostHud);
+      contextOrDt.state.set('player_has_sword', Boolean(this.hasSword));
       contextOrDt.state.set('player_health', this.health);
       contextOrDt.state.set('player_max_health', this.max_health);
       contextOrDt.state.set('player_defending', this.fsmState === 'STATE_DEFEND');
@@ -1260,8 +1273,10 @@ export class Player extends Entity {
         this.isSprinting = false;
         this._sprintNoiseTimer = 0;
         const staminaRank = skillTree ? skillTree.getSkillRank('stamina_mastery') : 0;
-        this.max_stamina = 100 + staminaRank * 25;
-        const regenRate = 28 * (1 + staminaRank * 0.20);
+        const artisanStam = artisanSystem ? artisanSystem.getMaxStaminaBonus() : 0;
+        const artisanStamRegen = artisanSystem ? artisanSystem.getStaminaRegenMultiplier() : 1.0;
+        this.max_stamina = 100 + staminaRank * 25 + artisanStam;
+        const regenRate = 28 * (1 + staminaRank * 0.20) * artisanStamRegen;
         this.stamina = Math.min(this.max_stamina, this.stamina + regenRate * deltaTime);
         if (this.stamina >= 20) {
           this.staminaExhausted = false;
@@ -1658,8 +1673,10 @@ export class Player extends Entity {
       if (this.velocity.lengthSquared() > 1) {
         this.velocity.normalize();
       }
-      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Sprint (+38%), Sigilo (-48%) y Esporas (-38%)
+      // Ajuste dinámico de velocidad: Estilo S/A (+8%), Tónico Brisa, Pasillos Estrechos (0.90x), Sprint (+38%), Sigilo (-48%) y Esporas (-38%)
       let speedMult = (combatManager && combatManager.styleScore >= 65) ? 1.08 : 1.0;
+      if (artisanSystem) speedMult *= artisanSystem.getMoveSpeedMultiplier();
+      if (this.inNarrowCorridor) speedMult *= 0.90;
       if (this.isSprinting) speedMult *= 1.38;
       else if (this.isProne) speedMult *= 0.52;
       if (this.hasTag('enredado_espinas')) speedMult *= 0.62;

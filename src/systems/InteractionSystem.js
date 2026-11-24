@@ -22,10 +22,94 @@ export class InteractionSystem {
 
     /** @type {number} Temporizador para evitar ejecuciones repetidas de una misma pulsación */
     this.cooldown = 0;
+
+    /** @type {string|null} Clave en caché para evitar escrituras redundantes en StateManager */
+    this._lastPromptKey = null;
   }
 
   /**
-   * Actualiza el temporizador de enfriamiento y procesa el comando de interacción ([E] / [Enter]).
+   * Evalúa en Zero-GC si hay una entidad interactiva o NPC al alcance y publica
+   * su verbo contextual en `StateManager` para mostrar avisos en HUD PC/Móvil.
+   */
+  updateProximityState() {
+    if (!this.stateManager || !this.entityManager) return;
+
+    const players = this.entityManager.getByTag('player');
+    if (players.length === 0 || players[0].isDead) {
+      if (this._lastPromptKey !== 'NONE') {
+        this._lastPromptKey = 'NONE';
+        this.stateManager.set('interact_available', false);
+        this.stateManager.set('interact_verb', 'USAR');
+        this.stateManager.set('interact_target_name', '');
+      }
+      return;
+    }
+
+    const player = players[0];
+    const npcs = this.entityManager.getByTag('npc');
+    const props = this.entityManager.getByTag('interactable');
+    const playerCenterX = player.pos.x + player.width / 2;
+    const playerCenterY = player.pos.y + player.height / 2;
+
+    let closestTarget = null;
+    let minDistanceSq = this.interactionDistance * this.interactionDistance;
+
+    for (let pass = 0; pass < 2; pass++) {
+      const list = pass === 0 ? npcs : props;
+      for (let i = 0; i < list.length; i++) {
+        const target = list[i];
+        if (!target || target.isDead || target.isConsumed) continue;
+
+        const tx = target.pos.x + target.width / 2;
+        const ty = target.pos.y + target.height / 2;
+        const dx = tx - playerCenterX;
+        const dy = ty - playerCenterY;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq <= minDistanceSq) {
+          minDistanceSq = distSq;
+          closestTarget = target;
+        }
+      }
+    }
+
+    if (!closestTarget) {
+      if (this._lastPromptKey !== 'NONE') {
+        this._lastPromptKey = 'NONE';
+        this.stateManager.set('interact_available', false);
+        this.stateManager.set('interact_verb', 'USAR');
+        this.stateManager.set('interact_target_name', '');
+      }
+      return;
+    }
+
+    const isNpc = Boolean(
+      (typeof closestTarget.hasTag === 'function' && closestTarget.hasTag('npc')) ||
+      (Array.isArray(closestTarget.tags) && closestTarget.tags.includes('npc'))
+    );
+    let verb = 'EXAMINAR';
+    if (isNpc) {
+      if (closestTarget.role === 'blacksmith') verb = 'FORJAR';
+      else if (closestTarget.role === 'alchemist') verb = 'POCIONES';
+      else verb = 'HABLAR';
+    }
+    else if (closestTarget.propType === 'sanctuary_altar') verb = 'SANTUARIO';
+    else if (closestTarget.propType === 'horde_stela') verb = 'DESAFÍO';
+    else if (closestTarget.propType === 'relic_pedestal') verb = 'DESPERTAR';
+
+    const name = closestTarget.name || closestTarget.label || 'Objeto Ancestral';
+    const key = `${verb}:${name}`;
+    if (this._lastPromptKey !== key) {
+      this._lastPromptKey = key;
+      this.stateManager.set('interact_available', true);
+      this.stateManager.set('interact_verb', verb);
+      this.stateManager.set('interact_target_name', name);
+    }
+  }
+
+  /**
+   * Actualiza el temporizador de enfriamiento, detecta proximidad contextual
+   * y procesa el comando de interacción ([E] / [Enter]).
    * @param {number} deltaTime - Tiempo del frame en segundos
    * @param {Object} [context=null] - Contexto unificado del motor
    */
@@ -33,6 +117,8 @@ export class InteractionSystem {
     if (this.cooldown > 0) {
       this.cooldown -= deltaTime;
     }
+
+    this.updateProximityState();
 
     const isInteractPressed = this.inputManager.isKeyPressed('KeyE') ||
                               this.inputManager.isKeyPressed('Enter');

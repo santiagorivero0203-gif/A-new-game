@@ -71,7 +71,7 @@ export class CelSpriteAtlas {
   static _useClock = 0;
 
   /** @type {number} Tope de sprites únicos en caché simultáneamente para evitar thrashing y getImageData */
-  static MAX_CACHED_SPRITES = 160;
+  static MAX_CACHED_SPRITES = 360;
 
   /**
    * Obtiene un sprite horneado desde caché o ejecuta la función constructora una sola vez.
@@ -527,100 +527,212 @@ export class CelSpriteAtlas {
   }
 
   // =========================================================================
-  // NPCS ALIADOS (Tarak & Valerio) — Hue-Shifted Cel Shading
+  // NPCS ALIADOS Y CIUDADANOS — Animación Multi-Frame + Oficios RPG
   // =========================================================================
 
   /**
-   * Genera u obtiene el sprite detallado de un NPC aliado (40x44 px).
-   * @param {'tarak'|'valerio'|string} [variant='tarak']
+   * Genera u obtiene el sprite animado de un NPC aliado o ciudadano (44x48 px).
+   * Soporta roles RPG (`tarak`, `valerio`, `blacksmith`, `alchemist`, `guard`, `villager`),
+   * fotogramas de acción/caminata (`0..3`), orientación y parpadeo natural.
+   * @param {'tarak'|'valerio'|'blacksmith'|'alchemist'|'guard'|'villager'|string} [variant='tarak']
+   * @param {number} [animFrame=0] - Frame de animación (0..3)
+   * @param {'down'|'up'|'left'|'right'} [facing='down']
+   * @param {string} [biome='cave_exit_intro']
+   * @param {boolean} [blink=false]
    * @returns {HTMLCanvasElement}
    */
-  static getNPCSprite(variant = 'tarak') {
-    const key = `npc_v2_${variant}`;
-    return CelSpriteAtlas.getOrBake(key, 40, 44, (ctx) => {
-      const cx = 20;
+  static getNPCSprite(variant = 'tarak', animFrame = 0, facing = 'down', biome = 'cave_exit_intro', blink = false) {
+    const f = ((Math.floor(animFrame) % 4) + 4) % 4;
+    const effBlink = facing === 'up' ? false : Boolean(blink);
+    const effBiome = (variant === 'tarak' || variant === 'valerio') ? 'shared' : (biome || 'cave_exit_intro');
+    const key = `npc_v3_${variant}_${f}_${facing}_${effBiome}_${effBlink ? 1 : 0}`;
+    return CelSpriteAtlas.getOrBake(key, 44, 48, (ctx) => {
+      const cx = 22;
+      const by = (f === 1 || f === 3) ? -1 : 0;
+      const legStep = f === 1 ? -2 : f === 3 ? 2 : 0;
+      const armPhase = f === 1 ? -2 : f === 2 ? 2 : f === 3 ? 1 : 0;
+      const ox = INK;
+
       ctx.fillStyle = COOL_SHADOW_TINT;
       ctx.beginPath();
-      ctx.ellipse(cx, 39.5, 9.2, 3, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, 43, 10, 3.2, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      if (variant === 'tarak') {
-        // Mochila de cuero con pergamino enrollado
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10.5, 17, 7, 13.5, 2.5, '#7c2d12', INK, 1.75);
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 14.5, 6.5, 3.2, 1.4, '#fef3c7', INK, 1.4); // Pergamino
-        // Gabán verde bosque con sombra verde-azulada
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 19, 16, 15.5, 3.5, '#15803d', INK, 1.9);
-        ctx.fillStyle = '#0f3d44';
-        ctx.fillRect(cx - 6.5, 27, 13, 6);
-        // Bufanda dorada con pliegue ámbar
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 6.5, 17.5, 13, 5.2, 2, '#f59e0b', INK, 1.6);
-        ctx.fillStyle = '#fde68a';
-        ctx.fillRect(cx - 4.5, 18.4, 8, 1.4);
-        // Cabeza
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 7.5, 7, 15, 12, 5, '#fed7aa', INK, 1.8);
-        ctx.fillStyle = '#e2a395';
-        ctx.fillRect(cx - 6, 15.8, 12, 2);
-        // Ojos
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(cx - 4, 12, 2, 3);
-        ctx.fillRect(cx + 2, 12, 2, 3);
+      // Piernas y botas articuladas (animación de marcha/balanceo)
+      CelSpriteAtlas._inkRoundRect(ctx, cx - 6, 33 + Math.min(0, legStep), 5, 8, 1, '#334155', ox, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, cx + 1, 33 + Math.min(0, -legStep), 5, 8, 1, '#1e293b', ox, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, cx - 7, 38 + Math.min(0, legStep), 6, 4, 1, '#581c3a', ox, 1);
+      CelSpriteAtlas._inkRoundRect(ctx, cx + 1, 38 + Math.min(0, -legStep), 6, 4, 1, '#451a03', ox, 1);
+
+      const drawFaceEyes = (eyeY = 14 + by, irisColor = '#1e293b') => {
+        const shiftX = facing === 'left' ? -2 : facing === 'right' ? 2 : 0;
+        if (facing === 'up') return;
+        if (effBlink) {
+          ctx.fillStyle = ox;
+          ctx.fillRect(cx - 4 + shiftX, eyeY + 1, 3, 1);
+          ctx.fillRect(cx + 1 + shiftX, eyeY + 1, 3, 1);
+          return;
+        }
+        ctx.fillStyle = ox;
+        ctx.fillRect(cx - 4 + shiftX, eyeY, 2, 3);
+        ctx.fillRect(cx + 2 + shiftX, eyeY, 2, 3);
+        ctx.fillStyle = irisColor;
+        ctx.fillRect(cx - 4 + shiftX, eyeY + 2, 2, 1);
+        ctx.fillRect(cx + 2 + shiftX, eyeY + 2, 2, 1);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx - 3.8, 12.2, 1, 1);
-        ctx.fillRect(cx + 2.2, 12.2, 1, 1);
-        // Boina de explorador + pluma
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 4, 18, 5.5, 2.5, '#166534', INK, 1.8);
-        ctx.fillStyle = '#4ade80';
-        ctx.fillRect(cx - 6.5, 4.9, 11, 1.5);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 5.5, 2.2, 5, 2.2, 1, '#fbbf24', INK, 1.2);
-      } else {
-        // Sabio / Herrero Valerio
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 18, 20, 17.5, 4, '#312e81', INK, 1.9);
-        ctx.fillStyle = '#1e1b4b';
-        ctx.fillRect(cx - 8.5, 28, 17, 6);
-        // Peto rúnico dorado
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillRect(cx - 1.5, 19.5, 3, 14);
-        // Barba plateada con sombra azul pizarra
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 17.5, 16, 12.5, 3.2, '#e2e8f0', INK, 1.8);
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(cx - 6.5, 24.5, 13, 4);
-        // Cabeza
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 7.5, 7, 15, 12, 4.8, '#fed7aa', INK, 1.8);
-        // Cejas sabias + ojos brillantes
+        ctx.fillRect(cx - 4 + shiftX, eyeY, 1, 1);
+        ctx.fillRect(cx + 2 + shiftX, eyeY, 1, 1);
+      };
+
+      if (variant === 'blacksmith') {
+        // Maestro Herrero con peto de cuero, guantes de forja y martillo animado
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 19 + by, 20, 16, 3, '#7c2d12', ox, 1);
+        ctx.fillStyle = '#451a03';
+        ctx.fillRect(cx - 8, 28 + by, 16, 6);
+        // Delantal de cuero curtido + hebilla de bronce
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 6, 20 + by, 12, 15, 2, '#b45309', ox, 1);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(cx - 2, 22 + by, 4, 3);
+        // Brazo y martillo pesado subiendo/bajando con f
+        const hammerY = f === 0 ? 12 : f === 1 ? 10 : f === 2 ? 22 : 16;
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 8, 20 + by, 5, 9, 1, '#fed7aa', ox, 1);
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(cx + 10, hammerY + by, 2, 12);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 7, hammerY - 2 + by, 8, 5, 1, '#64748b', ox, 1);
+        ctx.fillStyle = '#fb923c';
+        ctx.fillRect(cx + 8, hammerY - 1 + by, 5, 2);
+        // Cabeza + banda de sudor + barba espesa
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 7, 8 + by, 14, 12, 4, '#fdba74', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 6, 16 + by, 12, 5, 2, '#57534e', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 6 + by, 16, 4, 1, '#991b1b', ox, 1);
+        drawFaceEyes(13 + by, '#f59e0b');
+      } else if (variant === 'alchemist') {
+        // Mago/Alquimista con túnica mística, frascos brillantes y cayado con matraz
+        const robeCol = biome === 'ash_caldera' ? '#7c2d12' : biome === 'astral_citadel' ? '#4338ca' : '#0f766e';
+        const trimCol = biome === 'ash_caldera' ? '#fb923c' : biome === 'astral_citadel' ? '#e879f9' : '#5eead4';
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 19 + by, 18, 17, 4, robeCol, ox, 1);
+        ctx.fillStyle = trimCol;
+        ctx.fillRect(cx - 2, 20 + by, 4, 15);
+        // Frascos luminosos en el cinturón
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 28 + by, 4, 5, 1, '#4ade80', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 4, 28 + by, 4, 5, 1, '#a855f7', ox, 1);
+        // Bastón con ampolla flotante que oscila
+        const flaskOff = f === 1 ? -2 : f === 3 ? 2 : 0;
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(cx - 12, 12 + by, 3, 25);
+        CelSpriteAtlas._inkEllipse(ctx, cx - 11, 10 + by + flaskOff, 4, 4, trimCol, ox, 1);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(cx - 12, 9 + by + flaskOff, 2, 2);
+        // Cabeza + capucha puntiaguda
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 7, 8 + by, 14, 11, 4, '#fed7aa', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 4 + by, 18, 6, 3, robeCol, ox, 1);
+        ctx.fillStyle = trimCol;
+        ctx.fillRect(cx - 6, 5 + by, 12, 2);
+        drawFaceEyes(13 + by, trimCol);
+      } else if (variant === 'guard') {
+        // Guardia de ciudadela/aldea con yelmo, escudo lateral y alabarda
+        const armorCol = biome === 'ash_caldera' ? '#44403c' : biome === 'astral_citadel' ? '#312e81' : '#475569';
+        const crestCol = biome === 'ash_caldera' ? '#f97316' : biome === 'astral_citadel' ? '#facc15' : biome === 'marsh_of_spores' ? '#2dd4bf' : '#16a34a';
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 19 + by, 18, 16, 3, armorCol, ox, 1);
+        ctx.fillStyle = crestCol;
+        ctx.fillRect(cx - 6, 22 + by, 12, 3);
+        // Escudo en brazo izquierdo + lanza en derecho
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 13, 20 + by + Math.round(armPhase * 0.5), 6, 12, 2, '#92400e', ox, 1);
+        ctx.fillStyle = crestCol;
+        ctx.fillRect(cx - 11, 24 + by + Math.round(armPhase * 0.5), 2, 4);
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(cx + 10, 6 + by - Math.round(armPhase * 0.5), 2, 32);
         ctx.fillStyle = '#cbd5e1';
-        ctx.fillRect(cx - 5, 10.6, 3.8, 1.8);
-        ctx.fillRect(cx + 1.2, 10.6, 3.8, 1.8);
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(cx - 3.8, 12.4, 2, 2.5);
-        ctx.fillRect(cx + 1.8, 12.4, 2, 2.5);
-        // Sombrero/Yelmo rúnico del santuario
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 8.5, 3.5, 17, 5.5, 2.5, '#475569', INK, 1.8);
+        ctx.fillRect(cx + 9, 2 + by - Math.round(armPhase * 0.5), 4, 6);
+        // Yelmo con penacho
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 7, 7 + by, 14, 12, 3, '#64748b', ox, 1);
+        ctx.fillStyle = crestCol;
+        ctx.fillRect(cx - 2, 3 + by, 4, 5);
+        ctx.fillStyle = '#090919';
+        ctx.fillRect(cx - 5, 13 + by, 10, 3);
+        ctx.fillStyle = '#fde68a';
+        ctx.fillRect(cx - 4, 14 + by, 2, 1);
+        ctx.fillRect(cx + 2, 14 + by, 2, 1);
+      } else if (variant === 'villager') {
+        // Aldeano/habitante adaptado cromáticamente a cada bioma
+        const tunic = biome === 'marsh_of_spores' ? '#0d9488' : biome === 'ash_caldera' ? '#9a3412' : biome === 'astral_citadel' ? '#4f46e5' : '#65a30d';
+        const sash = biome === 'astral_citadel' ? '#fde047' : '#d97706';
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 20 + by, 16, 15, 3, tunic, ox, 1);
+        ctx.fillStyle = sash;
+        ctx.fillRect(cx - 7, 27 + by, 14, 3);
+        // Brazos balanceándose
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 21 + by + armPhase, 4, 8, 1, tunic, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 7, 21 + by - armPhase, 4, 8, 1, tunic, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 7, 8 + by, 14, 12, 4, '#fed7aa', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 5 + by, 16, 5, 2, '#78350f', ox, 1);
+        drawFaceEyes(13 + by, '#1e293b');
+      } else if (variant === 'tarak') {
+        // Mochila de cuero con pergamino enrollado
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10.5, 18 + by, 7, 13.5, 2.5, '#7c2d12', ox, 1.75);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 15.5 + by, 6.5, 3.2, 1.4, '#fef3c7', ox, 1.4);
+        // Gabán verde bosque
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 20 + by, 16, 15.5, 3.5, '#15803d', ox, 1.9);
+        ctx.fillStyle = '#0f3d44';
+        ctx.fillRect(cx - 6.5, 28 + by, 13, 6);
+        // Bufanda dorada con ligero ondeo según frame
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 6.5, 18.5 + by, 13, 5.2, 2, '#f59e0b', ox, 1.6);
+        ctx.fillStyle = '#fde68a';
+        ctx.fillRect(cx - 4.5 + (f === 2 ? 1 : 0), 19.4 + by, 8, 1.4);
+        // Cabeza + ojos
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 7.5, 8 + by, 15, 12, 5, '#fed7aa', ox, 1.8);
+        ctx.fillStyle = '#e2a395';
+        ctx.fillRect(cx - 6, 16.8 + by, 12, 2);
+        drawFaceEyes(13 + by, '#0f172a');
+        // Boina de explorador + pluma oscilante
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 5 + by, 18, 5.5, 2.5, '#166534', ox, 1.8);
+        ctx.fillStyle = '#4ade80';
+        ctx.fillRect(cx - 6.5, 5.9 + by, 11, 1.5);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 5.5, 3.2 + by + (f === 1 ? -1 : 0), 5, 2.2, 1, '#fbbf24', ox, 1.2);
+      } else {
+        // Aliado de rescate / Viajero (Valerio, Lira, Borin, Aurelia)
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 19 + by, 20, 17, 4, '#312e81', ox, 1.9);
+        ctx.fillStyle = '#1e1b4b';
+        ctx.fillRect(cx - 8.5, 29 + by, 17, 6);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(cx - 1.5, 20.5 + by, 3, 14);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 18.5 + by, 16, 12.5, 3.2, '#e2e8f0', ox, 1.8);
         ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(cx - 6.5, 4.4, 12, 1.4);
-        // Cristal arcano flotante en el hombro derecho
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 9, 6, 6, 7.5, 2, '#38bdf8', INK, 1.5);
+        ctx.fillRect(cx - 6.5, 25.5 + by, 13, 4);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 7.5, 8 + by, 15, 12, 4.8, '#fed7aa', ox, 1.8);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(cx - 5, 11.6 + by, 3.8, 1.8);
+        ctx.fillRect(cx + 1.2, 11.6 + by, 3.8, 1.8);
+        drawFaceEyes(13.4 + by, '#1e293b');
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8.5, 4.5 + by, 17, 5.5, 2.5, '#475569', ox, 1.8);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(cx - 6.5, 5.4 + by, 12, 1.4);
+        const orbFloat = f === 1 ? -1 : f === 3 ? 1 : 0;
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 9, 7 + by + orbFloat, 6, 7.5, 2, '#fbbf24', ox, 1.5);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx + 10.6, 7.6, 2.2, 2.6);
+        ctx.fillRect(cx + 10.6, 8.6 + by + orbFloat, 2.2, 2.6);
       }
     });
   }
 
   // =========================================================================
-  // ENEMIGOS (5 ARQUETIPOS ÚNICOS + ELEMENTOS + HIT FLASH)
+  // ENEMIGOS, ARQUETIPOS REGIONALES Y MINI-JEFES — Sprites Multi-Frame
   // =========================================================================
 
   /**
-   * Genera u obtiene el sprite detallado de un enemigo en pixel-art entero de 16-bits (44x44 px).
-   * Soporta los 5 arquetipos oficiales: `hound`, `artillery`, `tank`, `duelist` y `slime`.
-   * @param {'hound'|'artillery'|'tank'|'duelist'|'slime'|string} [archetype='hound']
-   * @param {'plantas'|'fuego'|'kinetic'|'astral'|'normal'|string} [element='plantas']
-   * @param {boolean} [isHurt=false] - Variante blanca cel-shaded de destello de impacto.
+   * Genera u obtiene el sprite detallado animado de un enemigo (44x44), mini-jefe (50x50)
+   * o jefe regional (56x56). Soporta 3 fotogramas de locomoción/acción (`animFrame: 0..2`).
+   * @param {string} [archetype='hound']
+   * @param {string} [element='plantas']
+   * @param {boolean} [isHurt=false]
+   * @param {number} [animFrame=0]
    * @returns {HTMLCanvasElement}
    */
-  static getEnemySprite(archetype = 'hound', element = 'plantas', isHurt = false) {
+  static getEnemySprite(archetype = 'hound', element = 'plantas', isHurt = false, animFrame = 0) {
     const isBoss = typeof archetype === 'string' && archetype.startsWith('boss_');
-    const spriteSize = isBoss ? 56 : 44;
-    const key = `enemy_v4_${archetype}_${element}_${isHurt ? 1 : 0}`;
+    const isMiniBoss = typeof archetype === 'string' && archetype.startsWith('miniboss_');
+    const spriteSize = isBoss ? 56 : isMiniBoss ? 50 : 44;
+    const f = ((Math.floor(animFrame) % 3) + 3) % 3;
+    const key = `enemy_v5_${archetype}_${element}_${isHurt ? 1 : 0}_${f}`;
     return CelSpriteAtlas.getOrBake(key, spriteSize, spriteSize, (ctx) => {
       const cx = Math.floor(spriteSize / 2);
       const ox = INK;
@@ -628,313 +740,598 @@ export class CelSpriteAtlas {
       const fillBase = isHurt ? '#ffffff' : pal.base;
       const fillDark = isHurt ? '#fef08a' : pal.dark;
       const fillLight = isHurt ? '#ffffff' : pal.light;
+      const stepL = f === 1 ? -2 : f === 2 ? 2 : 0;
+      const stepR = -stepL;
+      const bob = f === 1 ? -1 : f === 2 ? 1 : 0;
 
       if (archetype === 'hound') {
-        // Sabueso depredador lupino en grilla pixel-art nítida
-        // Cola arqueada trasera
         ctx.fillStyle = ox;
-        ctx.fillRect(cx - 17, 13, 5, 4);
-        ctx.fillRect(cx - 15, 17, 4, 8);
-        ctx.fillRect(cx - 12, 22, 4, 4);
+        ctx.fillRect(cx - 17, 13 + bob, 5, 4);
+        ctx.fillRect(cx - 15, 17 + bob, 4, 8);
+        ctx.fillRect(cx - 12, 22 + bob, 4, 4);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 16, 14, 3, 2);
-        ctx.fillRect(cx - 14, 16, 2, 7);
+        ctx.fillRect(cx - 16, 14 + bob, 3, 2);
+        ctx.fillRect(cx - 14, 16 + bob, 2, 7);
         ctx.fillStyle = fillLight;
-        ctx.fillRect(cx - 16, 14, 1, 2);
+        ctx.fillRect(cx - 16, 14 + bob, 1, 2);
 
-        // Patas musculosas con garras afiladas
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 30, 5, 9, 1, fillDark, ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 5, 30, 5, 9, 1, fillDark, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10 + stepL, 30, 5, 9, 1, fillDark, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 5 + stepR, 30, 5, 9, 1, fillDark, ox, 1);
         ctx.fillStyle = '#f8fafc';
-        ctx.fillRect(cx - 9, 37, 1, 1);
-        ctx.fillRect(cx - 7, 37, 1, 1);
-        ctx.fillRect(cx + 6, 37, 1, 1);
-        ctx.fillRect(cx + 8, 37, 1, 1);
+        ctx.fillRect(cx - 9 + stepL, 37, 1, 1);
+        ctx.fillRect(cx + 6 + stepR, 37, 1, 1);
 
-        // Torso lupino compacto con pecho iluminado y vientre frío
-        CelSpriteAtlas._inkEllipse(ctx, cx, 26, 12, 8, fillBase, ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 26 + bob, 12, 8, fillBase, ox, 1);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 9, 29, 18, 3);
+        ctx.fillRect(cx - 9, 29 + bob, 18, 3);
         ctx.fillStyle = fillLight;
-        ctx.fillRect(cx - 7, 21, 14, 2);
+        ctx.fillRect(cx - 7, 21 + bob, 14, 2);
 
-        // Púas dorsales elementales escalonadas
         for (let i = -1; i <= 1; i++) {
           const sx = cx + i * 5;
           ctx.fillStyle = ox;
-          ctx.fillRect(sx - 2, 16, 5, 4);
-          ctx.fillRect(sx - 1, 14, 3, 2);
+          ctx.fillRect(sx - 2, 16 + bob, 5, 4);
+          ctx.fillRect(sx - 1, 14 + bob, 3, 2);
           ctx.fillStyle = fillLight;
-          ctx.fillRect(sx - 1, 15, 3, 3);
+          ctx.fillRect(sx - 1, 15 + bob, 3, 3);
         }
 
-        // Orejas triangulares puntiagudas
         ctx.fillStyle = ox;
-        ctx.fillRect(cx - 11, 5, 5, 7);
-        ctx.fillRect(cx + 6, 5, 5, 7);
-        ctx.fillRect(cx - 10, 3, 3, 2);
-        ctx.fillRect(cx + 7, 3, 3, 2);
+        ctx.fillRect(cx - 11, 5 + bob, 5, 7);
+        ctx.fillRect(cx + 6, 5 + bob, 5, 7);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 10, 5, 3, 6);
-        ctx.fillRect(cx + 7, 5, 3, 6);
-        ctx.fillStyle = fillBase;
-        ctx.fillRect(cx - 9, 6, 1, 4);
-        ctx.fillRect(cx + 8, 6, 1, 4);
+        ctx.fillRect(cx - 10, 5 + bob, 3, 6);
+        ctx.fillRect(cx + 7, 5 + bob, 3, 6);
 
-        // Cabeza lupina angular + hocico + colmillos
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 10, 18, 13, 3, fillBase, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 10 + bob, 18, 13, 3, fillBase, ox, 1);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 7, 19, 14, 3);
-        ctx.fillStyle = ox;
-        ctx.fillRect(cx - 2, 16, 4, 2);
+        ctx.fillRect(cx - 7, 19 + bob, 14, 3);
         ctx.fillStyle = isHurt ? '#f97316' : '#fef08a';
-        ctx.fillRect(cx - 6, 13, 3, 2);
-        ctx.fillRect(cx + 3, 13, 3, 2);
+        ctx.fillRect(cx - 6, 13 + bob, 3, 2);
+        ctx.fillRect(cx + 3, 13 + bob, 3, 2);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx - 4, 20, 2, 2);
-        ctx.fillRect(cx + 2, 20, 2, 2);
+        ctx.fillRect(cx - 4, 20 + bob, 2, 2);
+        ctx.fillRect(cx + 2, 20 + bob, 2, 2);
       } else if (archetype === 'artillery') {
-        // Esporífero Artillero con sombrero fúngico bioluminiscente
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 30, 6, 9, 1, fillDark, ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 30, 6, 9, 1, fillDark, ox, 1);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 27, 10, 8, fillBase, ox, 1);
-        ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 7, 30, 14, 3);
-
-        // Sombrero ancho con láminas inferiores oscuras y cúpula brillante
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 30 + Math.min(0, stepL), 6, 9, 1, fillDark, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 30 + Math.min(0, stepR), 6, 9, 1, fillDark, ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 27 + bob, 10, 8, fillBase, ox, 1);
         const capColor = isHurt ? '#ffffff' : (element === 'fuego' ? '#fb7185' : element === 'kinetic' ? '#6366f1' : '#9333ea');
         const capDark = isHurt ? '#fef08a' : (element === 'fuego' ? '#9f1239' : element === 'kinetic' ? '#312e81' : '#3b0764');
-        CelSpriteAtlas._inkEllipse(ctx, cx, 13, 15, 9, capColor, ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 13 + bob, 15 + (f === 1 ? 1 : 0), 9, capColor, ox, 1);
         ctx.fillStyle = capDark;
-        ctx.fillRect(cx - 12, 17, 24, 3);
+        ctx.fillRect(cx - 12, 17 + bob, 24, 3);
         ctx.fillStyle = fillLight;
-        ctx.fillRect(cx - 10, 9, 4, 3);
-        ctx.fillRect(cx + 5, 8, 4, 3);
-        ctx.fillRect(cx - 2, 6, 4, 2);
-
-        // Ojos y boca mortero
-        ctx.fillStyle = ox;
-        ctx.fillRect(cx - 6, 23, 3, 2);
-        ctx.fillRect(cx + 3, 23, 3, 2);
+        ctx.fillRect(cx - 10, 9 + bob, 4, 3);
+        ctx.fillRect(cx + 5, 8 + bob, 4, 3);
         ctx.fillStyle = '#fef08a';
-        ctx.fillRect(cx - 5, 23, 1, 1);
-        ctx.fillRect(cx + 4, 23, 1, 1);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 29, 3, 3, '#0b101d', fillLight, 1);
+        ctx.fillRect(cx - 5, 23 + bob, 2, 2);
+        ctx.fillRect(cx + 3, 23 + bob, 2, 2);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 29 + bob, 3, 3, '#0b101d', fillLight, 1);
       } else if (archetype === 'tank') {
-        // Centinela Pavés Blindado estilo 16-bit (yelmo curvo con cuernos, maza derecha y escudo pavés heráldico)
         const steelMid = isHurt ? '#ffffff' : '#475569';
         const steelDark = isHurt ? '#fef08a' : '#1e293b';
         const steelLight = isHurt ? '#ffffff' : '#94a3b8';
 
-        // Grebas y botas pesadas remachadas
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 34, 7, 7, 1, steelDark, ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 34, 7, 7, 1, steelDark, ox, 1);
-        ctx.fillStyle = steelLight;
-        ctx.fillRect(cx - 9, 35, 5, 1);
-        ctx.fillRect(cx + 4, 35, 5, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 34 + Math.min(0, stepL), 7, 7, 1, steelDark, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 34 + Math.min(0, stepR), 7, 7, 1, steelDark, ox, 1);
 
-        // Maza de armas en el flanco derecho
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 11, 20, 4, 14, 1, '#78350f', ox, 1);
-        CelSpriteAtlas._inkEllipse(ctx, cx + 14, 18, 5, 5, steelMid, ox, 1);
-        ctx.fillStyle = '#f8fafc';
-        ctx.fillRect(cx + 13, 12, 2, 2);
-        ctx.fillRect(cx + 18, 17, 2, 2);
-        ctx.fillStyle = fillLight;
-        ctx.fillRect(cx + 13, 17, 2, 2);
+        const maceOff = f === 1 ? -2 : f === 2 ? 2 : 0;
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 11, 20 + maceOff, 4, 14, 1, '#78350f', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx + 14, 18 + maceOff, 5, 5, steelMid, ox, 1);
 
-        // Coraza pectoral metálica esculpida + hombreras
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 16, 22, 19, 4, steelMid, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 16 + bob, 22, 19, 4, steelMid, ox, 1);
         ctx.fillStyle = steelDark;
-        ctx.fillRect(cx - 9, 28, 18, 6);
+        ctx.fillRect(cx - 9, 28 + bob, 18, 6);
         ctx.fillStyle = steelLight;
-        ctx.fillRect(cx - 8, 18, 16, 2);
-        // Cinturón de placas doradas
+        ctx.fillRect(cx - 8, 18 + bob, 16, 2);
         ctx.fillStyle = isHurt ? '#ffffff' : '#eab308';
-        ctx.fillRect(cx - 10, 27, 20, 2);
-        // Núcleo pectoral rúnico
-        CelSpriteAtlas._inkEllipse(ctx, cx + 1, 22, 3, 3, fillBase, ox, 1);
-        ctx.fillStyle = fillLight;
-        ctx.fillRect(cx, 21, 2, 2);
+        ctx.fillRect(cx - 10, 27 + bob, 20, 2);
+        CelSpriteAtlas._inkEllipse(ctx, cx + 1, 22 + bob, 3, 3, fillBase, ox, 1);
 
-        // Hombreras escalonadas
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 14, 15, 7, 9, 2, fillBase, ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 7, 15, 7, 9, 2, fillDark, ox, 1);
-        ctx.fillStyle = fillLight;
-        ctx.fillRect(cx - 12, 16, 4, 2);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 14, 15 + bob, 7, 9, 2, fillBase, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 7, 15 + bob, 7, 9, 2, fillDark, ox, 1);
 
-        // Yelmo curvo de caballero con crestas y cuernos curvados
-        CelSpriteAtlas._inkEllipse(ctx, cx, 10, 9, 7, steelDark, ox, 1);
-        ctx.fillStyle = steelLight;
-        ctx.fillRect(cx - 5, 5, 10, 2);
-        // Cresta central elemental
+        CelSpriteAtlas._inkEllipse(ctx, cx, 10 + bob, 9, 7, steelDark, ox, 1);
         ctx.fillStyle = ox;
-        ctx.fillRect(cx - 2, 2, 4, 5);
-        ctx.fillStyle = fillBase;
-        ctx.fillRect(cx - 1, 3, 2, 3);
-        // Cuernos curvados a ambos lados
-        ctx.fillStyle = ox;
-        ctx.fillRect(cx - 12, 5, 3, 5);
-        ctx.fillRect(cx + 9, 5, 3, 5);
-        ctx.fillRect(cx - 11, 3, 2, 2);
-        ctx.fillRect(cx + 9, 3, 2, 2);
+        ctx.fillRect(cx - 12, 5 + bob, 3, 5);
+        ctx.fillRect(cx + 9, 5 + bob, 3, 5);
         ctx.fillStyle = '#e2e8f0';
-        ctx.fillRect(cx - 11, 6, 2, 3);
-        ctx.fillRect(cx + 9, 6, 2, 3);
-        // Visera oscura en T con dos ojos brillantes
+        ctx.fillRect(cx - 11, 6 + bob, 2, 3);
+        ctx.fillRect(cx + 9, 6 + bob, 2, 3);
         ctx.fillStyle = '#090919';
-        ctx.fillRect(cx - 6, 10, 12, 3);
-        ctx.fillRect(cx - 1, 12, 2, 4);
+        ctx.fillRect(cx - 6, 10 + bob, 12, 3);
         ctx.fillStyle = isHurt ? '#f97316' : pal.glow;
-        ctx.fillRect(cx - 5, 11, 3, 2);
-        ctx.fillRect(cx + 2, 11, 3, 2);
-
-        // Escudo pavés blasonado curvado en flanco izquierdo (roble + marco metálico + emblema)
-        const shieldWood = isHurt ? '#ffffff' : '#78350f';
-        const shieldRim = isHurt ? '#fef08a' : '#cbd5e1';
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 19, 18, 12, 18, 3, shieldRim, ox, 1);
-        ctx.fillStyle = shieldWood;
-        ctx.fillRect(cx - 17, 20, 8, 14);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#451a03';
-        ctx.fillRect(cx - 17, 29, 8, 5);
-        // Emblema cruciforme dorado/elemental en el centro del escudo
-        ctx.fillStyle = fillBase;
-        ctx.fillRect(cx - 14, 22, 2, 9);
-        ctx.fillRect(cx - 16, 25, 6, 2);
-        ctx.fillStyle = fillLight;
-        ctx.fillRect(cx - 14, 25, 2, 2);
+        ctx.fillRect(cx - 5, 11 + bob, 3, 2);
+        ctx.fillRect(cx + 2, 11 + bob, 3, 2);
       } else if (archetype === 'duelist') {
-        // Acechador Duelista encapuchado con máscara ósea y dagas curvas pixel-art
-        // Capa ondeante escalonada
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 17, 22, 17, 3, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 11, 17 + bob, 22, 17, 3, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
         ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 9, 29, 18, 4);
+        ctx.fillRect(cx - 9, 29 + bob, 18, 4);
         ctx.fillStyle = isHurt ? '#fef08a' : '#4338ca';
-        ctx.fillRect(cx - 4, 18, 8, 14);
-        // Bufanda y hombreras oscuras
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 15, 20, 5, 2, fillDark, ox, 1);
-
-        // Capucha en punta + máscara ósea sombreada
-        CelSpriteAtlas._inkEllipse(ctx, cx, 11, 8, 7, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 6, 8, 12, 10, 3, isHurt ? '#ffffff' : '#f8fafc', ox, 1);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#94a3b8';
-        ctx.fillRect(cx - 4, 15, 8, 2);
+        ctx.fillRect(cx - 4, 18 + bob, 8, 14);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 15 + bob, 20, 5, 2, fillDark, ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 11 + bob, 8, 7, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 6, 8 + bob, 12, 10, 3, isHurt ? '#ffffff' : '#f8fafc', ox, 1);
         ctx.fillStyle = isHurt ? '#f97316' : pal.glow;
-        ctx.fillRect(cx - 4, 11, 3, 2);
-        ctx.fillRect(cx + 1, 11, 3, 2);
-
-        // Hojas duales pixel-art afiladas en diagonal
+        ctx.fillRect(cx - 4, 11 + bob, 3, 2);
+        ctx.fillRect(cx + 1, 11 + bob, 3, 2);
         const bladeCol = isHurt ? '#ffffff' : '#e2e8f0';
+        const dOff = f === 1 ? -2 : f === 2 ? 2 : 0;
         for (let d = 0; d < 7; d++) {
           ctx.fillStyle = ox;
-          ctx.fillRect(cx + 9 + d, 25 - d, 3, 3);
-          ctx.fillRect(cx - 12 - d, 26 - d, 3, 3);
+          ctx.fillRect(cx + 9 + d, 25 + dOff - d, 3, 3);
+          ctx.fillRect(cx - 12 - d, 26 - dOff - d, 3, 3);
           ctx.fillStyle = bladeCol;
-          ctx.fillRect(cx + 10 + d, 25 - d, 2, 2);
-          ctx.fillRect(cx - 11 - d, 26 - d, 2, 2);
+          ctx.fillRect(cx + 10 + d, 25 + dOff - d, 2, 2);
+          ctx.fillRect(cx - 11 - d, 26 - dOff - d, 2, 2);
         }
       } else if (archetype === 'sentinel_ether') {
-        // Autómata Astral flotante con núcleo voltaico y anillos magnéticos
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 12, 20, 22, 5, isHurt ? '#ffffff' : '#312e81', ox, 1);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#1e1b4b';
-        ctx.fillRect(cx - 8, 26, 16, 6);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 10, 7, 5, isHurt ? '#ffffff' : '#4338ca', ox, 1);
+        const hover = f === 1 ? -2 : f === 2 ? 2 : 0;
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 12 + hover, 20, 22, 5, isHurt ? '#ffffff' : '#312e81', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 10 + hover, 7, 5, isHurt ? '#ffffff' : '#4338ca', ox, 1);
         ctx.fillStyle = isHurt ? '#f97316' : '#38bdf8';
-        ctx.fillRect(cx - 4, 9, 8, 3);
-        // Núcleo central rúnico
-        CelSpriteAtlas._inkEllipse(ctx, cx, 21, 5, 5, isHurt ? '#ffffff' : '#c084fc', ox, 1);
+        ctx.fillRect(cx - 4, 9 + hover, 8, 3);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 21 + hover, 5, 5, isHurt ? '#ffffff' : '#c084fc', ox, 1);
         ctx.fillStyle = '#f5d0fe';
-        ctx.fillRect(cx - 2, 19, 4, 4);
-        // Hombreras flotantes
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 14, 5, 11, 2, fillBase, ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 11, 14, 5, 11, 2, fillBase, ox, 1);
-      } else if (archetype === 'boss_bramble') {
-        // Guardián Cortezaferro (56x56): coloso de madera viva y espinas doradas
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 14, 38, 10, 13, 2, '#3f2e1d', ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 4, 38, 10, 13, 2, '#3f2e1d', ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 16, 32, 26, 5, isHurt ? '#ffffff' : '#14532d', ox, 1);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#15803d';
-        ctx.fillRect(cx - 13, 18, 26, 8);
-        // Corona de astas y espinas
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 8, 20, 13, 4, isHurt ? '#ffffff' : '#78350f', ox, 1);
-        ctx.fillStyle = ox;
-        ctx.fillRect(cx - 15, 4, 5, 8);
-        ctx.fillRect(cx + 10, 4, 5, 8);
-        ctx.fillStyle = '#4ade80';
-        ctx.fillRect(cx - 14, 5, 3, 6);
-        ctx.fillRect(cx + 11, 5, 3, 6);
-        // Ojos y núcleo ámbar
+        ctx.fillRect(cx - 2, 19 + hover, 4, 4);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 14 - hover, 5, 11, 2, fillBase, ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 11, 14 - hover, 5, 11, 2, fillBase, ox, 1);
+      } else if (archetype === 'stalker_ambusher') {
+        // Acechador de Ramas / Pantano agazapado con manto vegetal y zarpas dobles
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 11 + stepL, 30, 5, 8, 1, '#14532d', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 5 + stepR, 30, 5, 8, 1, '#14532d', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 23 + bob, 12, 9, isHurt ? '#ffffff' : '#166534', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 10 + bob, 18, 12, 4, isHurt ? '#ffffff' : '#15803d', ox, 1);
         ctx.fillStyle = '#fde047';
-        ctx.fillRect(cx - 6, 13, 4, 3);
-        ctx.fillRect(cx + 2, 13, 4, 3);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 29, 6, 6, isHurt ? '#ffffff' : '#fb923c', ox, 1);
-      } else if (archetype === 'boss_spore') {
-        // Matriarca de Esporas (56x56): gran hongo bioluminiscente turquesa/púrpura
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 12, 34, 9, 16, 2, '#312e81', ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 3, 34, 9, 16, 2, '#312e81', ox, 1);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 32, 15, 11, isHurt ? '#ffffff' : '#0f766e', ox, 1);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 16, 22, 12, isHurt ? '#ffffff' : '#7e22ce', ox, 1);
-        ctx.fillStyle = '#3b0764';
-        ctx.fillRect(cx - 18, 21, 36, 4);
+        ctx.fillRect(cx - 5, 14 + bob, 3, 2);
+        ctx.fillRect(cx + 2, 14 + bob, 3, 2);
+        ctx.fillStyle = '#bef264';
+        ctx.fillRect(cx - 14, 22 + bob + stepL, 5, 3);
+        ctx.fillRect(cx + 9, 22 + bob + stepR, 5, 3);
+      } else if (archetype === 'spore_alchemist') {
+        // Alquimista de Esporas con capucha violeta y incensario tóxico
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 18 + bob, 18, 18, 4, isHurt ? '#ffffff' : '#115e59', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 7 + bob, 16, 12, 4, isHurt ? '#ffffff' : '#6b21a8', ox, 1);
         ctx.fillStyle = '#5eead4';
-        ctx.fillRect(cx - 13, 10, 5, 4);
-        ctx.fillRect(cx + 7, 11, 6, 4);
-        ctx.fillRect(cx - 2, 7, 5, 3);
-        ctx.fillStyle = '#fef08a';
-        ctx.fillRect(cx - 7, 29, 4, 3);
-        ctx.fillRect(cx + 3, 29, 4, 3);
-      } else if (archetype === 'boss_forge') {
-        // Titán del Crisol (56x56): gólem de hierro oscuro y vetas de magma
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 15, 38, 11, 14, 2, '#1e293b', ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx + 4, 38, 11, 14, 2, '#1e293b', ox, 1);
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 18, 14, 36, 28, 5, isHurt ? '#ffffff' : '#334155', ox, 1);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#ea580c';
-        ctx.fillRect(cx - 14, 24, 28, 3);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 28, 6, 6, '#f97316', ox, 1);
+        ctx.fillRect(cx - 4, 13 + bob, 3, 2);
+        ctx.fillRect(cx + 1, 13 + bob, 3, 2);
+        CelSpriteAtlas._inkEllipse(ctx, cx + 13, 22 - bob, 5, 5, '#a855f7', ox, 1);
+        ctx.fillStyle = '#5eead4';
+        ctx.fillRect(cx + 12, 21 - bob, 2, 2);
+      } else if (archetype === 'pyro_smith') {
+        // Herrero Piroclástico con máscara de bronce y tenazas incandescentes
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 12, 16 + bob, 24, 21, 4, isHurt ? '#ffffff' : '#292524', ox, 1);
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(cx - 8, 22 + bob, 16, 12);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 8, 7 + bob, 16, 11, 3, isHurt ? '#ffffff' : '#9a3412', ox, 1);
         ctx.fillStyle = '#fde047';
-        ctx.fillRect(cx - 2, 26, 4, 4);
-        // Yelmo yunque con cuernos de obsidiana
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 5, 20, 12, 3, isHurt ? '#ffffff' : '#1e293b', ox, 1);
-        ctx.fillStyle = '#fb923c';
-        ctx.fillRect(cx - 6, 10, 4, 3);
-        ctx.fillRect(cx + 2, 10, 4, 3);
-      } else if (archetype === 'boss_astral') {
-        // Heraldo de Obsidiana (56x56): caballero astral con corona estelar y manto cósmico
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 17, 32, 32, 6, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
-        ctx.fillStyle = isHurt ? '#fef08a' : '#4338ca';
-        ctx.fillRect(cx - 10, 19, 20, 26);
-        CelSpriteAtlas._inkRoundRect(ctx, cx - 12, 16, 24, 18, 4, isHurt ? '#ffffff' : '#312e81', ox, 1);
-        // Corona estelar
-        CelSpriteAtlas._inkEllipse(ctx, cx, 11, 10, 7, isHurt ? '#ffffff' : '#0f172a', ox, 1);
-        ctx.fillStyle = '#facc15';
-        ctx.fillRect(cx - 7, 3, 3, 5);
-        ctx.fillRect(cx - 1, 1, 2, 6);
-        ctx.fillRect(cx + 4, 3, 3, 5);
-        // Visor y núcleo astral
+        ctx.fillRect(cx - 5, 11 + bob, 4, 2);
+        ctx.fillRect(cx + 1, 11 + bob, 4, 2);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 11, 18 + stepL, 6, 14, 2, '#ea580c', ox, 1);
+      } else if (archetype === 'void_blinker') {
+        // Acechador del Vacío flotante con guja astral
+        const hv = f === 1 ? -2 : f === 2 ? 2 : 0;
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 14 + hv, 18, 20, 4, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 10 + hv, 7, 6, isHurt ? '#ffffff' : '#4c1d95', ox, 1);
         ctx.fillStyle = '#e879f9';
-        ctx.fillRect(cx - 6, 10, 5, 3);
-        ctx.fillRect(cx + 1, 10, 5, 3);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 24, 5, 5, '#c084fc', ox, 1);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx - 2, 22, 4, 4);
-      } else {
-        // Slime Elemental gelatinoso con base plana y núcleo rúnico
-        CelSpriteAtlas._inkEllipse(ctx, cx, 26, 13, 11, fillBase, ox, 1);
-        ctx.fillStyle = fillDark;
-        ctx.fillRect(cx - 11, 31, 22, 4);
-        CelSpriteAtlas._inkEllipse(ctx, cx, 25, 4, 4, isHurt ? '#fef08a' : pal.mid, null, 0);
-        // Ojos viscosos + brillo de cúpula
+        ctx.fillRect(cx - 4, 9 + hv, 8, 3);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(cx + 10, 12 + hv, 3, 18);
+        ctx.fillRect(cx - 13, 12 - hv, 3, 18);
+      } else if (archetype === 'miniboss_stag') {
+        // Mini-Jefe M1: Acechador Cornamenta (50x50)
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 12 + stepL, 35, 7, 10, 2, '#451a03', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 5 + stepR, 35, 7, 10, 2, '#451a03', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 14, 17 + bob, 28, 21, 5, isHurt ? '#ffffff' : '#14532d', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 10 + bob, 18, 12, 4, isHurt ? '#ffffff' : '#78350f', ox, 1);
+        // Gran cornamenta rúnica
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(cx - 15, 3 + bob, 5, 9);
+        ctx.fillRect(cx + 10, 3 + bob, 5, 9);
+        ctx.fillRect(cx - 18, 5 + bob, 4, 4);
+        ctx.fillRect(cx + 14, 5 + bob, 4, 4);
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(cx - 5, 14 + bob, 3, 2);
+        ctx.fillRect(cx + 2, 14 + bob, 3, 2);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 27 + bob, 5, 5, '#fb923c', ox, 1);
+      } else if (archetype === 'miniboss_weaver') {
+        // Mini-Jefe M2: Tejedora Micótica (50x50)
+        const legOff = f === 1 ? -2 : 2;
         ctx.fillStyle = ox;
-        ctx.fillRect(cx - 6, 22, 3, 4);
-        ctx.fillRect(cx + 3, 22, 3, 4);
+        for (let l = -1; l <= 1; l++) {
+          ctx.fillRect(cx - 20, 22 + l * 6 + legOff, 8, 3);
+          ctx.fillRect(cx + 12, 22 + l * 6 - legOff, 8, 3);
+        }
+        CelSpriteAtlas._inkEllipse(ctx, cx, 28 + bob, 14, 11, isHurt ? '#ffffff' : '#6b21a8', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 17 + bob, 11, 8, isHurt ? '#ffffff' : '#0f766e', ox, 1);
+        ctx.fillStyle = '#5eead4';
+        ctx.fillRect(cx - 6, 15 + bob, 4, 3);
+        ctx.fillRect(cx + 2, 15 + bob, 4, 3);
+        ctx.fillRect(cx - 2, 12 + bob, 4, 2);
+      } else if (archetype === 'miniboss_warden') {
+        // Mini-Jefe M3: Alcaide de Escoria (50x50)
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 13 + stepL, 35, 8, 11, 2, '#1c1917', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 5 + stepR, 35, 8, 11, 2, '#1c1917', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 15, 15 + bob, 30, 23, 5, isHurt ? '#ffffff' : '#44403c', ox, 1);
+        ctx.fillStyle = '#ea580c';
+        ctx.fillRect(cx - 11, 23 + bob, 22, 3);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 9, 7 + bob, 18, 11, 3, isHurt ? '#ffffff' : '#292524', ox, 1);
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(cx - 5, 11 + bob, 4, 2);
+        ctx.fillRect(cx + 1, 11 + bob, 4, 2);
+      } else if (archetype === 'miniboss_reaver') {
+        // Mini-Jefe M4: Segador del Vacío (50x50)
+        const hv = f === 1 ? -2 : f === 2 ? 2 : 0;
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 14, 14 + hv, 28, 25, 5, isHurt ? '#ffffff' : '#2e1065', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 10 + hv, 9, 7, isHurt ? '#ffffff' : '#0f172a', ox, 1);
+        ctx.fillStyle = '#e879f9';
+        ctx.fillRect(cx - 5, 9 + hv, 4, 2);
+        ctx.fillRect(cx + 1, 9 + hv, 4, 2);
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(cx - 18, 10 + hv, 4, 22);
+        ctx.fillRect(cx + 14, 10 - hv, 4, 22);
+      } else if (archetype === 'boss_bramble') {
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 14 + stepL, 38, 10, 13, 2, '#3f2e1d', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 4 + stepR, 38, 10, 13, 2, '#3f2e1d', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 16 + bob, 32, 26, 5, isHurt ? '#ffffff' : '#14532d', ox, 1);
+        ctx.fillStyle = isHurt ? '#fef08a' : '#15803d';
+        ctx.fillRect(cx - 13, 18 + bob, 26, 8);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 8 + bob, 20, 13, 4, isHurt ? '#ffffff' : '#78350f', ox, 1);
+        ctx.fillStyle = ox;
+        ctx.fillRect(cx - 15, 4 + bob, 5, 8);
+        ctx.fillRect(cx + 10, 4 + bob, 5, 8);
+        ctx.fillStyle = '#4ade80';
+        ctx.fillRect(cx - 14, 5 + bob, 3, 6);
+        ctx.fillRect(cx + 11, 5 + bob, 3, 6);
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(cx - 6, 13 + bob, 4, 3);
+        ctx.fillRect(cx + 2, 13 + bob, 4, 3);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 29 + bob, 6, 6, isHurt ? '#ffffff' : '#fb923c', ox, 1);
+      } else if (archetype === 'boss_spore') {
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 12 + stepL, 34, 9, 16, 2, '#312e81', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 3 + stepR, 34, 9, 16, 2, '#312e81', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 32 + bob, 15, 11, isHurt ? '#ffffff' : '#0f766e', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 16 + bob, 22 + (f === 1 ? 1 : 0), 12, isHurt ? '#ffffff' : '#7e22ce', ox, 1);
+        ctx.fillStyle = '#3b0764';
+        ctx.fillRect(cx - 18, 21 + bob, 36, 4);
+        ctx.fillStyle = '#5eead4';
+        ctx.fillRect(cx - 13, 10 + bob, 5, 4);
+        ctx.fillRect(cx + 7, 11 + bob, 6, 4);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(cx - 7, 29 + bob, 4, 3);
+        ctx.fillRect(cx + 3, 29 + bob, 4, 3);
+      } else if (archetype === 'boss_forge') {
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 15 + stepL, 38, 11, 14, 2, '#1e293b', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx + 4 + stepR, 38, 11, 14, 2, '#1e293b', ox, 1);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 18, 14 + bob, 36, 28, 5, isHurt ? '#ffffff' : '#334155', ox, 1);
+        ctx.fillStyle = isHurt ? '#fef08a' : '#ea580c';
+        ctx.fillRect(cx - 14, 24 + bob, 28, 3);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 28 + bob, 6, 6, '#f97316', ox, 1);
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(cx - 2, 26 + bob, 4, 4);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 10, 5 + bob, 20, 12, 3, isHurt ? '#ffffff' : '#1e293b', ox, 1);
+        ctx.fillStyle = '#fb923c';
+        ctx.fillRect(cx - 6, 10 + bob, 4, 3);
+        ctx.fillRect(cx + 2, 10 + bob, 4, 3);
+      } else if (archetype === 'boss_astral') {
+        const hv = f === 1 ? -2 : f === 2 ? 1 : 0;
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 16, 17 + hv, 32, 32, 6, isHurt ? '#ffffff' : '#1e1b4b', ox, 1);
+        ctx.fillStyle = isHurt ? '#fef08a' : '#4338ca';
+        ctx.fillRect(cx - 10, 19 + hv, 20, 26);
+        CelSpriteAtlas._inkRoundRect(ctx, cx - 12, 16 + hv, 24, 18, 4, isHurt ? '#ffffff' : '#312e81', ox, 1);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 11 + hv, 10, 7, isHurt ? '#ffffff' : '#0f172a', ox, 1);
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(cx - 7, 3 + hv, 3, 5);
+        ctx.fillRect(cx - 1, 1 + hv, 2, 6);
+        ctx.fillRect(cx + 4, 3 + hv, 3, 5);
+        ctx.fillStyle = '#e879f9';
+        ctx.fillRect(cx - 6, 10 + hv, 5, 3);
+        ctx.fillRect(cx + 1, 10 + hv, 5, 3);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 24 + hv, 5, 5, '#c084fc', ox, 1);
+      } else {
+        // Slime Elemental gelatinoso con compresión real por frame
+        const rx = f === 1 ? 14 : f === 2 ? 11 : 13;
+        const ry = f === 1 ? 9 : f === 2 ? 12 : 11;
+        CelSpriteAtlas._inkEllipse(ctx, cx, 26 + (f === 1 ? 2 : 0), rx, ry, fillBase, ox, 1);
+        ctx.fillStyle = fillDark;
+        ctx.fillRect(cx - rx + 2, 31, (rx - 2) * 2, 4);
+        CelSpriteAtlas._inkEllipse(ctx, cx, 25, 4, 4, isHurt ? '#fef08a' : pal.mid, null, 0);
+        ctx.fillStyle = ox;
+        ctx.fillRect(cx - 6, 22 + bob, 3, 4);
+        ctx.fillRect(cx + 3, 22 + bob, 3, 4);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx - 5, 23, 1, 1);
-        ctx.fillRect(cx + 4, 23, 1, 1);
-        ctx.fillStyle = fillLight;
-        ctx.fillRect(cx - 8, 17, 5, 3);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx - 7, 17, 2, 2);
+        ctx.fillRect(cx - 5, 23 + bob, 1, 1);
+        ctx.fillRect(cx + 4, 23 + bob, 1, 1);
       }
     });
+  }
+
+  // =========================================================================
+  // ARQUITECTURA DE CIUDADES POR BIOMA Y FLORA ANIMADA (4 BIOMAS × 4 TIPOS)
+  // =========================================================================
+
+  /**
+   * Hornea un edificio arquitectónico detallado de ciudad regional (168x152 px).
+   * Soporta 4 biomas × 4 tipos (`cottage`, `forge`, `alchemist`, `civic`) con mampostería,
+   * vigas, tejas/cúpulas individuales y accesorios de oficio sin tonos azules planos.
+   * @param {'cave_exit_intro'|'marsh_of_spores'|'ash_caldera'|'astral_citadel'} [biome='cave_exit_intro']
+   * @param {'cottage'|'forge'|'alchemist'|'civic'} [buildingType='cottage']
+   * @returns {HTMLCanvasElement}
+   */
+  static getHouseSprite(biome = 'cave_exit_intro', buildingType = 'cottage') {
+    const bKey = ELEMENT_PALETTES[biome] || (biome === 'marsh_of_spores' || biome === 'ash_caldera' || biome === 'astral_citadel' ? biome : 'cave_exit_intro');
+    const normBiome = (biome === 'marsh_of_spores' || biome === 'ash_caldera' || biome === 'astral_citadel') ? biome : 'cave_exit_intro';
+    const bType = (buildingType === 'forge' || buildingType === 'alchemist' || buildingType === 'civic') ? buildingType : 'cottage';
+    return CelSpriteAtlas.getOrBake(`house_v4_${normBiome}_${bType}`, 168, 152, (ctx, w, h) => {
+      const palettes = {
+        cave_exit_intro: {
+          wall: '#f5ebd1', wallShade: '#d6c5a3', plinth: '#64748b', plinthDark: '#334155',
+          timber: '#78350f', roof: '#c2410c', roofDark: '#7c2d12', roofHi: '#f59e0b',
+          door: '#854d0e', accent: '#16a34a', win: '#fbbf24'
+        },
+        marsh_of_spores: {
+          wall: '#5c4738', wallShade: '#3f3028', plinth: '#2d1e18', plinthDark: '#1a110e',
+          timber: '#422a22', roof: '#0f766e', roofDark: '#134e4a', roofHi: '#2dd4bf',
+          door: '#5c2d3a', accent: '#a855f7', win: '#5eead4'
+        },
+        ash_caldera: {
+          wall: '#44403c', wallShade: '#292524', plinth: '#1c1917', plinthDark: '#09090b',
+          timber: '#92400e', roof: '#52525b', roofDark: '#27272a', roofHi: '#f59e0b',
+          door: '#7c2d12', accent: '#fb923c', win: '#fb923c'
+        },
+        astral_citadel: {
+          wall: '#e2e8f0', wallShade: '#94a3b8', plinth: '#312e81', plinthDark: '#1e1b4b',
+          timber: '#eab308', roof: '#6d28d9', roofDark: '#3b0764', roofHi: '#e879f9',
+          door: '#4338ca', accent: '#38bdf8', win: '#f5d0fe'
+        }
+      };
+      const pal = palettes[normBiome] || palettes.cave_exit_intro;
+
+      // Sombra basal
+      ctx.fillStyle = 'rgba(11, 16, 29, 0.34)';
+      ctx.fillRect(14, h - 18, w - 28, 12);
+
+      // Chimenea o torre trasera según oficio
+      if (bType === 'forge') {
+        CelSpriteAtlas._inkRoundRect(ctx, 114, 8, 26, 46, 2, '#3f3f46', INK, 2);
+        ctx.fillStyle = '#ea580c';
+        ctx.fillRect(120, 12, 14, 6);
+      } else if (bType === 'alchemist') {
+        CelSpriteAtlas._inkRoundRect(ctx, 118, 12, 20, 42, 3, pal.plinth, INK, 2);
+        CelSpriteAtlas._inkEllipse(ctx, 128, 12, 11, 6, pal.accent, INK, 2);
+      } else {
+        CelSpriteAtlas._inkRoundRect(ctx, 116, 16, 18, 36, 2, pal.plinth, INK, 2);
+      }
+
+      // Zócalo / palafito basal
+      CelSpriteAtlas._inkRoundRect(ctx, 20, h - 36, w - 40, 22, 2, pal.plinth, INK, 2);
+      ctx.fillStyle = pal.plinthDark;
+      ctx.fillRect(23, h - 23, w - 46, 6);
+      if (normBiome === 'marsh_of_spores') {
+        // Pilotes elevados de madera de pantano
+        for (const px of [24, 60, 102, 134]) {
+          CelSpriteAtlas._inkRoundRect(ctx, px, h - 22, 10, 16, 1, pal.timber, INK, 1);
+        }
+      } else {
+        // Sillería trabada en zócalo
+        ctx.fillStyle = pal.wallShade;
+        for (let sx = 28; sx < w - 34; sx += 18) {
+          ctx.fillRect(sx, h - 33, 2, 12);
+        }
+      }
+
+      // Fachada principal texturizada
+      CelSpriteAtlas._inkRoundRect(ctx, 22, 64, w - 44, 54, 2, pal.wall, INK, 2);
+      ctx.fillStyle = pal.wallShade;
+      ctx.fillRect(24, 66, w - 48, 12); // sombra bajo el alero
+      for (let ty = 80; ty < 114; ty += 11) {
+        ctx.fillStyle = 'rgba(11, 16, 29, 0.14)';
+        ctx.fillRect(25, ty, w - 50, 1);
+      }
+
+      // Vigas entramadas verticales y refuerzos de bronce/oro
+      for (const vx of [22, 72, w - 32]) {
+        CelSpriteAtlas._inkRoundRect(ctx, vx, 64, 10, 54, 1, pal.timber, INK, 1);
+      }
+
+      // Tejado inclinado en capas de tejas / cúpula orgánica
+      ctx.fillStyle = pal.roof;
+      ctx.beginPath();
+      ctx.moveTo(8, 70);
+      ctx.lineTo(w * 0.5, 18);
+      ctx.lineTo(w - 8, 70);
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineWidth = 2.6;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+
+      // Mitad derecha sombreada del tejado
+      ctx.fillStyle = pal.roofDark;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.5, 20);
+      ctx.lineTo(w - 11, 68);
+      ctx.lineTo(w * 0.5, 68);
+      ctx.closePath();
+      ctx.fill();
+
+      // Hiladas detalladas de tejas/escamas/placas
+      ctx.fillStyle = pal.roofHi;
+      ctx.fillRect(38, 50, 38, 4);
+      ctx.fillRect(52, 36, 28, 4);
+      ctx.fillRect(w * 0.5 - 3, 20, 6, 48);
+      if (normBiome === 'marsh_of_spores') {
+        // Motas fúngicas bioluminiscentes
+        ctx.fillStyle = pal.accent;
+        ctx.fillRect(46, 42, 6, 4);
+        ctx.fillRect(102, 46, 6, 4);
+      } else if (normBiome === 'ash_caldera') {
+        // Remaches metálicos de bronce
+        ctx.fillStyle = '#fbbf24';
+        for (let rx = 28; rx < w - 30; rx += 14) {
+          ctx.fillRect(rx, 63, 2, 2);
+        }
+      }
+
+      // Puerta principal y emblema superior
+      const doorW = bType === 'civic' ? 34 : 26;
+      const doorX = bType === 'civic' ? Math.round(w * 0.5 - doorW * 0.5) : 40;
+      CelSpriteAtlas._inkRoundRect(ctx, doorX, 82, doorW, 48, 2, pal.door, INK, 2);
+      ctx.fillStyle = pal.roofHi;
+      ctx.fillRect(doorX + doorW - 7, 104, 3, 3);
+      if (bType === 'civic') {
+        CelSpriteAtlas._inkRoundRect(ctx, Math.round(w * 0.5 - 12), 42, 24, 14, 3, pal.plinth, INK, 2);
+        ctx.fillStyle = pal.roofHi;
+        ctx.fillRect(Math.round(w * 0.5 - 5), 46, 10, 6);
+      }
+
+      // Ventana iluminada con marco + detalles de oficio
+      CelSpriteAtlas._inkRoundRect(ctx, 98, 82, 28, 22, 2, pal.win, INK, 2);
+      ctx.fillStyle = pal.timber;
+      ctx.fillRect(111, 82, 3, 22);
+      ctx.fillRect(98, 92, 28, 3);
+
+      if (bType === 'forge') {
+        // Yunque exterior y fragua abierta al frente derecho
+        CelSpriteAtlas._inkRoundRect(ctx, 128, 114, 18, 12, 2, '#334155', INK, 1);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(102, 86, 8, 5);
+      } else if (bType === 'alchemist') {
+        // Soporte de letrero y frasco colgante
+        ctx.fillStyle = pal.timber;
+        ctx.fillRect(72, 76, 16, 3);
+        CelSpriteAtlas._inkEllipse(ctx, 84, 85, 5, 5, pal.accent, INK, 1);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(83, 83, 2, 2);
+      } else {
+        // Musgo/jardinera cálida bajo la ventana
+        CelSpriteAtlas._inkRoundRect(ctx, 96, 103, 32, 6, 1, pal.accent, INK, 1);
+      }
+    }, true);
+  }
+
+  /**
+   * Hornea el tronco anclado a tierra de un árbol por bioma (84x98 px).
+   * @param {string} [biome='cave_exit_intro']
+   * @param {number} [variant=0]
+   * @returns {HTMLCanvasElement}
+   */
+  static getTreeTrunkSprite(biome = 'cave_exit_intro', variant = 0) {
+    const normBiome = (biome === 'marsh_of_spores' || biome === 'ash_caldera' || biome === 'astral_citadel') ? biome : 'cave_exit_intro';
+    const v = variant & 1;
+    return CelSpriteAtlas.getOrBake(`tree_trunk_v4_${normBiome}_${v}`, 84, 98, (ctx, w, h) => {
+      const cx = Math.floor(w * 0.5);
+      const baseY = h - 6;
+      const barkDark = normBiome === 'ash_caldera' ? '#1c1917' : normBiome === 'astral_citadel' ? '#334155' : normBiome === 'marsh_of_spores' ? '#2d1e18' : '#4a2419';
+      const barkMid = normBiome === 'ash_caldera' ? '#44403c' : normBiome === 'astral_citadel' ? '#64748b' : normBiome === 'marsh_of_spores' ? '#5c3a28' : '#783c26';
+      const mossBase = normBiome === 'ash_caldera' ? '#9a3412' : normBiome === 'astral_citadel' ? '#4338ca' : normBiome === 'marsh_of_spores' ? '#0f766e' : '#3b8c32';
+
+      ctx.fillStyle = mossBase;
+      ctx.fillRect(cx - 17, baseY - 3, 34, 5);
+      ctx.fillStyle = INK;
+      ctx.fillRect(cx - 10, 48, 20, baseY - 48);
+      ctx.fillRect(cx - 13, baseY - 12, 26, 11);
+      ctx.fillRect(cx - 16, baseY - 6, 32, 6);
+
+      ctx.fillStyle = barkMid;
+      ctx.fillRect(cx - 9, 49, 18, baseY - 50);
+      ctx.fillRect(cx - 12, baseY - 11, 24, 10);
+      ctx.fillRect(cx - 15, baseY - 5, 30, 4);
+
+      ctx.fillStyle = barkDark;
+      ctx.fillRect(cx + 2, 52, 7, baseY - 53);
+      ctx.fillRect(cx + 5, baseY - 11, 7, 10);
+    }, true);
+  }
+
+  /**
+   * Hornea la copa frondosa de un árbol por bioma para permitir balanceo independiente al tronco (84x98 px).
+   * @param {string} [biome='cave_exit_intro']
+   * @param {number} [variant=0]
+   * @returns {HTMLCanvasElement}
+   */
+  static getTreeCanopySprite(biome = 'cave_exit_intro', variant = 0) {
+    const normBiome = (biome === 'marsh_of_spores' || biome === 'ash_caldera' || biome === 'astral_citadel') ? biome : 'cave_exit_intro';
+    const v = variant & 1;
+    return CelSpriteAtlas.getOrBake(`tree_canopy_v4_${normBiome}_${v}`, 84, 98, (ctx, w) => {
+      const cx = Math.floor(w * 0.5);
+      let shadow = '#163829';
+      let mid = '#3c8d37';
+      let light = '#69be3b';
+      let accent = '#b5e48c';
+
+      if (normBiome === 'cave_exit_intro' && v === 1) {
+        shadow = '#78350f'; mid = '#b45309'; light = '#f59e0b'; accent = '#fef08a';
+      } else if (normBiome === 'marsh_of_spores') {
+        shadow = '#134e4a'; mid = '#0d9488'; light = '#2dd4bf'; accent = v === 1 ? '#e879f9' : '#99f6e4';
+      } else if (normBiome === 'ash_caldera') {
+        shadow = '#450a0a'; mid = '#9a3412'; light = '#ea580c'; accent = '#fde047';
+      } else if (normBiome === 'astral_citadel') {
+        shadow = '#2e1065'; mid = '#6d28d9'; light = '#a855f7'; accent = '#f5d0fe';
+      }
+
+      const paintLobe = (lx, ly, rx, ry, col) => {
+        ctx.fillStyle = col;
+        for (let dy = -ry; dy <= ry; dy++) {
+          const ny = dy / (ry + 0.35);
+          const hw = Math.max(1, Math.round(rx * Math.sqrt(Math.max(0, 1 - ny * ny))));
+          ctx.fillRect(cx + lx - hw, ly + dy, hw * 2, 1);
+        }
+      };
+
+      const lobes = [[-21, 48, 16, 13], [21, 48, 16, 13], [0, 50, 21, 13], [-16, 34, 17, 14], [16, 35, 17, 14], [0, 23, 24, 18]];
+      for (const [lx, ly, rx, ry] of lobes) paintLobe(lx, ly, rx + 1, ry + 1, INK);
+      for (const [lx, ly, rx, ry] of lobes) paintLobe(lx, ly, rx, ry, shadow);
+      for (const [lx, ly, rx, ry] of lobes) paintLobe(lx - 1, ly - 1, Math.max(2, rx - 1), Math.max(2, ry - 2), mid);
+      for (const [lx, ly, rx, ry] of lobes) paintLobe(lx - 1, ly - 4, Math.max(2, Math.round(rx * 0.68)), Math.max(2, Math.round(ry * 0.54)), light);
+
+      ctx.fillStyle = accent;
+      ctx.fillRect(cx - 14, 17, 4, 2);
+      ctx.fillRect(cx - 4, 13, 5, 2);
+      ctx.fillRect(cx + 8, 22, 4, 2);
+      ctx.fillRect(cx - 18, 32, 3, 2);
+    }, true);
+  }
+
+  /**
+   * Hornea un arbusto reactivo adaptado cromáticamente a cada bioma (48x44 px).
+   * @param {string} [biome='cave_exit_intro']
+   * @param {number} [variant=0]
+   * @returns {HTMLCanvasElement}
+   */
+  static getBiomeBushSprite(biome = 'cave_exit_intro', variant = 0) {
+    const normBiome = (biome === 'marsh_of_spores' || biome === 'ash_caldera' || biome === 'astral_citadel') ? biome : 'cave_exit_intro';
+    return CelSpriteAtlas.getOrBake(`bush_v4_${normBiome}_${variant & 1}`, 48, 44, (ctx, w, h) => {
+      const cx = Math.floor(w * 0.5);
+      const cy = Math.floor(h * 0.58);
+      let shadow = '#1e564f';
+      let mid = '#2b9348';
+      let light = '#55a630';
+      let petal = '#fde047';
+      if (normBiome === 'marsh_of_spores') { shadow = '#134e4a'; mid = '#0d9488'; light = '#5eead4'; petal = '#e879f9'; }
+      else if (normBiome === 'ash_caldera') { shadow = '#292524'; mid = '#7c2d12'; light = '#ea580c'; petal = '#fde047'; }
+      else if (normBiome === 'astral_citadel') { shadow = '#1e1b4b'; mid = '#5b21b6'; light = '#c084fc'; petal = '#38bdf8'; }
+
+      const lobes = [[-10, cy - 8, 7, 5], [10, cy - 6, 7, 5], [0, cy - 11, 10, 7], [-5, cy + 2, 12, 8], [10, cy + 3, 8, 7]];
+      const drawLobe = (ox, oy, rx, ry, col) => {
+        ctx.fillStyle = col;
+        for (let dy = -ry; dy <= ry; dy++) {
+          const ny = dy / (ry + 0.3);
+          const hw = Math.max(1, Math.round(rx * Math.sqrt(Math.max(0, 1 - ny * ny))));
+          ctx.fillRect(cx + ox - hw, oy + dy, hw * 2, 1);
+        }
+      };
+      for (const [ox, oy, rx, ry] of lobes) drawLobe(ox, oy, rx + 1, ry + 1, INK);
+      for (const [ox, oy, rx, ry] of lobes) drawLobe(ox, oy, rx, ry, shadow);
+      for (const [ox, oy, rx, ry] of lobes) drawLobe(ox - 1, oy - 1, Math.max(2, rx - 1), Math.max(2, ry - 2), mid);
+      for (const [ox, oy, rx, ry] of lobes) drawLobe(ox - 1, oy - 3, Math.max(2, Math.round(rx * 0.65)), Math.max(2, Math.round(ry * 0.5)), light);
+
+      ctx.fillStyle = petal;
+      ctx.fillRect(cx - 10, cy - 8, 3, 3);
+      ctx.fillRect(cx + 6, cy, 3, 3);
+      ctx.fillRect(cx - 2, cy - 3, 2, 2);
+    }, true);
   }
 
   // =========================================================================

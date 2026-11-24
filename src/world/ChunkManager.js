@@ -61,6 +61,16 @@ export class ChunkManager {
     this.progressionManager = null;
     /** @type {string|null} */
     this.currentWorldId = null;
+    /** @type {string} Bioma activo para variantes arquitectónicas y flora */
+    this.currentBiome = 'cave_exit_intro';
+  }
+
+  /**
+   * Asigna el bioma visual activo para variantes regionales de edificios, árboles y arbustos.
+   * @param {string} biome
+   */
+  setCurrentBiome(biome) {
+    this.currentBiome = biome || 'cave_exit_intro';
   }
 
   /**
@@ -169,26 +179,17 @@ export class ChunkManager {
    * a las entidades ya montadas o recién creadas sin duplicar bitmaps en RAM.
    */
   syncFlyweightSprites() {
-    if (!this.resourceManager) return;
-    const treeImg = this.resourceManager.getImage('tree_sprite') || null;
-    const houseImg = this.resourceManager.getImage('house_sprite') || null;
-    const bushImg = this.resourceManager.getImage('bush_sprite') || null;
-
-    if (this.foliageSystem && bushImg) {
-      this.foliageSystem.setGlobalSprite(bushImg);
-    }
     if (!this.entityManager) return;
-
-    if (treeImg) {
-      const trees = this.entityManager.getByTag('tree');
-      for (let i = 0; i < trees.length; i++) {
-        if (typeof trees[i].setSprite === 'function') trees[i].setSprite(treeImg);
+    const trees = this.entityManager.getByTag('tree');
+    for (let i = 0; i < trees.length; i++) {
+      if (typeof trees[i].setSprite === 'function' && !trees[i].biome) {
+        trees[i].setSprite({ biome: this.currentBiome });
       }
     }
-    if (houseImg) {
-      const houses = this.entityManager.getByTag('house');
-      for (let i = 0; i < houses.length; i++) {
-        if (typeof houses[i].setSprite === 'function') houses[i].setSprite(houseImg);
+    const houses = this.entityManager.getByTag('house');
+    for (let i = 0; i < houses.length; i++) {
+      if (typeof houses[i].setSprite === 'function' && !houses[i].biome) {
+        houses[i].setSprite({ biome: this.currentBiome });
       }
     }
   }
@@ -290,16 +291,23 @@ export class ChunkManager {
 
       switch (bp.kind) {
         case 'tree':
-          entity = new Tree(bp.x, bp.y, treeSprite);
+          entity = new Tree(bp.x, bp.y, {
+            biome: this.currentBiome || 'cave_exit_intro',
+            variant: bp.variant
+          });
           break;
 
         case 'house':
-          entity = new House(bp.x, bp.y, houseSprite);
+          entity = new House(bp.x, bp.y, {
+            biome: this.currentBiome || 'cave_exit_intro',
+            buildingType: bp.buildingType || 'cottage',
+            label: bp.label || null
+          });
           break;
 
         case 'foliage':
           if (this.foliageSystem) {
-            entity = this.foliageSystem.addFoliage(bp.x, bp.y, bushSprite);
+            entity = this.foliageSystem.addFoliage(bp.x, bp.y, { biome: this.currentBiome || 'cave_exit_intro' });
             entity._chunkUid = bp.uid;
             entity._chunkKind = 'foliage';
             mounted.push(entity);
@@ -393,6 +401,10 @@ export class ChunkManager {
             continue;
           }
           entity = new Enemy(bp.x, bp.y, bp.element, bp.name, bp.archetype);
+          if (bp.isMiniBoss) {
+            entity.isMiniBoss = true;
+            if (!entity.tags.includes('miniboss')) entity.tags.push('miniboss');
+          }
           if (bp.hasWoodenShield) {
             entity.hasWoodenShield = true;
             entity._initialWoodenShield = true;

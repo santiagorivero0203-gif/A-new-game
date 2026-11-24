@@ -159,6 +159,11 @@ sequenceDiagram
 ### 6.4. Progresión de Inventario y Armas Bloqueadas (`EquipmentManager.js` y `UIManager.js`)
 - El jugador inicia únicamente con `training_sword` y `wooden_shield` desbloqueados; el equipamiento superior figura bloqueado (`BLOQUEADA`) hasta su progreso correspondiente.
 
+### 6.5. Director Cinemático, Ciudades Vivas y Oficios RPG (`CinematicDirector.js`, `ArtisanSystem.js`)
+- **Escala Temporal y Zoom (`Engine.js`, `Camera.js`):** `engine.setTimeScale(scale)` modula la simulación sin congelar el tiempo real (`rawDeltaTime`) usado por transiciones de cámara y overlays. `Camera.zoomBoost` acerca/aleja dinámicamente la vista en pasillos estrechos (`corridorZones`) y remates cinemáticos.
+- **Director In-Engine (`CinematicDirector.js`):** Orquesta el remate **Smash KO** (`triggerSmashKO`: cámara súper lenta `0.05x`, relámpago diagonal, líneas radiales de velocidad, pancarta del golpe final y paneo al sello desbloqueado), presentaciones breves al entrar en arenas de Jefes/Minijefes (`checkArenaIntros`) y tensión atmosférica en desfiladeros (`updateCorridorZones`).
+- **Oficios RPG (`ArtisanSystem.js`):** Gestiona mejoras permanentes de **Herrero** (`forge_edge`, `forge_bulwark`, `forge_temper`) y destilados permanentes o temporales de **Mago Alquimista** (`elixir_vitality`, `elixir_zephyr`, `elixir_ether`, `potion_fury_draught`), persistidos en `be_a_legend_artisan_v1` y conectados con descuentos por Karma.
+
 ### 6.5. Localización Adaptativa de Prompts Móvil (`textFormatter.js`, `UIManager.js`, `NPC.js`, `InteractableProp.js`)
 - Reglas ordenadas de mayor a menor especificidad (frases `"Pulsa [...]"` antes que `[...]`), soporte de `[Shift]` y `[1][2][3]`, badges del canvas adaptados (`USAR · ...` en móvil) y caché O(1) en `UIManager` para no ejecutar RegEx en cada frame.
 

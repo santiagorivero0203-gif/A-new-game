@@ -41,6 +41,8 @@ import { WorldMemoryStore } from './world/WorldMemoryStore.js';
 import { ProgressionManager } from './systems/ProgressionManager.js';
 import { MinimapRenderer } from './ui/MinimapRenderer.js';
 import { ProjectileSystem } from './systems/ProjectileSystem.js';
+import { ArtisanSystem } from './systems/ArtisanSystem.js';
+import { CinematicDirector } from './systems/CinematicDirector.js';
 import { CelSpriteAtlas } from './render/CelSpriteAtlas.js';
 import { PerfOverlay } from './render/PerfOverlay.js';
 import { WORLDS_CATALOG, loadWorldData, releaseWorldData, getCustomWorld } from './data/worlds.js';
@@ -78,6 +80,8 @@ const btnToggleAudio = document.getElementById('btn-toggle-audio');
 const btnToggleTouchHud = document.getElementById('btn-toggle-touch-hud');
 const btnToggleMinimap = document.getElementById('btn-toggle-minimap');
 const btnTouchInteract = document.getElementById('touch-btn-interact');
+const hudInteractPrompt = document.getElementById('hud-interact-prompt');
+const dialogueCardEl = document.getElementById('dialogue-card');
 const pressEnterMsg = document.getElementById('press-enter-msg');
 const stSystemEyebrow = document.getElementById('st-system-eyebrow');
 const stSystemHeading = document.getElementById('st-system-heading');
@@ -106,6 +110,9 @@ const tutorialStepDots = document.getElementById('tutorial-step-dots');
 const btnTutorialNext = document.getElementById('btn-tutorial-next');
 const btnTutorialSkipAll = document.getElementById('btn-tutorial-skip-all');
 const btnReplayTutorial = document.getElementById('btn-replay-tutorial');
+const artisanShopModalEl = document.getElementById('artisan-shop-modal');
+const btnCloseArtisan = document.getElementById('btn-close-artisan');
+const btnCloseArtisanX = document.getElementById('btn-close-artisan-x');
 
 // 1. Instanciación de Sistemas Centrales
 const resourceManager = new ResourceManager();
@@ -118,6 +125,8 @@ const physicsSystem = new PhysicsSystem(entityManager);
 const interactionSystem = new InteractionSystem(entityManager, inputManager, stateManager);
 const equipmentManager = new EquipmentManager();
 const progressionManager = new ProgressionManager(stateManager);
+const artisanSystem = new ArtisanSystem(progressionManager);
+const cinematicDirector = new CinematicDirector();
 const combatManager = new CombatManager(equipmentManager);
 const skillTreeManager = new SkillTreeManager(stateManager, progressionManager);
 const waveManager = new WaveManager(entityManager, stateManager);
@@ -137,7 +146,9 @@ const tutorialGuideState = {
   completedSteps: new Set(),
   skippedAll: false,
   spotlightIds: [],
-  spotlightHostEls: []
+  spotlightHostEls: [],
+  openedAtMs: 0,
+  lastClosedAtMs: -Infinity
 };
 
 function _loadTutorialProgress() {
@@ -293,6 +304,7 @@ function _openTutorialStep(stepKey) {
 
   tutorialGuideState.active = true;
   tutorialGuideState.currentStepKey = stepKey;
+  tutorialGuideState.openedAtMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
   if (typeof document !== 'undefined' && document.body) {
     document.body.classList.add('tutorial-active');
   }
@@ -317,7 +329,10 @@ function _openTutorialStep(stepKey) {
 
   if (tutorialStepBadge) tutorialStepBadge.textContent = badge;
   if (tutorialGuideTitle) tutorialGuideTitle.textContent = title;
-  if (tutorialGuideBody) tutorialGuideBody.innerHTML = bodyHtml;
+  if (tutorialGuideBody) {
+    tutorialGuideBody.innerHTML = bodyHtml;
+    tutorialGuideBody.scrollTop = 0;
+  }
   if (tutorialStepDots) {
     let dotsHtml = '';
     for (let d = 1; d <= 3; d++) {
@@ -330,18 +345,22 @@ function _openTutorialStep(stepKey) {
     audioManager.playRunicResonance();
   }
   if (engine) {
-    engine.renderOnce();
     engine.pause(true);
   }
 }
 
 function _closeTutorialStep(resumeGame = true) {
   if (!tutorialGuideOverlay) return;
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (!tutorialGuideState.active && now - tutorialGuideState.lastClosedAtMs < 260) {
+    return;
+  }
   if (tutorialGuideState.currentStepKey) {
     tutorialGuideState.completedSteps.add(tutorialGuideState.currentStepKey);
   }
   tutorialGuideState.active = false;
   tutorialGuideState.currentStepKey = null;
+  tutorialGuideState.lastClosedAtMs = now;
   if (typeof document !== 'undefined' && document.body) {
     document.body.classList.remove('tutorial-active');
   }
@@ -350,6 +369,12 @@ function _closeTutorialStep(resumeGame = true) {
   }
   _clearTutorialSpotlights();
   tutorialGuideOverlay.classList.add('hidden');
+  if (btnTutorialNext && typeof btnTutorialNext.blur === 'function') {
+    btnTutorialNext.blur();
+  }
+  if (btnTutorialSkipAll && typeof btnTutorialSkipAll.blur === 'function') {
+    btnTutorialSkipAll.blur();
+  }
   _saveTutorialProgress();
   if (resumeGame && engine && stateManager.get('game_state') === 'STATE_PLAYING') {
     engine.resume();
@@ -363,8 +388,16 @@ function _closeTutorialStep(resumeGame = true) {
  * @param {number} px
  * @param {number} py
  */
+let _compassObjectiveX = null;
+let _compassObjectiveY = null;
+let _compassObjectiveColor = '#fde047';
+
 function _updateCompassBearing(px, py) {
-  if (!currentLevelData || !player) return;
+  if (!currentLevelData || !player) {
+    _compassObjectiveX = null;
+    _compassObjectiveY = null;
+    return;
+  }
   let tx = null;
   let ty = null;
   let targetKind = 'story';
@@ -503,7 +536,11 @@ function _updateCompassBearing(px, py) {
     }
   }
 
-  if (tx === null || ty === null) return;
+  if (tx === null || ty === null) {
+    _compassObjectiveX = null;
+    _compassObjectiveY = null;
+    return;
+  }
 
   const dx = tx - px;
   const dy = ty - py;
@@ -527,6 +564,10 @@ function _updateCompassBearing(px, py) {
     : targetKind === 'boss'
       ? '#fb7185'
       : '#fde047';
+
+  _compassObjectiveX = tx;
+  _compassObjectiveY = ty;
+  _compassObjectiveColor = accentColor;
 
   stateManager.set('compass_bearing_pct', bearingPct);
   stateManager.set('compass_dir_symbol', dirSym);
@@ -569,15 +610,34 @@ function _saveUiPrefs() {
 }
 
 /**
- * Sincroniza el estado del botón de Minimapa en Ajustes (Menú Principal e In-Game).
+ * Activa un breve destello animado sobre la tarjeta de ajuste modificada para acompañar la acción.
+ * @private
+ */
+function _pulseSettingCard(btnEl) {
+  if (!btnEl || typeof btnEl.closest !== 'function') return;
+  const card = btnEl.closest('.st-setting-card');
+  if (!card) return;
+  card.classList.remove('card-just-toggled');
+  void card.offsetWidth;
+  card.classList.add('card-just-toggled');
+  setTimeout(() => {
+    card.classList.remove('card-just-toggled');
+  }, 340);
+}
+
+/**
+ * Sincroniza el estado visual del interruptor animado de Minimapa en Ajustes.
  * @private
  */
 function syncMinimapBtnLabel() {
   if (!btnToggleMinimap) return;
   const visible = !minimapRenderer.collapsed;
-  btnToggleMinimap.textContent = visible ? 'VISIBLE' : 'PLEGADO';
-  btnToggleMinimap.classList.toggle('primary', visible);
-  btnToggleMinimap.classList.toggle('secondary', !visible);
+  const txtEl = btnToggleMinimap.querySelector('.st-switch-state-text');
+  if (txtEl) txtEl.textContent = visible ? 'VISIBLE' : 'PLEGADO';
+  else btnToggleMinimap.textContent = visible ? 'VISIBLE' : 'PLEGADO';
+  btnToggleMinimap.classList.toggle('is-on', visible);
+  btnToggleMinimap.classList.toggle('is-off', !visible);
+  btnToggleMinimap.setAttribute('aria-checked', visible ? 'true' : 'false');
 }
 syncMinimapBtnLabel();
 
@@ -594,18 +654,23 @@ if (hudMinimapWrap) {
  */
 function _fillMinimapMarkers() {
   _minimapMarkers.length = 0;
-  const push = (x, y, kind) => {
+  const push = (x, y, kind, color = '') => {
     const idx = _minimapMarkers.length;
     let slot = _minimapMarkerPool[idx];
     if (!slot) {
-      slot = { x: 0, y: 0, kind: '' };
+      slot = { x: 0, y: 0, kind: '', color: '' };
       _minimapMarkerPool[idx] = slot;
     }
     slot.x = x;
     slot.y = y;
     slot.kind = kind;
+    slot.color = color;
     _minimapMarkers.push(slot);
   };
+
+  if (_compassObjectiveX !== null && _compassObjectiveY !== null) {
+    push(_compassObjectiveX, _compassObjectiveY, 'objective', _compassObjectiveColor);
+  }
 
   const props = entityManager.getByTag('prop');
   for (let i = 0; i < props.length; i++) {
@@ -951,6 +1016,7 @@ async function loadWorld(worldKey, options = {}) {
     worldPowerRevealState.orb = null;
     vfxRenderer.setIntroOrbs([]);
     camera.cinematicTarget = null;
+    cinematicDirector.reset({ engine, camera, player });
     if (prevWorldKey && prevWorldKey !== worldKey) {
       releaseWorldData(prevWorldKey);
     }
@@ -1238,11 +1304,14 @@ const _gameContext = {
   equipmentManager,
   progressionManager,
   skillTreeManager,
+  artisanSystem,
+  cinematicDirector,
   waveManager,
   stealthSystem,
   audioManager,
   vfxRenderer,
   uiManager,
+  openArtisanShop: (npc) => openArtisanShop(npc),
   engine: null,
   tilemap: null,
   surfaceSlideFactor: 1.0,
@@ -1297,13 +1366,16 @@ function buildGameContext(deltaTime = 0.016) {
 let simClockSec = 0;
 let _lastUpdateMs = 0;
 let _relicGuideSparkAccum = 0;
+let _lastSkillCheckEssence = -1;
+let _lastSkillCheckTotalRanks = -1;
+let _lastSwordTintCheck = null;
 
 // 6. Ciclo de Actualización (Update)
-function update(deltaTime) {
+function update(deltaTime, rawDeltaTime = deltaTime) {
   const _tUpdStart = window.DEBUG_MODE ? performance.now() : 0;
   const gameState = stateManager.get('game_state');
   if (gameState === 'STATE_CINEMATIC') {
-    cinematicManager.update(deltaTime);
+    cinematicManager.update(rawDeltaTime);
     // Evitar refrescos rAF constantes mientras el usuario lee el cuadro ya escrito
     if (!cinematicManager.isTyping && !cinematicManager._transitionPending) {
       engine.pause(false);
@@ -1316,11 +1388,26 @@ function update(deltaTime) {
 
   inputManager.update();
   simClockSec += deltaTime;
+  artisanSystem.updateBuffs(deltaTime);
+
+  const curEssence = skillTreeManager.getEssence();
+  const curRanks = skillTreeManager.getTotalAllocatedRanks();
+  if (curEssence !== _lastSkillCheckEssence || curRanks !== _lastSkillCheckTotalRanks) {
+    _lastSkillCheckEssence = curEssence;
+    _lastSkillCheckTotalRanks = curRanks;
+    stateManager.set('can_upgrade_skill', skillTreeManager.hasAffordableSkill());
+  }
+  const swordTint = player.hasSword ? (player.activeSwordTint || '') : '';
+  if (swordTint !== _lastSwordTintCheck) {
+    _lastSwordTintCheck = swordTint;
+    stateManager.set('sword_enchant_color', swordTint);
+  }
 
   // Cálculos únicos reciclados por Jugador, Sigilo, Chunks y Proyectiles
   _playerCenterCache.x = Math.round(player.pos.x) + player.width * 0.5;
   _playerCenterCache.y = Math.round(player.pos.y) + player.height * 0.5;
   const gameContext = buildGameContext(deltaTime);
+  cinematicDirector.update(rawDeltaTime, gameContext);
   if (tilemap) {
     const ts = tilemap.tileSize || 32;
     const pTileId = tilemap.getTile(
@@ -1337,8 +1424,8 @@ function update(deltaTime) {
     stealthSystem.setPlayerLightLevel(samplePlayerLightFactor(_playerCenterCache.x, _playerCenterCache.y));
   }
 
-  // Sincronización reactiva de Vitalidad máxima con rangos de 'max_health_up' sin emitir si no cambió
-  const targetMaxHp = 3 + skillTreeManager.getSkillRank('max_health_up');
+  // Sincronización reactiva de Vitalidad máxima con rangos de 'max_health_up' + Tónico Artesano sin emitir si no cambió
+  const targetMaxHp = 3 + skillTreeManager.getSkillRank('max_health_up') + artisanSystem.getMaxHealthBonus();
   if (player.max_health !== targetMaxHp) {
     const gain = targetMaxHp - player.max_health;
     player.max_health = targetMaxHp;
@@ -1364,9 +1451,20 @@ function update(deltaTime) {
   entityManager.update(gameContext);
   waveManager.update(gameContext);
   interactionSystem.update(deltaTime, gameContext);
-  updateTeleportTransition(deltaTime);
-  updateCaveOrbIntroSequence(deltaTime);
-  updateWorldPowerRevealSequence(deltaTime);
+
+  if (
+    !tutorialGuideState.active &&
+    !introSequenceState.active &&
+    !worldPowerRevealState.active &&
+    !teleportState.active
+  ) {
+    cinematicDirector.updateCorridorZones(player, currentLevelData?.corridorZones, camera, rawDeltaTime);
+    cinematicDirector.checkArenaIntros(player, entityManager.getByTag('enemy'), gameContext);
+  }
+
+  updateTeleportTransition(rawDeltaTime);
+  updateCaveOrbIntroSequence(rawDeltaTime);
+  updateWorldPowerRevealSequence(rawDeltaTime);
   _updateCompassBearing(_playerCenterCache.x, _playerCenterCache.y);
 
   // Evaluar pausas del Tutorial Guiado durante el tramo inicial del Mundo 1
@@ -1523,6 +1621,7 @@ function render(deltaTime) {
   const _tRndStart = window.DEBUG_MODE ? performance.now() : 0;
   renderer.begin(camera);
   tilemap.render(renderer.ctx, camera);
+  tilemap.renderFluidAnimations(renderer.ctx, camera, simClockSec);
 
   const visibleBounds = camera.getVisibleWorldBounds(128);
   const visibleEntities = entityManager.getVisibleEntities(visibleBounds);
@@ -1537,6 +1636,7 @@ function render(deltaTime) {
   lightManager.update(deltaTime);
   lightManager.render(camera);
   lightManager.compositeTo(renderer.ctx, mainCanvas.width, mainCanvas.height);
+  cinematicDirector.renderScreenOverlay(renderer.ctx, mainCanvas.width, mainCanvas.height);
 
   if (gameState === 'STATE_PLAYING') {
     if (minimapRenderer.shouldUpdate(deltaTime)) {
@@ -2089,6 +2189,9 @@ function openSanctuary(initialTab = 'skills') {
       if (mainMenuEl) mainMenuEl.classList.add('hidden');
     }
     sanctuaryModalEl.classList.remove('hidden');
+    sanctuaryModalEl.classList.remove('sanctuary-opening');
+    void sanctuaryModalEl.offsetWidth;
+    sanctuaryModalEl.classList.add('sanctuary-opening');
   }
 
   const isMenuOrigin = sanctuaryOriginState === 'STATE_MENU';
@@ -2114,10 +2217,19 @@ function openSanctuary(initialTab = 'skills') {
   if (btnClearSaveData) {
     const hasProgress = progressionManager.getWorldTier() > 0
       || progressionManager.completedWorlds.size > 0
-      || progressionManager.karmaEvents.size > 0;
+      || progressionManager.karmaEvents.size > 0
+      || skillTreeManager.getTotalAllocatedRanks() > 0
+      || skillTreeManager.getEssence() > 0
+      || Object.keys(artisanSystem.ranks).length > 0;
     btnClearSaveData.disabled = !hasProgress;
+    btnClearSaveData.classList.remove('confirm-armed');
     const span = btnClearSaveData.querySelector('span');
     if (span) span.textContent = hasProgress ? 'BORRAR PROGRESO GUARDADO' : 'SIN DATOS GUARDADOS';
+  }
+  if (btnResetCampaign) {
+    btnResetCampaign.classList.remove('confirm-armed');
+    const rSpan = btnResetCampaign.querySelector('span');
+    if (rSpan) rSpan.textContent = 'REINICIAR CAMPAÑA';
   }
   syncMinimapBtnLabel();
 
@@ -2161,6 +2273,45 @@ function toggleSanctuaryTab(tabName) {
 stateManager.set('open_sanctuary_hook', (tab = 'skills') => {
   openSanctuary(tab);
 });
+
+function isArtisanShopOpen() {
+  return !!(artisanShopModalEl && !artisanShopModalEl.classList.contains('hidden'));
+}
+
+function openArtisanShop(npc) {
+  if (!artisanShopModalEl || !npc || tutorialGuideState.active) return;
+  const current = stateManager.get('game_state');
+  if (current === 'STATE_CINEMATIC' || current === 'STATE_MENU') return;
+  if (isSanctuaryOpen()) return;
+
+  if (current === 'STATE_PLAYING') {
+    stateManager.set('game_state', 'STATE_PAUSED');
+    uiManager.setGameState('STATE_PAUSED');
+    engine.pause(true);
+  }
+  artisanShopModalEl.classList.remove('hidden');
+  uiManager.renderArtisanShop(npc, artisanSystem, skillTreeManager, {
+    player,
+    stateManager,
+    audioManager
+  });
+}
+
+function closeArtisanShop() {
+  if (!isArtisanShopOpen()) return;
+  artisanShopModalEl.classList.add('hidden');
+  stateManager.set('game_state', 'STATE_PLAYING');
+  uiManager.setGameState('STATE_PLAYING');
+  engine.resume();
+}
+
+addTouchClick(btnCloseArtisan, () => closeArtisanShop());
+addTouchClick(btnCloseArtisanX, () => closeArtisanShop());
+if (artisanShopModalEl) {
+  artisanShopModalEl.addEventListener('click', (e) => {
+    if (e.target === artisanShopModalEl) closeArtisanShop();
+  });
+}
 
 // Enlazar botones de navegación del Santuario y HUD
 const hudRelicBadge = document.getElementById('hud-relic-badge');
@@ -2215,9 +2366,30 @@ addTouchClick(btnToMainMenu, () => {
   engine.pause(false);
 });
 
+let _resetConfirmTimeout = null;
 addTouchClick(btnResetCampaign, async () => {
+  if (!btnResetCampaign.classList.contains('confirm-armed')) {
+    btnResetCampaign.classList.add('confirm-armed');
+    const span = btnResetCampaign.querySelector('span');
+    if (span) span.textContent = '¿CONFIRMAR REINICIO?';
+    clearTimeout(_resetConfirmTimeout);
+    _resetConfirmTimeout = setTimeout(() => {
+      if (btnResetCampaign) {
+        btnResetCampaign.classList.remove('confirm-armed');
+        const s = btnResetCampaign.querySelector('span');
+        if (s) s.textContent = 'REINICIAR CAMPAÑA';
+      }
+    }, 3200);
+    return;
+  }
+  clearTimeout(_resetConfirmTimeout);
+  btnResetCampaign.classList.remove('confirm-armed');
+  const rSpan = btnResetCampaign.querySelector('span');
+  if (rSpan) rSpan.textContent = 'REINICIAR CAMPAÑA';
+
   progressionManager.resetCampaign();
   skillTreeManager.resetCampaign();
+  artisanSystem.resetCampaign();
   equipmentManager.reset();
   worldMemoryStore.clear();
   _resetTutorialProgress();
@@ -2240,9 +2412,28 @@ addTouchClick(btnResetCampaign, async () => {
 
 addTouchClick(btnMenuBack, () => closeSanctuary());
 
+let _clearConfirmTimeout = null;
 addTouchClick(btnClearSaveData, () => {
+  if (!btnClearSaveData.classList.contains('confirm-armed')) {
+    btnClearSaveData.classList.add('confirm-armed');
+    const span = btnClearSaveData.querySelector('span');
+    if (span) span.textContent = '¿CONFIRMAR BORRADO?';
+    clearTimeout(_clearConfirmTimeout);
+    _clearConfirmTimeout = setTimeout(() => {
+      if (btnClearSaveData && !btnClearSaveData.disabled) {
+        btnClearSaveData.classList.remove('confirm-armed');
+        const s = btnClearSaveData.querySelector('span');
+        if (s) s.textContent = 'BORRAR PROGRESO GUARDADO';
+      }
+    }, 3200);
+    return;
+  }
+  clearTimeout(_clearConfirmTimeout);
+  btnClearSaveData.classList.remove('confirm-armed');
+
   progressionManager.resetCampaign();
   skillTreeManager.resetCampaign();
+  artisanSystem.resetCampaign();
   equipmentManager.reset();
   worldMemoryStore.clear();
   _resetTutorialProgress();
@@ -2258,6 +2449,10 @@ addTouchClick(btnToggleMinimap, () => {
   minimapRenderer.toggleCollapsed();
   _saveUiPrefs();
   syncMinimapBtnLabel();
+  _pulseSettingCard(btnToggleMinimap);
+  if (audioManager && typeof audioManager.playRunicResonance === 'function') {
+    audioManager.playRunicResonance();
+  }
 });
 
 // 11.B Integración de la Forja de Niveles (Carga Perezosa e Inyección Bajo Demanda)
@@ -2323,7 +2518,7 @@ if (btnEditorReturn) {
   });
 }
 
-// Botón táctil móvil para interactuar con Pedestales, NPCs y Altares
+// Botón táctil móvil y aviso contextual en mundo para interactuar con Pedestales, NPCs y Altares
 if (btnTouchInteract) {
   addTouchClick(btnTouchInteract, () => {
     if (stateManager.get('game_state') === 'STATE_PLAYING') {
@@ -2332,32 +2527,61 @@ if (btnTouchInteract) {
   });
 }
 
-// 12. Controles de Audio SFX y Visibilidad del Gamepad Táctil
+if (hudInteractPrompt) {
+  addTouchClick(hudInteractPrompt, () => {
+    if (stateManager.get('game_state') === 'STATE_PLAYING') {
+      interactionSystem.tryInteract(buildGameContext(0.016));
+    }
+  });
+}
+
+if (dialogueCardEl) {
+  addTouchClick(dialogueCardEl, () => {
+    if (stateManager.get('active_dialogue')) {
+      stateManager.set('active_dialogue', null);
+    }
+  });
+}
+
+// 12. Controles de Audio SFX y Visibilidad del Gamepad Táctil (Interruptores animados)
 function syncAudioBtnLabel() {
   if (!btnToggleAudio) return;
-  btnToggleAudio.textContent = audioManager.muted ? 'SILENCIADO' : 'ACTIVO';
-  btnToggleAudio.classList.toggle('primary', !audioManager.muted);
-  btnToggleAudio.classList.toggle('secondary', audioManager.muted);
+  const active = !audioManager.muted;
+  const txtEl = btnToggleAudio.querySelector('.st-switch-state-text');
+  if (txtEl) txtEl.textContent = active ? 'ACTIVO' : 'SILENCIADO';
+  else btnToggleAudio.textContent = active ? 'ACTIVO' : 'SILENCIADO';
+  btnToggleAudio.classList.toggle('is-on', active);
+  btnToggleAudio.classList.toggle('is-off', !active);
+  btnToggleAudio.setAttribute('aria-checked', active ? 'true' : 'false');
 }
 syncAudioBtnLabel();
 
 addTouchClick(btnToggleAudio, () => {
   audioManager.toggleMute();
   syncAudioBtnLabel();
+  _pulseSettingCard(btnToggleAudio);
   if (!audioManager.muted) audioManager.playHeal();
 });
 
 function syncTouchHudBtnLabel() {
   if (!btnToggleTouchHud) return;
-  btnToggleTouchHud.textContent = inputManager.forceTouchControls ? 'VISIBLE (FORZADO)' : 'AUTOMÁTICO';
-  btnToggleTouchHud.classList.toggle('primary', inputManager.forceTouchControls);
-  btnToggleTouchHud.classList.toggle('secondary', !inputManager.forceTouchControls);
+  const forced = Boolean(inputManager.forceTouchControls);
+  const txtEl = btnToggleTouchHud.querySelector('.st-switch-state-text');
+  if (txtEl) txtEl.textContent = forced ? 'VISIBLE' : 'AUTO';
+  else btnToggleTouchHud.textContent = forced ? 'VISIBLE (FORZADO)' : 'AUTOMÁTICO';
+  btnToggleTouchHud.classList.toggle('is-on', forced);
+  btnToggleTouchHud.classList.toggle('is-off', !forced);
+  btnToggleTouchHud.setAttribute('aria-checked', forced ? 'true' : 'false');
 }
 syncTouchHudBtnLabel();
 
 addTouchClick(btnToggleTouchHud, () => {
   inputManager.toggleTouchControls();
   syncTouchHudBtnLabel();
+  _pulseSettingCard(btnToggleTouchHud);
+  if (audioManager && typeof audioManager.playRunicResonance === 'function') {
+    audioManager.playRunicResonance();
+  }
 });
 
 if (btnReplayTutorial) {
@@ -2384,6 +2608,10 @@ inputManager.onTalents(() => {
 
 inputManager.onPause(() => {
   if (tutorialGuideState.active || stateManager.get('game_state') === 'STATE_CINEMATIC') return;
+  if (isArtisanShopOpen()) {
+    closeArtisanShop();
+    return;
+  }
   if (isSanctuaryOpen()) {
     closeSanctuary();
     return;
@@ -2469,11 +2697,13 @@ inputManager.onSkillEquipped((newPower) => {
   }
 });
 
-addTouchClick(btnTutorialNext, () => {
+addTouchClick(btnTutorialNext, (e) => {
+  if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
   _closeTutorialStep(true);
 });
 
-addTouchClick(btnTutorialSkipAll, () => {
+addTouchClick(btnTutorialSkipAll, (e) => {
+  if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
   tutorialGuideState.skippedAll = true;
   tutorialGuideState.completedSteps.add('step_1_hud');
   tutorialGuideState.completedSteps.add('step_2_combat');
@@ -2481,9 +2711,81 @@ addTouchClick(btnTutorialSkipAll, () => {
   _closeTutorialStep(true);
 });
 
+// Permitir avanzar también al presionar en el fondo del tutorial o mediante toque corto sobre la tablilla (sin bloquear scroll)
+if (tutorialGuideOverlay) {
+  let hasTutTouchStart = false;
+  let tutTouchStartX = 0;
+  let tutTouchStartY = 0;
+  let tutBodyStartScroll = 0;
+
+  tutorialGuideOverlay.addEventListener('touchstart', (e) => {
+    if (!tutorialGuideState.active) {
+      hasTutTouchStart = false;
+      return;
+    }
+    const t = e.touches && e.touches[0];
+    if (t) {
+      hasTutTouchStart = true;
+      tutTouchStartX = t.clientX;
+      tutTouchStartY = t.clientY;
+    }
+    tutBodyStartScroll = tutorialGuideBody ? tutorialGuideBody.scrollTop : 0;
+  }, { passive: true });
+
+  tutorialGuideOverlay.addEventListener('touchend', (e) => {
+    if (!tutorialGuideState.active) {
+      hasTutTouchStart = false;
+      return;
+    }
+    if (e.target && typeof e.target.closest === 'function' && e.target.closest('#btn-tutorial-skip-all, #btn-tutorial-next')) {
+      hasTutTouchStart = false;
+      return;
+    }
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - tutorialGuideState.openedAtMs < 180) {
+      hasTutTouchStart = false;
+      return;
+    }
+    const t = e.changedTouches && e.changedTouches[0];
+    if (hasTutTouchStart && t && Math.hypot(t.clientX - tutTouchStartX, t.clientY - tutTouchStartY) > 16) {
+      hasTutTouchStart = false;
+      return;
+    }
+    if (hasTutTouchStart && tutorialGuideBody && Math.abs(tutorialGuideBody.scrollTop - tutBodyStartScroll) > 6) {
+      hasTutTouchStart = false;
+      return;
+    }
+    hasTutTouchStart = false;
+    if (e.cancelable) e.preventDefault();
+    e.stopPropagation();
+    _closeTutorialStep(true);
+  }, { passive: false });
+
+  tutorialGuideOverlay.addEventListener('click', (e) => {
+    if (!tutorialGuideState.active) return;
+    if (e.target && typeof e.target.closest === 'function' && e.target.closest('#btn-tutorial-skip-all, #btn-tutorial-next')) {
+      return;
+    }
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - tutorialGuideState.openedAtMs < 180) return;
+    if (now - tutorialGuideState.lastClosedAtMs < 260) return;
+    e.stopPropagation();
+    _closeTutorialStep(true);
+  });
+}
+
+if (tutorialScrimEl) {
+  addTouchClick(tutorialScrimEl, () => {
+    if (!tutorialGuideState.active) return;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - tutorialGuideState.openedAtMs < 180) return;
+    _closeTutorialStep(true);
+  });
+}
+
 window.addEventListener('keydown', (e) => {
   if (tutorialGuideState.active) {
-    if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+    if (!e.repeat && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) {
       e.preventDefault();
       _closeTutorialStep(true);
     }

@@ -1,24 +1,28 @@
 import { Entity } from '../entities/Entity.js';
+import { CelSpriteAtlas } from '../render/CelSpriteAtlas.js';
 
 /**
  * @module Foliage
- * @description Entidad de vegetación interactiva (arbusto o mata de flores) con físicas elásticas.
- * Posee balanceo armónico continuo por el viento ambiental y reacciona doblándose elásticamente
- * con un sistema de resorte-amortiguador (Damped Spring) cuando el jugador pasa sobre ella.
- * Se integra al Y-Sorting del EntityManager utilizando la raíz en el suelo como pivote.
+ * @description Entidad de vegetación interactiva (arbusto o mata de flores) con físicas elásticas
+ * y brisa suave ambiental adaptada a cada bioma.
  * @author Be a Legend Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 export class FoliageProp extends Entity {
   /**
    * @param {number} x - Coordenada X
    * @param {number} y - Coordenada Y
-   * @param {HTMLImageElement|HTMLCanvasElement} [sprite] - Textura del arbusto
+   * @param {HTMLImageElement|HTMLCanvasElement|Object|null} [spriteOrConfig=null]
    */
-  constructor(x, y, sprite = null) {
+  constructor(x, y, spriteOrConfig = null) {
     // Dimensiones visuales del arbusto: 48x44 px
     super(x, y, 48, 44);
-    this.sprite = sprite;
+    const isCfg = spriteOrConfig && typeof spriteOrConfig === 'object'
+      && typeof spriteOrConfig.getContext !== 'function'
+      && !('naturalWidth' in spriteOrConfig);
+    this.sprite = isCfg ? (spriteOrConfig.sprite || null) : spriteOrConfig;
+    this.biome = isCfg ? (spriteOrConfig.biome || 'cave_exit_intro') : 'cave_exit_intro';
+    this.variant = (Math.abs(Math.round(x / 32) + Math.round(y / 32)) & 1);
 
     this.tags.push('foliage');
     this.tags.push('prop');
@@ -111,10 +115,13 @@ export class FoliageProp extends Entity {
   draw(ctx) {
     const x = Math.round(this.pos.x);
     const y = Math.round(this.pos.y);
-    const shiftX = Math.round(this.angle * 10);
+    const t = (typeof performance !== 'undefined' ? performance.now() : 0) * 0.001 + this.windPhase;
+    const windShift = Math.round(Math.sin(t * 2.15) * 1.15);
+    const shiftX = Math.round(this.angle * 10) + windShift;
 
-    if (this.sprite) {
-      ctx.drawImage(this.sprite, x + shiftX, y, this.width, this.height);
+    const img = this.sprite || CelSpriteAtlas.getBiomeBushSprite(this.biome, this.variant);
+    if (img) {
+      ctx.drawImage(img, x + shiftX, y, this.width, this.height);
       return;
     }
 

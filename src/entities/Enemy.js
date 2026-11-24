@@ -82,6 +82,114 @@ export const ENEMY_ARCHETYPES = {
     postureDamage: 26,
     essenceReward: 6
   },
+  stalker_ambusher: {
+    maxHealth: 85,
+    speed: 124,
+    aggroRange: 162,
+    attackRange: 96,
+    telegraphTime: 0.36,
+    attackDuration: 0.22,
+    cooldownTime: 1.25,
+    lungeSpeed: 345,
+    postureDamage: 26,
+    essenceReward: 4
+  },
+  spore_alchemist: {
+    maxHealth: 90,
+    speed: 88,
+    aggroRange: 170,
+    preferredMinDist: 92,
+    attackRange: 175,
+    telegraphTime: 0.44,
+    attackDuration: 0.20,
+    cooldownTime: 1.65,
+    projectileSpeed: 230,
+    projectileAltitude: 'high',
+    postureDamage: 24,
+    essenceReward: 4
+  },
+  pyro_smith: {
+    maxHealth: 145,
+    speed: 72,
+    aggroRange: 145,
+    attackRange: 74,
+    telegraphTime: 0.54,
+    attackDuration: 0.26,
+    cooldownTime: 1.65,
+    lungeSpeed: 220,
+    postureDamage: 46,
+    hasMetalArmor: true,
+    essenceReward: 6
+  },
+  void_blinker: {
+    maxHealth: 125,
+    speed: 112,
+    aggroRange: 175,
+    attackRange: 122,
+    telegraphTime: 0.38,
+    attackDuration: 0.22,
+    cooldownTime: 1.35,
+    lungeSpeed: 380,
+    postureDamage: 34,
+    essenceReward: 7
+  },
+  miniboss_stag: {
+    maxHealth: 210,
+    speed: 94,
+    aggroRange: 195,
+    attackRange: 92,
+    telegraphTime: 0.46,
+    attackDuration: 0.26,
+    cooldownTime: 1.35,
+    lungeSpeed: 310,
+    postureDamage: 42,
+    isMiniBoss: true,
+    essenceReward: 16
+  },
+  miniboss_weaver: {
+    maxHealth: 255,
+    speed: 92,
+    aggroRange: 210,
+    preferredMinDist: 88,
+    attackRange: 190,
+    telegraphTime: 0.46,
+    attackDuration: 0.22,
+    cooldownTime: 1.45,
+    projectileSpeed: 240,
+    projectileAltitude: 'high',
+    postureDamage: 36,
+    isMiniBoss: true,
+    essenceReward: 20
+  },
+  miniboss_warden: {
+    maxHealth: 310,
+    speed: 80,
+    aggroRange: 205,
+    attackRange: 84,
+    telegraphTime: 0.52,
+    attackDuration: 0.28,
+    cooldownTime: 1.40,
+    lungeSpeed: 255,
+    postureDamage: 50,
+    hasMetalArmor: true,
+    isMiniBoss: true,
+    essenceReward: 26
+  },
+  miniboss_reaver: {
+    maxHealth: 360,
+    speed: 116,
+    aggroRange: 220,
+    attackRange: 145,
+    telegraphTime: 0.40,
+    attackDuration: 0.22,
+    cooldownTime: 1.25,
+    lungeSpeed: 375,
+    projectileSpeed: 250,
+    projectileAltitude: 'high',
+    postureDamage: 42,
+    isMiniBoss: true,
+    essenceReward: 32
+  },
   boss_bramble: {
     maxHealth: 340,
     speed: 78,
@@ -172,7 +280,7 @@ export class Enemy extends Entity {
     }
     const resolvedArchetype = ENEMY_ARCHETYPES[archetype] ? archetype : 'slime';
     const cfg = ENEMY_ARCHETYPES[resolvedArchetype];
-    const size = cfg.isBoss ? 44 : 32;
+    const size = cfg.isBoss ? 44 : (cfg.isMiniBoss ? 38 : 32);
 
     super(x, y, size, size);
     this.elementalAffinity = elementalAffinity;
@@ -180,6 +288,7 @@ export class Enemy extends Entity {
     this.archetype = resolvedArchetype;
     this.config = cfg;
     this.isBoss = Boolean(cfg.isBoss);
+    this.isMiniBoss = Boolean(cfg.isMiniBoss);
     this.phase = 1;
     this.bossId = null;
     this.linkId = null;
@@ -194,6 +303,8 @@ export class Enemy extends Entity {
     this.tags.push(`elem_${elementalAffinity}`);
     if (this.isBoss) {
       this.tags.push('boss');
+    } else if (this.isMiniBoss) {
+      this.tags.push('miniboss');
     }
 
     /** @type {boolean} Escudo pesado de roble (destructible permanentemente con Fuego) */
@@ -246,18 +357,29 @@ export class Enemy extends Entity {
     /** @type {number} Distancia cuadrada al jugador cacheadas del frame actual para evitar recalcular en main/HUD */
     this._lastPlayerDistSq = Infinity;
 
-    // --- Animación Procedural Viva y Reloj de Escáner ---
+    // --- Animación Procedural Viva, KO Launch y Habilidades Regionales ---
     this.animClock = 0;
+    this._walkPhase = Math.random() * Math.PI * 2;
     this.bobPhase = Math.random() * Math.PI * 2;
     this.scaleX = 1.0;
     this.scaleY = 1.0;
+    this.koLaunchTimer = 0;
+    this.koVelX = 0;
+    this.koVelY = 0;
+    this.koSpinAngle = 0;
+    this.introRoarTimer = 0;
+    this._introShown = false;
+    this._lastHitAttack = null;
+    this._blinkCooldown = 0;
     /** @type {number} Rastro suavizado de daño [0..1] para la barra de vida flotante sobre el enemigo */
     this._ghostHealthPct = 1.0;
 
     // Hitbox precisa en la base para colisiones y Y-Sorting
     this.hitbox = this.isBoss
       ? { offsetX: 8, offsetY: 20, width: 28, height: 22 }
-      : { offsetX: 5, offsetY: 14, width: 22, height: 16 };
+      : this.isMiniBoss
+        ? { offsetX: 7, offsetY: 16, width: 24, height: 18 }
+        : { offsetX: 5, offsetY: 14, width: 22, height: 16 };
     this._hitboxCache.width = this.hitbox.width;
     this._hitboxCache.height = this.hitbox.height;
   }
@@ -331,6 +453,7 @@ export class Enemy extends Entity {
   takeDamage(amount, attack, context, isCritical = false) {
     if (this.isDead) return;
 
+    this._lastHitAttack = attack || null;
     this.health = Math.max(0, this.health - amount);
     this.hurtTimer = 0.20;
     this.scaleX = 1.28;
@@ -378,25 +501,25 @@ export class Enemy extends Entity {
       context.uiManager.spawnDamageNumber(this.pos.x + this.width / 2, this.pos.y - 2, label, color);
     }
 
-    // Transición a Fase II para Guardianes Regionales al llegar al 50% de vida
-    if (this.isBoss && this.phase === 1 && this.health > 0 && this.health <= this.max_health * 0.5) {
+    // Transición a Fase II para Guardianes Regionales y Mini-Jefes al llegar al 50% de vida
+    if ((this.isBoss || this.isMiniBoss) && this.phase === 1 && this.health > 0 && this.health <= this.max_health * 0.5) {
       this.phase = 2;
       this.config = {
         ...this.config,
-        cooldownTime: Math.max(0.75, (this.config.cooldownTime || 1.4) * 0.78)
+        cooldownTime: Math.max(0.75, (this.config.cooldownTime || 1.4) * (this.isBoss ? 0.78 : 0.85))
       };
       const bcx = this.pos.x + this.width * 0.5;
       const bcy = this.pos.y + this.height * 0.5;
-      if (context && context.engine) context.engine.hitStop(0.06);
-      if (context && context.camera) context.camera.shake(0.6, 0.35);
+      if (context && context.engine) context.engine.hitStop(this.isBoss ? 0.06 : 0.04);
+      if (context && context.camera) context.camera.shake(this.isBoss ? 0.6 : 0.38, 0.30);
       if (context && context.audioManager) context.audioManager.playExplosion();
       if (context && context.vfxRenderer) {
         const fxType = (this.elementalAffinity === 'astral' || this.elementalAffinity === 'eter')
           ? 'ether_burst'
           : this.elementalAffinity === 'fuego' ? 'fire_burst' : 'wood_explosion';
-        context.vfxRenderer.spawnImpact(fxType, bcx, bcy, { radius: 64, duration: 0.45 });
+        context.vfxRenderer.spawnImpact(fxType, bcx, bcy, { radius: this.isBoss ? 64 : 48, duration: 0.42 });
       }
-      if (context && context.state) {
+      if (this.isBoss && context && context.state) {
         context.state.set('active_dialogue', {
           speaker: (this.name || 'GUARDIÁN').toUpperCase(),
           text: '¡FASE II! ¡La corrupción de la Reliquia desata su verdadera furia!',
@@ -446,6 +569,21 @@ export class Enemy extends Entity {
 
     const cx = this.pos.x + this.width / 2;
     const cy = this.pos.y + this.height / 2;
+
+    // Remate dramático estilo Super Smash Bros para Jefes Regionales y Mini-Jefes
+    if (this.isBoss || this.isMiniBoss) {
+      const pl = context ? context.player : null;
+      const ldx = pl ? (cx - (pl.pos.x + pl.width * 0.5)) : 1;
+      const ldy = pl ? (cy - (pl.pos.y + pl.height * 0.5)) : -0.4;
+      const len = Math.hypot(ldx, ldy) || 1;
+      this.koLaunchTimer = this.isBoss ? 0.85 : 0.65;
+      this.koVelX = (ldx / len) * (this.isBoss ? 195 : 165);
+      this.koVelY = (ldy / len) * (this.isBoss ? 195 : 165) - 35;
+      this.koSpinAngle = 0;
+      if (context && context.cinematicDirector && typeof context.cinematicDirector.triggerSmashKO === 'function') {
+        context.cinematicDirector.triggerSmashKO(this, this._lastHitAttack, context);
+      }
+    }
 
     if (context && context.vfxRenderer) {
       context.vfxRenderer.spawnImpact('fire_burst', cx, cy, { radius: 34, duration: 0.42 });
@@ -572,16 +710,44 @@ export class Enemy extends Entity {
 
     const cx = this.pos.x + this.width / 2;
     const cy = this.pos.y + this.height / 2;
+
+    // Remate dramático estilo Super Smash Bros para Jefes Regionales y Mini-Jefes
+    if (this.isBoss || this.isMiniBoss) {
+      const pl = context ? context.player : null;
+      const ldx = pl ? (cx - (pl.pos.x + pl.width * 0.5)) : 1;
+      const ldy = pl ? (cy - (pl.pos.y + pl.height * 0.5)) : -0.4;
+      const len = Math.hypot(ldx, ldy) || 1;
+      this.koLaunchTimer = this.isBoss ? 0.85 : 0.65;
+      this.koVelX = (ldx / len) * (this.isBoss ? 195 : 165);
+      this.koVelY = (ldy / len) * (this.isBoss ? 195 : 165) - 35;
+      this.koSpinAngle = 0;
+      if (context && context.cinematicDirector && typeof context.cinematicDirector.triggerSmashKO === 'function') {
+        context.cinematicDirector.triggerSmashKO(this, this._lastHitAttack, context);
+      }
+    }
     const dx = this.attackVector.x;
     const dy = this.attackVector.y;
 
     this.scaleX = 1.26;
     this.scaleY = 0.78;
 
-    if (this.archetype === 'artillery' || this.archetype === 'sentinel_ether' || this.archetype === 'boss_spore') {
+    const isRangedKiter = (
+      this.archetype === 'artillery' ||
+      this.archetype === 'sentinel_ether' ||
+      this.archetype === 'spore_alchemist' ||
+      this.archetype === 'miniboss_weaver' ||
+      this.archetype === 'boss_spore'
+    );
+    if (isRangedKiter) {
       const pSpeed = this.config.projectileSpeed || 225;
-      const projElem = this.archetype === 'sentinel_ether' ? 'eter' : this.elementalAffinity;
-      const spriteKey = this.archetype === 'sentinel_ether' ? 'ether_orb' : undefined;
+      const projElem = (this.archetype === 'sentinel_ether' || this.archetype === 'miniboss_reaver')
+        ? 'eter'
+        : this.elementalAffinity;
+      const spriteKey = this.archetype === 'sentinel_ether'
+        ? 'ether_orb'
+        : (this.archetype === 'spore_alchemist' || this.archetype === 'miniboss_weaver')
+          ? 'poison_orb'
+          : undefined;
       const spawnBossOrb = (angOffset, speedMult = 1.0) => {
         const baseAng = Math.atan2(dy, dx) + angOffset;
         const odx = Math.cos(baseAng);
@@ -634,11 +800,11 @@ export class Enemy extends Entity {
         }
       };
 
-      if (this.archetype === 'boss_spore') {
+      if (this.archetype === 'boss_spore' || this.archetype === 'miniboss_weaver') {
         spawnBossOrb(-0.32, 1.0);
         spawnBossOrb(0, 1.05);
         spawnBossOrb(0.32, 1.0);
-        if (this.phase >= 2) {
+        if (this.phase >= 2 && this.archetype === 'boss_spore') {
           this._bossVolleyToggle = (this._bossVolleyToggle + 1) % 2;
           if (this._bossVolleyToggle === 0) {
             for (let k = 0; k < 6; k++) {
@@ -652,7 +818,7 @@ export class Enemy extends Entity {
       return;
     }
 
-    if (this.archetype === 'boss_astral') {
+    if (this.archetype === 'boss_astral' || this.archetype === 'miniboss_reaver') {
       this._bossVolleyToggle = (this._bossVolleyToggle + 1) % 2;
       if (this._bossVolleyToggle === 0 && (projSys || combat)) {
         const pSpeed = this.config.projectileSpeed || 255;
@@ -692,19 +858,24 @@ export class Enemy extends Entity {
 
     if (!combat) return;
 
-    // Ataque cuerpo a cuerpo en embestida (Hound, Tank, Duelist, Slime y Guardianes Melee)
+    // Ataque cuerpo a cuerpo en embestida (incluye arquetipos regionales y Mini-Jefes melee)
     const dur = this.config.attackDuration || 0.24;
-    const boxSize = this.archetype === 'boss_forge' ? 48
-      : this.archetype === 'boss_bramble' ? 44
-        : this.archetype === 'tank' ? 42 : 30;
-    const reach = (this.archetype === 'duelist' || this.archetype === 'boss_astral') ? 26 : 18;
+    const boxSize = (this.archetype === 'boss_forge' || this.archetype === 'miniboss_warden') ? 48
+      : (this.archetype === 'boss_bramble' || this.archetype === 'miniboss_stag') ? 44
+        : (this.archetype === 'tank' || this.archetype === 'pyro_smith') ? 42 : 30;
+    const reach = (
+      this.archetype === 'duelist' ||
+      this.archetype === 'void_blinker' ||
+      this.archetype === 'boss_astral' ||
+      this.archetype === 'miniboss_reaver'
+    ) ? 26 : 18;
     const self = this;
 
     combat.addAttack({
       owner: this,
-      type: (this.archetype === 'tank' || this.archetype === 'boss_bramble' || this.archetype === 'boss_forge') ? 'strong' : 'weak',
+      type: (this.archetype === 'tank' || this.archetype === 'pyro_smith' || this.archetype === 'boss_bramble' || this.archetype === 'boss_forge' || this.archetype === 'miniboss_warden') ? 'strong' : 'weak',
       element: this.elementalAffinity,
-      damage: this.isBoss ? 26 : 24,
+      damage: this.isBoss ? 26 : (this.isMiniBoss ? 25 : 24),
       postureDamage: this.config.postureDamage || 24,
       duration: dur,
       destroyOnHit: false,
@@ -749,8 +920,8 @@ export class Enemy extends Entity {
           destroyOnHit: true
         });
       }
-    } else if (this.archetype === 'boss_forge' && this.phase >= 2) {
-      const magmaR = 62;
+    } else if ((this.archetype === 'boss_forge' || this.archetype === 'miniboss_warden') && this.phase >= 2) {
+      const magmaR = this.isBoss ? 62 : 48;
       combat.addAttack({
         owner: this,
         type: 'zone',
@@ -895,8 +1066,33 @@ export class Enemy extends Entity {
 
     if (this.hurtTimer > 0) this.hurtTimer -= dt;
 
-    // 1. Gestión de Muerte y Reaparición limpia
+    // 1. Gestión de Muerte, vuelo KO estilo Smash Bros y Reaparición limpia
     if (this.isDead) {
+      if (this.koLaunchTimer > 0) {
+        this.koLaunchTimer = Math.max(0, this.koLaunchTimer - dt);
+        this.koSpinAngle += dt * 13.0;
+        const nextKx = this.pos.x + this.koVelX * dt;
+        const nextKy = this.pos.y + this.koVelY * dt;
+        if (physics && typeof physics.moveWithCollisions === 'function') {
+          const safe = physics.moveWithCollisions(this, nextKx, nextKy);
+          this.pos.set(safe.x, safe.y);
+        } else {
+          this.pos.set(nextKx, nextKy);
+        }
+        this.koVelX *= (1 - Math.min(0.9, dt * 2.2));
+        this.koVelY *= (1 - Math.min(0.9, dt * 2.2));
+        if (context.vfxRenderer && Math.random() < 0.7) {
+          context.vfxRenderer.addParticle({
+            x: this.pos.x + this.width * 0.5,
+            y: this.pos.y + this.height * 0.5,
+            vx: (Math.random() - 0.5) * 45,
+            vy: (Math.random() - 0.5) * 45,
+            size: 3.5,
+            life: 0.35,
+            color: this.isBoss ? '#fde047' : '#fb923c'
+          });
+        }
+      }
       this._lastPlayerDistSq = Infinity;
       this.suspicion = 0;
       this.respawnTimer -= dt;
@@ -926,6 +1122,15 @@ export class Enemy extends Entity {
 
     this.animClock = (this.animClock || 0) + dt;
     this.bobPhase += dt * 4.2;
+    const walkMul = (this.aiState === 'ATTACK') ? 11.5 : (this.aiState === 'CHASE' ? 7.8 : (this.aiState === 'PATROL' ? 4.4 : 2.2));
+    this._walkPhase += dt * walkMul;
+    if (this._blinkCooldown > 0) this._blinkCooldown = Math.max(0, this._blinkCooldown - dt);
+    if (this.introRoarTimer > 0) {
+      this.introRoarTimer = Math.max(0, this.introRoarTimer - dt);
+      this.scaleX = 1.12 + Math.sin(this.animClock * 18) * 0.06;
+      this.scaleY = 0.90;
+      return;
+    }
     const targetHpPct = this.max_health > 0 ? Math.max(0, Math.min(1, this.health / this.max_health)) : 0;
     if (this._ghostHealthPct > targetHpPct) {
       this._ghostHealthPct = Math.max(targetHpPct, this._ghostHealthPct - dt * 1.35);
@@ -1133,7 +1338,13 @@ export class Enemy extends Entity {
         const repulseX = sepX * sepWeight;
         const repulseY = sepY * sepWeight;
 
-        if (this.archetype === 'artillery' || this.archetype === 'sentinel_ether' || this.archetype === 'boss_spore') {
+        if (
+          this.archetype === 'artillery' ||
+          this.archetype === 'sentinel_ether' ||
+          this.archetype === 'spore_alchemist' ||
+          this.archetype === 'miniboss_weaver' ||
+          this.archetype === 'boss_spore'
+        ) {
           // Kiting: se aleja si te pegas demasiado, se acerca si estás lejos, dispara en banda óptima
           if (distToPlayer < this.config.preferredMinDist) {
             this._moveSafe(-nx * this.config.speed + repulseX, -ny * this.config.speed + repulseY, dt, physics);
@@ -1148,7 +1359,31 @@ export class Enemy extends Entity {
           if (distToPlayer <= this.config.attackRange && this.aiTimer <= 0) {
             this._enterTelegraph(nx, ny, context);
           }
-        } else if (this.archetype === 'duelist' || this.archetype === 'boss_astral') {
+        } else if (
+          this.archetype === 'duelist' ||
+          this.archetype === 'void_blinker' ||
+          this.archetype === 'miniboss_reaver' ||
+          this.archetype === 'boss_astral'
+        ) {
+          // Paso dimensional lateral (Blink) en void_blinker / miniboss_reaver antes de estocar
+          if (
+            (this.archetype === 'void_blinker' || this.archetype === 'miniboss_reaver') &&
+            this._blinkCooldown <= 0 &&
+            distToPlayer >= 72 &&
+            distToPlayer <= 165
+          ) {
+            this._blinkCooldown = this.archetype === 'miniboss_reaver' ? 3.2 : 4.0;
+            this.strafeSign *= -1;
+            const bx = this.pos.x + (-ny * this.strafeSign * 44) + nx * 16;
+            const by = this.pos.y + (nx * this.strafeSign * 44) + ny * 16;
+            if (physics && typeof physics.moveWithCollisions === 'function') {
+              const safeB = physics.moveWithCollisions(this, bx, by);
+              this.pos.set(safeB.x, safeB.y);
+            }
+            if (context && context.vfxRenderer) {
+              context.vfxRenderer.spawnImpact('ether_arc', this.pos.x + 16, this.pos.y + 16, { radius: 26, duration: 0.25 });
+            }
+          }
           // Esgrima orbital elegante antes de estocar
           const perpX = -ny * this.strafeSign;
           const perpY = nx * this.strafeSign;
@@ -1162,7 +1397,7 @@ export class Enemy extends Entity {
             this.strafeSign *= -1;
             this._enterTelegraph(nx, ny, context);
           }
-        } else if (this.archetype === 'hound') {
+        } else if (this.archetype === 'hound' || this.archetype === 'stalker_ambusher' || this.archetype === 'miniboss_stag') {
           if (this.aiTimer > 0) {
             // En espera de token de ataque: amague orbital alrededor de Santi
             this.aiTimer -= dt;
@@ -1227,7 +1462,14 @@ export class Enemy extends Entity {
 
       case 'ATTACK': {
         this.aiTimer -= dt;
-        if (this.archetype !== 'artillery' && this.archetype !== 'sentinel_ether' && this.archetype !== 'boss_spore' && this.config.lungeSpeed) {
+        const isStaticRanged = (
+          this.archetype === 'artillery' ||
+          this.archetype === 'sentinel_ether' ||
+          this.archetype === 'spore_alchemist' ||
+          this.archetype === 'miniboss_weaver' ||
+          this.archetype === 'boss_spore'
+        );
+        if (!isStaticRanged && this.config.lungeSpeed) {
           this._moveSafe(
             this.attackVector.x * this.config.lungeSpeed,
             this.attackVector.y * this.config.lungeSpeed,
@@ -1273,10 +1515,15 @@ export class Enemy extends Entity {
    */
   _enterTelegraph(nx, ny, context) {
     // Coordinación táctica de tokens cuerpo a cuerpo (máximo 2 atacantes simultáneos para Parry justo)
+    const isRangedAttacker = (
+      this.archetype === 'artillery' ||
+      this.archetype === 'sentinel_ether' ||
+      this.archetype === 'spore_alchemist' ||
+      this.archetype === 'miniboss_weaver' ||
+      this.archetype === 'boss_spore'
+    );
     if (
-      this.archetype !== 'artillery' &&
-      this.archetype !== 'sentinel_ether' &&
-      this.archetype !== 'boss_spore' &&
+      !isRangedAttacker &&
       context &&
       context.combatManager &&
       typeof context.combatManager.requestAttackToken === 'function'
@@ -1321,21 +1568,44 @@ export class Enemy extends Entity {
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
-    if (this.isDead) return;
+    if (this.isDead && this.koLaunchTimer <= 0) return;
 
     const x = Math.round(this.pos.x);
     const y = Math.round(this.pos.y);
     const cx = x + Math.round(this.width * 0.5);
     const cy = y + Math.round(this.height * 0.5);
 
+    // Vuelo en cámara lenta de KO estilo Super Smash Bros al ser derrotado
+    if (this.isDead && this.koLaunchTimer > 0) {
+      const celKO = CelSpriteAtlas.getEnemySprite(this.archetype, this.elementalAffinity, true, 1);
+      if (celKO) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(this.koSpinAngle);
+        ctx.globalAlpha = Math.max(0.25, Math.min(1, this.koLaunchTimer * 1.4));
+        ctx.drawImage(celKO, -celKO.width * 0.5, -celKO.height * 0.5);
+        ctx.restore();
+      }
+      return;
+    }
+
     // 0. Línea / Anillo de Telegrafía Táctica antes de atacar (los conos de visión se dibujan en la capa de suelo)
     if (this.aiState === 'TELEGRAPH') {
       const progress = 1 - Math.max(0, this.aiTimer / this.config.telegraphTime);
+      const isRangedTele = (
+        this.archetype === 'artillery' ||
+        this.archetype === 'sentinel_ether' ||
+        this.archetype === 'spore_alchemist' ||
+        this.archetype === 'miniboss_weaver' ||
+        this.archetype === 'boss_spore'
+      );
       ctx.save();
-      ctx.strokeStyle = `rgba(239, 68, 68, ${0.35 + progress * 0.55})`;
+      ctx.strokeStyle = '#ef4444';
+      ctx.globalAlpha = 0.35 + progress * 0.55;
       ctx.lineWidth = 2;
-      if (this.archetype !== 'artillery' && this.archetype !== 'sentinel_ether' && this.archetype !== 'boss_spore') {
-        const reach = (this.archetype === 'duelist' || this.archetype === 'boss_astral') ? 76 : (this.archetype === 'hound' ? 68 : 48);
+      if (!isRangedTele) {
+        const reach = (this.archetype === 'duelist' || this.archetype === 'void_blinker' || this.archetype === 'boss_astral' || this.archetype === 'miniboss_reaver')
+          ? 76 : (this.archetype === 'hound' || this.archetype === 'stalker_ambusher' || this.archetype === 'miniboss_stag') ? 68 : 48;
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
         ctx.moveTo(cx, y + this.height - 8);
@@ -1355,16 +1625,16 @@ export class Enemy extends Entity {
       return;
     }
 
-    // Aura dorada/carmesí de Fase II para Guardianes Regionales
-    if (this.isBoss && this.phase >= 2) {
+    // Aura dorada/carmesí de Fase II para Guardianes Regionales y Mini-Jefes
+    if ((this.isBoss || this.isMiniBoss) && this.phase >= 2) {
       const auraPulse = 0.25 + Math.sin((this.animClock || 0) * 8) * 0.12;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.strokeStyle = this.elementalAffinity === 'astral' ? '#e879f9' : '#fb923c';
       ctx.globalAlpha = auraPulse;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = this.isBoss ? 2.5 : 2.0;
       ctx.beginPath();
-      ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+      ctx.arc(cx, cy, this.isBoss ? 26 : 22, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -1374,6 +1644,9 @@ export class Enemy extends Entity {
     if (this.isBoss) {
       ctx.fillRect(cx - 16, y + this.height - 6, 32, 5);
       ctx.fillRect(cx - 19, y + this.height - 4, 38, 2);
+    } else if (this.isMiniBoss) {
+      ctx.fillRect(cx - 13, y + this.height - 5, 26, 4);
+      ctx.fillRect(cx - 16, y + this.height - 3, 32, 2);
     } else {
       ctx.fillRect(cx - 10, y + 27, 20, 4);
       ctx.fillRect(cx - 12, y + 28, 24, 2);
@@ -1383,28 +1656,39 @@ export class Enemy extends Entity {
       ? Math.round(Math.sin(this.bobPhase * 2) * 1.5)
       : Math.round(Math.sin(this.bobPhase) * 1);
 
+    const animFrame = (this.aiState === 'ATTACK' || this.aiState === 'TELEGRAPH')
+      ? 1
+      : (this.aiState === 'CHASE' || this.aiState === 'PATROL')
+        ? (Math.floor(this._walkPhase) % 3)
+        : 0;
+    const flipX = this.aimDir.x < -0.15 ? -1 : 1;
+
     ctx.save();
+    ctx.translate(cx, y + this.height);
+    ctx.scale(flipX * this.scaleX, this.scaleY);
+    ctx.translate(-cx, -(y + this.height));
     ctx.translate(0, bob);
 
-    // 2. Sprite 2D Cel-Shaded horneado con borde de tinta por Arquetipo
+    // 2. Sprite 2D Cel-Shaded multi-frame con Squash & Stretch real
     const atlasArchetype = this.archetype;
-    const celSprite = CelSpriteAtlas.getEnemySprite(atlasArchetype, this.elementalAffinity, this.hurtTimer > 0);
+    const celSprite = CelSpriteAtlas.getEnemySprite(atlasArchetype, this.elementalAffinity, this.hurtTimer > 0, animFrame);
     if (celSprite) {
       if (this.isBoss) {
         ctx.drawImage(celSprite, x - 6, y - 10);
-      } else if (atlasArchetype === 'hound' && this.aimDir.x < -0.15) {
-        ctx.save();
-        ctx.translate(cx, y + 14);
-        ctx.scale(-1, 1);
-        ctx.drawImage(celSprite, -22, -22);
-        ctx.restore();
+      } else if (this.isMiniBoss) {
+        ctx.drawImage(celSprite, x - 6, y - 9);
       } else {
         ctx.drawImage(celSprite, x - 6, y - 8);
       }
     }
 
-    // Accesorios tácticos dinámicos orientados hacia `aimDir`
-    if ((this.archetype === 'tank' || this.archetype === 'boss_bramble') && this.hasWoodenShield) {
+    // Accesorios tácticos dinámicos orientados hacia `aimDir` (deshacen mirror horizontal para apuntar real)
+    if (flipX < 0) {
+      ctx.translate(cx, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-cx, 0);
+    }
+    if (this.hasWoodenShield) {
       // Gran Pavés de Roble Frontal (destructible con Fuego)
       const sx = Math.round(cx + this.aimDir.x * (this.isBoss ? 14 : 11) - 10);
       const sy = Math.round(cy + this.aimDir.y * (this.isBoss ? 10 : 8) - 7);
@@ -1430,7 +1714,12 @@ export class Enemy extends Entity {
       ctx.fillRect(ax + 3, ay + 5, 12, 3);
       ctx.fillStyle = '#94a3b8';
       ctx.fillRect(ax + 2, ay + 2, 14, 2);
-    } else if (this.archetype === 'duelist' || this.archetype === 'boss_astral') {
+    } else if (
+      this.archetype === 'duelist' ||
+      this.archetype === 'void_blinker' ||
+      this.archetype === 'boss_astral' ||
+      this.archetype === 'miniboss_reaver'
+    ) {
       // Estoque cel-shaded apuntando hacia el jugador
       const bladeReach = this.isBoss ? 29 : 23;
       ctx.strokeStyle = '#0b101d';
@@ -1449,6 +1738,19 @@ export class Enemy extends Entity {
     }
 
     ctx.restore();
+
+    // Estela de tajo (Slash Smear) durante embestida cuerpo a cuerpo
+    if (this.aiState === 'ATTACK' && this.config.lungeSpeed) {
+      const ang = Math.atan2(this.attackVector.y, this.attackVector.x);
+      ctx.save();
+      ctx.strokeStyle = this.isBoss || this.isMiniBoss ? '#fde047' : '#fef3c7';
+      ctx.lineWidth = this.isBoss ? 4 : 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(cx, cy, this.isBoss ? 28 : (this.isMiniBoss ? 24 : 19), ang - 0.85, ang + 0.85);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // 3. Señal de Exclamación Roja/Dorada durante Telegrafía (elevada sobre la barra de vida)
     if (this.aiState === 'TELEGRAPH') {
@@ -1519,10 +1821,10 @@ export class Enemy extends Entity {
     }
 
     // 5. Barra de Salud Cel-Shaded Flotante sobre el Enemigo (con rastro de daño e indicador de escudo/coraza/fase)
-    const barW = this.isBoss ? 50 : 32;
-    const barH = this.isBoss ? 6 : 4;
+    const barW = this.isBoss ? 52 : (this.isMiniBoss ? 42 : 32);
+    const barH = this.isBoss ? 6 : (this.isMiniBoss ? 5 : 4);
     const barX = Math.round(cx - barW / 2);
-    const barY = this.isBoss ? y - 16 : y - 13;
+    const barY = this.isBoss ? y - 16 : (this.isMiniBoss ? y - 15 : y - 13);
 
     // Borde de tinta #050811 y fondo oscuro
     ctx.fillStyle = '#050811';

@@ -81,7 +81,9 @@ stateDiagram-v2
 | **`duelist` (Duelista Implacable)** | 110 HP | 104 px/s | 128 px | 0.42s | 32 | Esgrima con amagues orbitales, estocada relámpago a 365 px/s para castigar parries tardíos. |
 | **`slime` (Babosa Primordial)** | 80 HP | 82 px/s | 76 px | 0.45s | 20 | Desplazamiento con compresión procedural; soporta `canSplit` en el Pantano de Esporas. |
 | **`sentinel_ether` (Centinela de Éter)** | 115 HP | 92 px/s | 185 px | 0.46s | 26 | Kiting a media/larga distancia; dispara orbes astrales altos (`altitude: 'high'`). |
-| **`boss_bramble` / `boss_spore` / `boss_forge` / `boss_astral`** | 340–520 HP | 74–108 px/s | 76–205 px | 0.44–0.58s | 34–50 | Guardianes Regionales (`44×44`, `56×56` sprite). Transicionan a **Fase II** al caer a `<= 50% HP` y liberan `worldSeal` + `bossId`. |
+| **`stalker_ambusher` / `spore_alchemist` / `pyro_smith` / `void_blinker`** | 86–128 HP | 82–126 px/s | 118–260 px | 0.36–0.46s | 24–34 | Arquetipos regionales específicos: emboscador rápido de Garganta, artillero de esporas, forjador blindado de magma y telépata estelar (`void_blinker` con paso estelar en rango cercano). |
+| **`miniboss_stag` / `miniboss_weaver` / `miniboss_warden` / `miniboss_reaver`** | 235–340 HP | 78–108 px/s | 96–195 px | 0.40–0.48s | 32–42 | **Subjefes Regionales** (`isMiniBoss: true`, sprite `50×50`, Fase II al `50% HP`). Sueltan **KO tipo Smash Bros** al caer y abren el pasaje al Jefe de cada mundo (`miniboss_m1..m4`). |
+| **`boss_bramble` / `boss_spore` / `boss_forge` / `boss_astral`** | 340–520 HP | 74–108 px/s | 76–205 px | 0.44–0.58s | 34–50 | Guardianes Regionales (`44×44`, `56×56` sprite). Transicionan a **Fase II** al caer a `<= 50% HP`, ejecutan **KO tipo Smash Bros** y liberan `worldSeal` + `bossId`. |
 
 ---
 

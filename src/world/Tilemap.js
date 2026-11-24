@@ -281,6 +281,10 @@ export class Tilemap {
         if (y >= 17 && y <= 19 && x >= 14 && x <= 38) {
           this.grid[y][x] = 1;
         }
+        // Calzada ampliada hacia Aldea del Alba, Garganta del Roble y Gran Plaza Este
+        if (y >= 19 && y <= 20 && x >= 38 && x <= 71) {
+          this.grid[y][x] = 1;
+        }
         // Ramal norte hacia la emboscada de Valerio y claro norte
         if (x >= 33 && x <= 35 && y >= 8 && y <= 17) {
           this.grid[y][x] = 1;
@@ -289,7 +293,7 @@ export class Tilemap {
           this.grid[y][x] = 1;
         }
 
-        // 2. Plazas de losas talladas del Santuario (tile = 5)
+        // 2. Plazas de losas talladas (tile = 5)
         // Zona 1: Patio exterior de la cueva (NO)
         if (x >= 5 && x <= 10 && y >= 5 && y <= 9) {
           this.grid[y][x] = 5;
@@ -300,42 +304,65 @@ export class Tilemap {
         if (dxSw * dxSw + dySw * dySw <= 12.25) {
           this.grid[y][x] = 5;
         }
-        // Zona 4: Memorial de la gran espada al cruzar el puente (x=28..30, y=15..17)
+        // Zona 4a: Memorial de la espada al cruzar el puente (x=28..30, y=15..17)
         if (x >= 28 && x <= 30 && y >= 15 && y <= 17) {
           this.grid[y][x] = 5;
         }
-        // Zona 5: Gran Plaza del Santuario (42, 21), r <= 6.5 y terraza del portal oriental
-        const dxPlaza = x - 42;
-        const dyPlaza = y - 21;
-        if (dxPlaza * dxPlaza + dyPlaza * dyPlaza <= 42.25) {
+        // Zona 4b: Plaza Mayor de Aldea del Alba (39, 19.5), r <= 4.2
+        const dxTown = x - 39;
+        const dyTown = y - 19.5;
+        if (dxTown * dxTown + dyTown * dyTown <= 17.8) {
           this.grid[y][x] = 5;
         }
-        if (x >= 48 && x <= 51 && y >= 17 && y <= 20) {
+        // Zona 5: Arena del Subjefe Ciervo Acorazado (58, 20), r <= 4.3
+        const dxMini = x - 58;
+        const dyMini = y - 20;
+        if (dxMini * dxMini + dyMini * dyMini <= 18.5) {
+          this.grid[y][x] = 5;
+        }
+        // Zona 6: Gran Plaza del Guardián Zarza (67, 20), r <= 5.5 y terraza del portal
+        const dxPlaza = x - 67;
+        const dyPlaza = y - 20;
+        if (dxPlaza * dxPlaza + dyPlaza * dyPlaza <= 30.25) {
+          this.grid[y][x] = 5;
+        }
+        if (x >= 70 && x <= 72 && y >= 18 && y <= 21) {
           this.grid[y][x] = 5;
         }
 
         // 3. Mesetas y acantilados en Proyección de Gabinete (tile = 2)
-        // Acantilado norte sobre la salida de la cueva
         if (y <= 3 && x <= 21) {
           this.grid[y][x] = 2;
         }
-        // Muralla natural del umbral de la cueva: obliga a romper la Roca Agrietada del paso (x=13..15)
+        // Muralla natural del umbral de la cueva (Roca Agrietada en x=13..15)
         if (y >= 10 && y <= 11 && ((x >= 0 && x <= 12) || (x >= 16 && x <= 22))) {
           this.grid[y][x] = 2;
         }
-        // Contrafuertes de acantilado flanqueando el acceso a la ruina SO (x=12..16) y reborde sur lejano
+        // Contrafuertes de acantilado flanqueando el acceso a la ruina SO
         if (y >= 22 && y <= 23 && ((x >= 0 && x <= 11) || (x >= 17 && x <= 23))) {
           this.grid[y][x] = 2;
         }
         if (y >= 34 && x <= 20) {
           this.grid[y][x] = 2;
         }
-        // Meseta norte del valle este (sobre el claro de Valerio)
-        if (y <= 5 && x >= 28 && x <= 52) {
+        // Meseta norte del valle central (sobre Aldea del Alba)
+        if (y <= 4 && x >= 28 && x <= 48) {
+          this.grid[y][x] = 2;
+        }
+        // Garganta del Roble (pasillo estrecho x=49..54, y=19..20 flanqueado por acantilados)
+        if (x >= 49 && x <= 54 && (y <= 18 || y >= 21)) {
+          this.grid[y][x] = 2;
+        }
+        // Muralla sellada entre Subjefe y Gran Plaza (compuerta rúnica en x=61..62, y=19..20)
+        if ((x === 61 || x === 62) && (y <= 18 || y >= 21)) {
+          this.grid[y][x] = 2;
+        }
+        // Marco rocoso norte/sur de la Gran Plaza Este (deja libre el borde oriental para roadGapY)
+        if (x >= 55 && (y <= 7 || y >= 34)) {
           this.grid[y][x] = 2;
         }
 
-        // 4. Río cristalino: recto en y=15..21 sobre col 24 (x=23..25) y curvo en extremos
+        // 4. Río cristalino: recto en y=15..21 sobre col 24 y curvo en extremos
         let streamCenterX = 24;
         if (y < 15) {
           streamCenterX = 24 - Math.sin((15 - y) * 0.22) * 1.8;
@@ -355,129 +382,142 @@ export class Tilemap {
   }
 
   /**
-   * Mundo 2: Pantano de Esporas Bioluminiscentes (`marsh_of_spores`, 58x40).
-   * Arquitectura de 5 islas/zonas interconectadas por puentes de madera y canales cenagosos:
-   * - Entrada Oeste (x=3..13, y=14..26) + Puente 1 (x=13..16, y=18..21)
-   * - Encrucijada Central (x=16..33, y=16..23)
-   * - Isla Druídica Norte (x=16..33, y=5..13) vía Puente Norte (x=23..26, y=13..16)
-   * - Isla Sur de Rescate y Tótems (x=16..33, y=26..36) vía Puente Sur (x=23..26, y=23..26)
-   * - Santuario Inundado Este (x=38..55, y=10..30) vía Puente Sellado (x=33..38, y=19..20)
+   * Mundo 2: Pantano de Esporas Bioluminiscentes (`marsh_of_spores`, 78x48).
+   * Incluye Poblado Velo Hongar central sobre palafitos, paso estrecho de raíces,
+   * arena del subjefe Tejedora del Cieno y el Santuario Inundado al este.
    * @private
    */
   _generateMarshLayout() {
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         // 1. Acantilados musgosos al norte
-        if (y <= 3) {
+        if (y <= 2) {
           this.grid[y][x] = 2;
           continue;
         }
 
-        // 2. Canales y lagunas divisorias del pantano
+        // 2. Canales, estanque inicial (248, 208 -> col 7, row 6) y pasillo estrecho del este
         const inWestCanal = x >= 14 && x <= 15;
-        const inEastCanal = x >= 34 && x <= 37;
-        const inNorthCanal = (y === 14 || y === 15) && x >= 15 && x <= 35;
-        const inSouthCanal = (y === 24 || y === 25) && x >= 15 && x <= 35;
-        const decorPondA = Math.hypot(x - 8, y - 8) < 3.2;
-        const decorPondB = Math.hypot(x - 8, y - 31) < 3.4;
-        const decorPondC = Math.hypot(x - 49, y - 7) < 3.4;
-        const decorPondD = Math.hypot(x - 49, y - 33) < 3.4;
+        const inMidCanal = x >= 36 && x <= 38;
+        const inEastCanal = x >= 55 && x <= 58;
+        const inNorthCanal = (y === 12 || y === 13) && x >= 15 && x <= 37;
+        const inSouthCanal = (y === 27 || y === 28) && x >= 15 && x <= 37;
+        // Pasillo estrecho entre Poblado y Subjefe (x=39..43, y=19..20 flanqueado por agua)
+        const inRootCorridorWater = x >= 39 && x <= 43 && (y <= 18 || y >= 21);
+        const decorPondA = Math.hypot(x - 8, y - 7) < 3.2;
+        const decorPondB = Math.hypot(x - 8, y - 34) < 3.5;
+        const decorPondC = Math.hypot(x - 68, y - 7) < 3.4;
+        const decorPondD = Math.hypot(x - 68, y - 39) < 3.4;
 
-        if (inWestCanal || inEastCanal || inNorthCanal || inSouthCanal || decorPondA || decorPondB || decorPondC || decorPondD) {
+        if (
+          inWestCanal || inMidCanal || inEastCanal || inNorthCanal ||
+          inSouthCanal || inRootCorridorWater || decorPondA || decorPondB || decorPondC || decorPondD
+        ) {
           this.grid[y][x] = 3;
         }
 
         // 3. Senderos de barro y plazas druídicas transitables
-        if (y >= 18 && y <= 21 && x >= 5 && x <= 33) {
+        if (y >= 18 && y <= 21 && x >= 5 && x <= 16) {
           this.grid[y][x] = 1;
         }
-        if (x >= 23 && x <= 26 && y >= 8 && y <= 32) {
+        if (y >= 19 && y <= 20 && x >= 17 && x <= 35) {
           this.grid[y][x] = 1;
         }
-        if (y >= 19 && y <= 20 && x >= 33 && x <= 46) {
+        if (x >= 24 && x <= 26 && y >= 7 && y <= 37) {
+          this.grid[y][x] = 1;
+        }
+        if (y >= 19 && y <= 20 && x >= 39 && x <= 71) {
           this.grid[y][x] = 1;
         }
 
         // Plazas de piedra antigua (tile = 5)
         if (x >= 5 && x <= 9 && y >= 17 && y <= 22) this.grid[y][x] = 5;
-        if (Math.hypot(x - 24.5, y - 8) <= 3.5) this.grid[y][x] = 5;
-        if (Math.hypot(x - 24.5, y - 31) <= 3.2) this.grid[y][x] = 5;
-        if (Math.hypot(x - 46, y - 20) <= 6.5) this.grid[y][x] = 5;
+        if (Math.hypot(x - 25, y - 19.5) <= 4.0) this.grid[y][x] = 5; // Plaza Poblado Velo Hongar
+        if (Math.hypot(x - 25, y - 7) <= 3.5) this.grid[y][x] = 5;    // Isla Norte
+        if (Math.hypot(x - 25, y - 34) <= 3.5) this.grid[y][x] = 5;   // Isla Sur
+        if (Math.hypot(x - 49, y - 19.5) <= 4.5) this.grid[y][x] = 5; // Arena Subjefe
+        if (Math.hypot(x - 68, y - 20) <= 6.8) this.grid[y][x] = 5;   // Santuario Inundado
 
         // 4. Puentes de madera sobre canales (tile = 4)
-        if (x >= 13 && x <= 16 && y >= 18 && y <= 21) this.grid[y][x] = 4;
-        if (x >= 23 && x <= 26 && y >= 13 && y <= 16) this.grid[y][x] = 4;
-        if (x >= 23 && x <= 26 && y >= 23 && y <= 26) this.grid[y][x] = 4;
-        if (x >= 33 && x <= 38 && y >= 19 && y <= 20) this.grid[y][x] = 4;
+        if (x >= 13 && x <= 16 && y >= 18 && y <= 21) this.grid[y][x] = 4; // Puente Oeste (4 tiles alto para zarzas)
+        if (x >= 24 && x <= 26 && y >= 11 && y <= 14) this.grid[y][x] = 4; // Puente Norte
+        if (x >= 24 && x <= 26 && y >= 26 && y <= 29) this.grid[y][x] = 4; // Puente Sur
+        if (x >= 35 && x <= 39 && y >= 19 && y <= 20) this.grid[y][x] = 4; // Pasarela hacia corredor
+        if (x >= 54 && x <= 59 && y >= 19 && y <= 20) this.grid[y][x] = 4; // Puente Sellado Este
       }
     }
   }
 
   /**
-   * Mundo 3: Caldera de Ceniza (`ash_caldera`, 58x40).
-   * Arquitectura de Forja Volcánica en bucle (Shortcut Loop) con ríos de magma y puentes de hierro:
-   * - Entrada Oeste (x=3..13, y=13..26) + Puente Norte abierto (x=13..16, y=9..11) + Atajo Central sellado (x=13..16, y=19..20)
-   * - Paso Norte de Géiseres (x=16..34, y=5..13) -> Yunque NE del Núcleo Cinético (x=39..54, y=5..13)
-   * - Caldera Central (x=16..34, y=16..22) + Fragua Sur y Cámara Secreta (x=4..34, y=25..36)
-   * - Gran Crisol del Titán Este (x=39..55, y=15..30) vía Puente Sellado (x=34..39, y=19..20)
+   * Mundo 3: Caldera de Ceniza (`ash_caldera`, 80x50).
+   * Presenta el Bastión Forjaceniza amurallado en el centro, Cañón de Géiseres Norte,
+   * Puente Estrecho de Magma, Cámara del Subjefe Alcaide y el Gran Crisol del Este.
    * @private
    */
   _generateAshCalderaLayout() {
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
-        // 1. Mesetas volcánicas norte
+        // 1. Mesetas volcánicas norte y cañón de géiseres
         if (y <= 3) {
           this.grid[y][x] = 2;
           continue;
         }
 
-        // 2. Ríos de magma incandescente (tile = 3)
+        // 2. Ríos y fosos de magma incandescente (tile = 3)
         const westMagma = x >= 14 && x <= 15 && y >= 4;
-        const eastMagma = x >= 35 && x <= 38 && y >= 4;
-        const northLavaTrench = (y === 14 || y === 15) && x >= 15;
-        const southLavaTrench = (y === 23 || y === 24) && x >= 15 && x <= 35;
-        const swCornerLava = (y === 25 || y === 26) && x <= 14;
-        const eastCornerLava = Math.hypot(x - 51, y - 34) < 3.2;
+        const midMagma = x >= 37 && x <= 43 && y >= 14;
+        const eastMagma = x >= 57 && x <= 60 && y >= 4;
+        const northLavaTrench = (y === 13 || y === 14) && x >= 15;
+        const southLavaTrench = (y === 28 || y === 29) && x >= 15 && x <= 37;
+        const swCornerLava = (y === 30 || y === 31) && x <= 14;
+        const northGeyserFlank = x >= 16 && x <= 36 && y >= 4 && y <= 6;
+        const crucibleCornerLava = Math.hypot(x - 73, y - 41) < 3.4;
 
-        if (westMagma || eastMagma || northLavaTrench || southLavaTrench || swCornerLava || eastCornerLava) {
+        if (
+          westMagma || midMagma || eastMagma || northLavaTrench ||
+          southLavaTrench || swCornerLava || northGeyserFlank || crucibleCornerLava
+        ) {
           this.grid[y][x] = 3;
         }
 
-        // 3. Calzadas de obsidiana y ceniza compactada (tile = 1), respetando la grieta oeste de magma (x=14..15)
-        if (x >= 6 && x <= 13 && y >= 9 && y <= 21) this.grid[y][x] = 1;
-        if (y >= 9 && y <= 11 && x >= 11 && x <= 46) this.grid[y][x] = 1;
-        if (y >= 18 && y <= 21 && x >= 5 && x <= 33 && (x < 14 || x > 15)) this.grid[y][x] = 1;
-        if (x >= 24 && x <= 25 && y >= 13 && y <= 32) this.grid[y][x] = 1;
-        if (y >= 29 && y <= 31 && x >= 7 && x <= 31) this.grid[y][x] = 1;
-        if (y >= 19 && y <= 20 && x >= 33 && x <= 48) this.grid[y][x] = 1;
+        // 3. Calzadas de obsidiana y terrazas transitables (tile = 1 / 0)
+        if (x >= 6 && x <= 13 && y >= 9 && y <= 22) this.grid[y][x] = 1;
+        if (y >= 9 && y <= 10 && x >= 11 && x <= 48) this.grid[y][x] = 1;
+        if (y >= 19 && y <= 20 && x >= 5 && x <= 36 && (x < 14 || x > 15)) this.grid[y][x] = 1;
+        if (x >= 25 && x <= 26 && y >= 13 && y <= 37) this.grid[y][x] = 1;
+        if (y >= 35 && y <= 37 && x >= 6 && x <= 33) this.grid[y][x] = 1;
+        if (y >= 19 && y <= 20 && x >= 44 && x <= 73) this.grid[y][x] = 1;
+
+        // Asegurar terraza limpia para Bastión Forjaceniza (x=17..36, y=15..27) y Arena Subjefe (x=44..56, y=15..26)
+        if (x >= 17 && x <= 36 && y >= 15 && y <= 27 && this.grid[y][x] === 3) this.grid[y][x] = 0;
+        if (x >= 44 && x <= 56 && y >= 15 && y <= 26) this.grid[y][x] = 0;
 
         // Plazas de piedra forjada (tile = 5)
         if (x >= 5 && x <= 9 && y >= 17 && y <= 22) this.grid[y][x] = 5;
-        if (Math.hypot(x - 46, y - 9) <= 3.6) this.grid[y][x] = 5;
-        if (Math.hypot(x - 24, y - 30) <= 3.2) this.grid[y][x] = 5;
-        if (x >= 5 && x <= 10 && y >= 28 && y <= 33) this.grid[y][x] = 5;
-        if (Math.hypot(x - 47, y - 22) <= 6.5) this.grid[y][x] = 5;
+        if (Math.hypot(x - 25.5, y - 19.5) <= 4.2) this.grid[y][x] = 5; // Plaza Bastión Forjaceniza
+        if (Math.hypot(x - 46, y - 9) <= 3.6) this.grid[y][x] = 5;      // Yunque NE
+        if (Math.hypot(x - 25.5, y - 36) <= 3.5) this.grid[y][x] = 5;   // Fragua Sur
+        if (x >= 5 && x <= 10 && y >= 33 && y <= 39) this.grid[y][x] = 5; // Cámara Secreta SO
+        if (Math.hypot(x - 50, y - 20) <= 4.5) this.grid[y][x] = 5;     // Cámara Alcaide (Subjefe)
+        if (Math.hypot(x - 69, y - 21) <= 6.8) this.grid[y][x] = 5;     // Gran Crisol Este
 
         // 4. Puentes de hierro forjado sobre magma (tile = 4)
-        if (x >= 13 && x <= 16 && y >= 9 && y <= 11) this.grid[y][x] = 4;   // Desvío Norte
-        if (x >= 34 && x <= 39 && y >= 9 && y <= 11) this.grid[y][x] = 4;   // Hacia Yunque NE
-        if (x >= 13 && x <= 16 && y >= 19 && y <= 20) this.grid[y][x] = 4;  // Atajo Central (sellado con Basalto)
-        if (x >= 24 && x <= 25 && y >= 13 && y <= 16) this.grid[y][x] = 4;  // Conexión Norte -> Central (sellada con Basalto)
-        if (x >= 24 && x <= 26 && y >= 22 && y <= 25) this.grid[y][x] = 4;  // Conexión Central -> Fragua Sur
-        if (x >= 11 && x <= 16 && y >= 29 && y <= 31) this.grid[y][x] = 4;  // Puente hacia Cámara Secreta SO
-        if (x >= 34 && x <= 39 && y >= 19 && y <= 20) this.grid[y][x] = 4;  // Puente Sellado al Gran Crisol
+        if (x >= 13 && x <= 16 && y >= 8 && y <= 11) this.grid[y][x] = 4;    // Desvío Norte
+        if (x >= 36 && x <= 40 && y >= 8 && y <= 11) this.grid[y][x] = 4;    // Hacia Yunque NE
+        if (x >= 13 && x <= 16 && y >= 19 && y <= 20) this.grid[y][x] = 4;   // Atajo Central (sellado con Basalto)
+        if (x >= 25 && x <= 26 && y >= 12 && y <= 15) this.grid[y][x] = 4;   // Conexión Norte -> Bastión (sellada)
+        if (x >= 25 && x <= 26 && y >= 27 && y <= 30) this.grid[y][x] = 4;   // Bastión -> Fragua Sur
+        if (x >= 12 && x <= 16 && y >= 35 && y <= 36) this.grid[y][x] = 4;   // Puente Cámara Secreta SO
+        if (x >= 36 && x <= 44 && y >= 19 && y <= 20) this.grid[y][x] = 4;   // Puente Estrecho de Magma -> Subjefe
+        if (x >= 56 && x <= 61 && y >= 19 && y <= 20) this.grid[y][x] = 4;   // Puente Sellado al Gran Crisol
       }
     }
   }
 
   /**
-   * Mundo 4: Ciudadela Astral (`astral_citadel`, 60x40).
-   * Cinco terrazas flotantes de cuarzo suspendidas sobre éter cósmico conectadas por pasarelas de cristal:
-   * - Plataforma 1: Terraza Oeste (x=3..13, y=14..25)
-   * - Plataforma 2: Vestíbulo de los 3 Elementos (x=16..31, y=14..25)
-   * - Plataforma 3: Observatorio Norte — Núcleo de Éter (x=16..33, y=4..12)
-   * - Plataforma 4: Galería Sur — Filo Sagrado y Pilón B (x=16..33, y=27..36)
-   * - Plataforma 5: Gran Plaza del Cenit — Heraldo de Obsidiana (x=38..57, y=8..31)
+   * Mundo 4: Ciudadela Astral (`astral_citadel`, 84x50).
+   * Seis plataformas flotantes de cuarzo sobre el vacío cósmico: Enclave del Prisma,
+   * Observatorio Norte, Galería Sur, Atrio del Segador (Subjefe) y Gran Plaza del Cenit.
    * @private
    */
   _generateAstralCitadelLayout() {
@@ -487,33 +527,37 @@ export class Tilemap {
         this.grid[y][x] = 3;
 
         // Plataforma 1: Terraza de Llegada Oeste
-        if (x >= 3 && x <= 13 && y >= 14 && y <= 25) this.grid[y][x] = 0;
-        // Plataforma 2: Vestíbulo de los 3 Elementos
-        if (x >= 16 && x <= 31 && y >= 14 && y <= 25) this.grid[y][x] = 0;
-        // Plataforma 3: Observatorio Norte (con acantilado astral ornamental arriba)
-        if (x >= 16 && x <= 33 && y >= 4 && y <= 12) this.grid[y][x] = y <= 4 ? 2 : 0;
+        if (x >= 3 && x <= 13 && y >= 16 && y <= 27) this.grid[y][x] = 0;
+        // Plataforma 2: Enclave del Prisma (Ciudad Astral)
+        if (x >= 17 && x <= 35 && y >= 14 && y <= 29) this.grid[y][x] = 0;
+        // Plataforma 3: Observatorio Norte
+        if (x >= 18 && x <= 35 && y >= 4 && y <= 11) this.grid[y][x] = y <= 4 ? 2 : 0;
         // Plataforma 4: Galería Sur
-        if (x >= 16 && x <= 33 && y >= 27 && y <= 36) this.grid[y][x] = 0;
-        // Plataforma 5: Gran Plaza del Cenit Este
-        if (x >= 38 && x <= 57 && y >= 8 && y <= 31) this.grid[y][x] = y <= 8 ? 2 : 0;
+        if (x >= 18 && x <= 35 && y >= 32 && y <= 42) this.grid[y][x] = 0;
+        // Plataforma 5: Atrio del Segador (Arena Subjefe)
+        if (x >= 45 && x <= 57 && y >= 15 && y <= 28) this.grid[y][x] = 0;
+        // Plataforma 6: Gran Plaza del Cenit Este
+        if (x >= 63 && x <= 81 && y >= 10 && y <= 33) this.grid[y][x] = y <= 10 ? 2 : 0;
 
         // Calzadas ceremoniales (tile = 1)
-        if (y >= 19 && y <= 20 && x >= 5 && x <= 31) this.grid[y][x] = 1;
-        if (x >= 23 && x <= 24 && y >= 8 && y <= 32) this.grid[y][x] = 1;
-        if (y >= 19 && y <= 20 && x >= 38 && x <= 54) this.grid[y][x] = 1;
+        if (y >= 21 && y <= 22 && x >= 5 && x <= 35) this.grid[y][x] = 1;
+        if (x >= 25 && x <= 26 && y >= 8 && y <= 38) this.grid[y][x] = 1;
+        if (y >= 21 && y <= 22 && x >= 46 && x <= 78) this.grid[y][x] = 1;
 
         // Plazas de cuarzo celestial (tile = 5)
-        if (x >= 5 && x <= 10 && y >= 17 && y <= 22) this.grid[y][x] = 5;
-        if (Math.hypot(x - 23.5, y - 19.5) <= 3.2) this.grid[y][x] = 5;
-        if (Math.hypot(x - 24.5, y - 8.5) <= 3.2) this.grid[y][x] = 5;
-        if (Math.hypot(x - 24.5, y - 31.5) <= 3.2) this.grid[y][x] = 5;
-        if (Math.hypot(x - 47.5, y - 19.5) <= 7.5) this.grid[y][x] = 5;
+        if (x >= 5 && x <= 10 && y >= 19 && y <= 24) this.grid[y][x] = 5;
+        if (Math.hypot(x - 26, y - 21.5) <= 4.0) this.grid[y][x] = 5; // Plaza Enclave del Prisma
+        if (Math.hypot(x - 26, y - 7.5) <= 3.2) this.grid[y][x] = 5;  // Observatorio Norte
+        if (Math.hypot(x - 26, y - 36.5) <= 3.4) this.grid[y][x] = 5; // Galería Sur
+        if (Math.hypot(x - 51, y - 21.5) <= 4.4) this.grid[y][x] = 5; // Atrio del Segador
+        if (Math.hypot(x - 72, y - 21.5) <= 7.5) this.grid[y][x] = 5; // Gran Plaza del Cenit
 
         // Pasarelas de cristal rúnico sobre el éter (tile = 4)
-        if (x >= 13 && x <= 16 && y >= 19 && y <= 20) this.grid[y][x] = 4; // P1 -> P2
-        if (x >= 22 && x <= 25 && y >= 12 && y <= 14) this.grid[y][x] = 4; // P2 -> P3 Norte
-        if (x >= 22 && x <= 25 && y >= 25 && y <= 27) this.grid[y][x] = 4; // P2 -> P4 Sur
-        if (x >= 31 && x <= 38 && y >= 19 && y <= 20) this.grid[y][x] = 4; // P2 -> P5 Cenit
+        if (x >= 13 && x <= 17 && y >= 21 && y <= 22) this.grid[y][x] = 4; // P1 -> Enclave del Prisma
+        if (x >= 25 && x <= 27 && y >= 11 && y <= 14) this.grid[y][x] = 4; // Ciudad -> Observatorio Norte
+        if (x >= 25 && x <= 27 && y >= 29 && y <= 32) this.grid[y][x] = 4; // Ciudad -> Galería Sur
+        if (x >= 35 && x <= 45 && y >= 21 && y <= 22) this.grid[y][x] = 4; // Pasarela Estrecha -> Subjefe
+        if (x >= 57 && x <= 63 && y >= 21 && y <= 22) this.grid[y][x] = 4; // Puente Sellado -> Cenit
       }
     }
   }
@@ -1572,6 +1616,156 @@ export class Tilemap {
         const chunkCanvas = this._getOrBakeChunk(cx, cy);
         if (chunkCanvas) {
           ctx.drawImage(chunkCanvas, cx * this.chunkPx, worldY);
+        }
+      }
+    }
+  }
+
+  /**
+   * Anima exclusivamente los tiles líquidos o de vacío visibles (`tile === 3`) mediante
+   * ondas cristalinas, burbujas bioluminiscentes, vetas de magma y destellos estelares Zero-GC.
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {import('../render/Camera.js').Camera} camera
+   * @param {number} [timeSec=0]
+   */
+  renderFluidAnimations(ctx, camera, timeSec = 0) {
+    if (!ctx || !camera) return;
+
+    const ts = this.tileSize || 32;
+    const bounds = camera.getVisibleWorldBounds(ts);
+    const minCol = Math.max(0, Math.floor(bounds.minX / ts));
+    const maxCol = Math.min(this.cols - 1, Math.floor(bounds.maxX / ts));
+    const minRow = Math.max(0, Math.floor(bounds.minY / ts));
+    const maxRow = Math.min(this.rows - 1, Math.floor(bounds.maxY / ts));
+
+    const biome = this.biome || 'cave_exit_intro';
+    let drewAny = false;
+
+    for (let r = minRow; r <= maxRow; r++) {
+      const row = this.grid[r];
+      if (!row) continue;
+      const wy = r * ts;
+      for (let c = minCol; c <= maxCol; c++) {
+        if (row[c] !== 3) continue;
+        const wx = c * ts;
+        const seed = c * 1.37 + r * 2.13;
+        drewAny = true;
+
+        if (biome === 'ash_caldera') {
+          const phase = (timeSec * 0.65 + (c * 0.19 + r * 0.31)) % 1;
+          ctx.fillStyle = phase > 0.72 ? '#fde047' : '#fb923c';
+          ctx.globalAlpha = 0.28 + Math.sin(timeSec * 3.1 + seed) * 0.18;
+          const sx = wx + ((c * 11 + Math.floor(timeSec * 6)) % 22) + 3;
+          const sy = wy + 26 - Math.floor(phase * 20);
+          ctx.fillRect(sx, sy, 3, 2);
+          if ((c + r) % 2 === 0) {
+            ctx.fillStyle = '#fef08a';
+            ctx.globalAlpha = 0.22 + Math.cos(timeSec * 2.4 + seed) * 0.14;
+            ctx.fillRect(wx + 6 + Math.round(Math.sin(timeSec * 1.8 + seed) * 3), wy + 15, 10, 2);
+          }
+        } else if (biome === 'marsh_of_spores') {
+          const cycle = (timeSec * 0.48 + ((c * 7 + r * 13) % 10) * 0.1) % 1;
+          ctx.fillStyle = ((c + r) & 1) === 0 ? '#5eead4' : '#4ade80';
+          ctx.globalAlpha = (1 - cycle) * 0.62;
+          const bx = wx + 8 + ((c * 9 + r * 5) % 14);
+          const by = wy + 25 - Math.round(cycle * 16);
+          ctx.fillRect(bx, by, cycle < 0.5 ? 3 : 2, cycle < 0.5 ? 3 : 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = (1 - cycle) * 0.45;
+          ctx.fillRect(bx, by, 1, 1);
+        } else if (biome === 'astral_citadel') {
+          const twinkle = Math.sin(timeSec * 2.6 + seed * 1.9);
+          if (twinkle > 0.1) {
+            ctx.fillStyle = ((c + r) & 1) === 0 ? '#f5d0fe' : '#38bdf8';
+            ctx.globalAlpha = twinkle * 0.65;
+            const sx = wx + 5 + ((c * 13 + r * 7) % 20);
+            const sy = wy + 5 + ((c * 5 + r * 11) % 20);
+            ctx.fillRect(sx, sy, 2, 2);
+            if (twinkle > 0.72) {
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(sx - 1, sy, 4, 1);
+            }
+          }
+        } else {
+          // Praderas / Cueva: ondas y reflejos suaves de río cristalino
+          const waveX = Math.round(Math.sin(timeSec * 2.2 + seed) * 3);
+          ctx.fillStyle = '#bae6fd';
+          ctx.globalAlpha = 0.28 + Math.sin(timeSec * 2.8 + seed) * 0.14;
+          ctx.fillRect(wx + 6 + waveX, wy + 10 + ((c + r) % 3) * 6, 9, 2);
+          if (((c + r) & 1) === 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha = 0.24 + Math.cos(timeSec * 3.4 + seed) * 0.12;
+            ctx.fillRect(wx + 12 - waveX, wy + 22, 4, 1);
+          }
+        }
+      }
+    }
+
+    if (drewAny) {
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /**
+   * Superpone animación en vivo Zero-GC sobre losetas líquidas/vacías (`tile === 3`) dentro de cámara:
+   * - Claro (`cave_exit_intro`): ondas cristalinas de corriente.
+   * - Pantano (`marsh_of_spores`): burbujas bioluminiscentes flotantes.
+   * - Caldera (`ash_caldera`): pulsos de magma incandescente y chispas de lava.
+   * - Ciudadela (`astral_citadel`): estrellas y destellos etéreos en movimiento.
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {import('../render/Camera.js').Camera} camera
+   * @param {number} [timeSec=0]
+   */
+  renderFluidAnimations(ctx, camera, timeSec = 0) {
+    if (!ctx || !camera || !this.grid || this.grid.length === 0) return;
+
+    const ts = this.tileSize || 32;
+    const bounds = camera.getVisibleWorldBounds(ts);
+    const minCol = Math.max(0, Math.floor(bounds.minX / ts));
+    const maxCol = Math.min(this.cols - 1, Math.floor(bounds.maxX / ts));
+    const minRow = Math.max(0, Math.floor(bounds.minY / ts));
+    const maxRow = Math.min(this.rows - 1, Math.floor(bounds.maxY / ts));
+    const biome = this.biomeKey || 'cave_exit_intro';
+
+    for (let r = minRow; r <= maxRow; r++) {
+      const rowArr = this.grid[r];
+      if (!rowArr) continue;
+      for (let c = minCol; c <= maxCol; c++) {
+        if (rowArr[c] !== 3) continue;
+        const h = this._hash2D(c, r, 41);
+        if ((h & 3) === 0) continue;
+        const px = c * ts;
+        const py = r * ts;
+
+        if (biome === 'ash_caldera') {
+          const pulse = Math.sin(timeSec * 3.1 + (h & 15) * 0.4);
+          if (pulse > 0.25) {
+            const ox = 6 + ((h >>> 4) % 18);
+            const oy = 6 + ((h >>> 8) % 16) - Math.round(pulse * 3);
+            ctx.fillStyle = pulse > 0.72 ? '#fde047' : '#fb923c';
+            ctx.fillRect(px + ox, py + oy, 3, 2);
+          }
+        } else if (biome === 'marsh_of_spores') {
+          const cyc = (timeSec * 0.75 + (h & 31) * 0.08) % 1;
+          const ox = 5 + ((h >>> 3) % 20);
+          const oy = Math.round(py + 24 - cyc * 16);
+          ctx.fillStyle = (h & 8) ? '#5eead4' : '#c084fc';
+          ctx.fillRect(px + ox, oy, cyc < 0.7 ? 2 : 3, 2);
+        } else if (biome === 'astral_citadel') {
+          const tw = Math.sin(timeSec * 2.4 + (h & 15) * 0.5);
+          if (tw > 0.35) {
+            const sx = px + 4 + ((h >>> 4) % 22);
+            const sy = py + 4 + ((h >>> 9) % 22);
+            ctx.fillStyle = (h & 8) ? '#f5d0fe' : '#38bdf8';
+            ctx.fillRect(sx, sy, 2, 2);
+          }
+        } else {
+          // Corriente de río sereno en Claro de las Reliquias
+          const drift = Math.round((timeSec * 14 + (h & 15) * 2) % 22);
+          const rx = px + ((drift + (h & 7)) % 22) + 2;
+          const ry = py + 8 + ((h >>> 6) % 16);
+          ctx.fillStyle = 'rgba(224, 242, 254, 0.55)';
+          ctx.fillRect(rx, ry, 5, 1);
         }
       }
     }

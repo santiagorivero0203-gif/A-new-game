@@ -49,6 +49,11 @@ export class Camera {
     /** @type {number} Multiplicador de zoom efectivo entero (calculado dinámicamente) */
     this.zoom = 2;
 
+    /** @type {number} Impulso dinámico de zoom para pasillos estrechos, intros y KOs estilo Smash Bros */
+    this.zoomBoost = 0;
+    /** @type {number} Objetivo suavizado de zoomBoost [0..0.35] */
+    this.targetZoomBoost = 0;
+
     /** @type {number} Ancho lógico nativo del lienzo pixel-art */
     this.logicalWidth = 480;
 
@@ -177,8 +182,9 @@ export class Camera {
    */
   _applyRoomBounds() {
     if (!this.roomBounds) return;
-    const visibleWidth = this.viewportWidth / this.zoom;
-    const visibleHeight = this.viewportHeight / this.zoom;
+    const effZoom = (this.zoom || 1) * (1 + (this.zoomBoost || 0));
+    const visibleWidth = this.viewportWidth / effZoom;
+    const visibleHeight = this.viewportHeight / effZoom;
 
     const halfW = visibleWidth / 2;
     const halfH = visibleHeight / 2;
@@ -278,6 +284,13 @@ export class Camera {
       );
     }
 
+    const targetBoost = Math.max(-0.08, Math.min(0.35, Number(this.targetZoomBoost) || 0));
+    const zoomAlpha = Math.min(1, dt * 7.5);
+    this.zoomBoost += (targetBoost - this.zoomBoost) * zoomAlpha;
+    if (Math.abs(this.zoomBoost) < 0.0005 && targetBoost === 0) {
+      this.zoomBoost = 0;
+    }
+
     this.pos.set(this._camAnchorPos.x, this._camAnchorPos.y);
     this._applyRoomBounds();
 
@@ -305,8 +318,9 @@ export class Camera {
    * @returns {Vector2} Coordenadas en pantalla
    */
   worldToScreen(worldPos) {
-    this._screenCache.x = this.viewportWidth / 2 + (worldPos.x - this.pos.x) * this.zoom;
-    this._screenCache.y = this.viewportHeight / 2 + (worldPos.y - this.pos.y) * this.zoom;
+    const effZoom = (this.zoom || 1) * (1 + (this.zoomBoost || 0));
+    this._screenCache.x = this.viewportWidth / 2 + (worldPos.x - this.pos.x) * effZoom;
+    this._screenCache.y = this.viewportHeight / 2 + (worldPos.y - this.pos.y) * effZoom;
     return this._screenCache;
   }
 
@@ -316,13 +330,14 @@ export class Camera {
    * @returns {Vector2} Coordenadas en el mundo
    */
   screenToWorld(screenPos) {
-    this._worldCache.x = this.pos.x + (screenPos.x - this.viewportWidth / 2) / this.zoom;
-    this._worldCache.y = this.pos.y + (screenPos.y - this.viewportHeight / 2) / this.zoom;
+    const effZoom = (this.zoom || 1) * (1 + (this.zoomBoost || 0));
+    this._worldCache.x = this.pos.x + (screenPos.x - this.viewportWidth / 2) / effZoom;
+    this._worldCache.y = this.pos.y + (screenPos.y - this.viewportHeight / 2) / effZoom;
     return this._worldCache;
   }
 
   /**
-   * Aplica traslación alineada a píxeles reales del lienzo optimizado (`canvasScale` entero).
+   * Aplica traslación alineada a píxeles reales del lienzo optimizado (`canvasScale` + `zoomBoost`).
    * Evita multiplicación excesiva de píxeles en GPU conservando nitidez pixel-art y 60/120 FPS estables.
    * @param {CanvasRenderingContext2D} ctx
    */
@@ -330,11 +345,11 @@ export class Camera {
     ctx.save();
     const cw = (ctx.canvas && ctx.canvas.width) ? ctx.canvas.width : this.logicalWidth;
     const ch = (ctx.canvas && ctx.canvas.height) ? ctx.canvas.height : this.logicalHeight;
-    const scale = this.canvasScale || 1;
+    const scale = (this.canvasScale || 1) * (1 + (this.zoomBoost || 0));
     const tx = Math.round(cw * 0.5 - (this.pos.x + this.shakeOffset.x) * scale);
     const ty = Math.round(ch * 0.5 - (this.pos.y + this.shakeOffset.y) * scale);
     ctx.translate(tx, ty);
-    if (scale !== 1) {
+    if (Math.abs(scale - 1) > 0.001) {
       ctx.scale(scale, scale);
     }
   }
@@ -346,8 +361,9 @@ export class Camera {
    * @returns {{minX: number, minY: number, maxX: number, maxY: number}}
    */
   getVisibleWorldBounds(margin = 96) {
-    const halfW = (this.viewportWidth / (this.zoom || 1)) * 0.5 + margin;
-    const halfH = (this.viewportHeight / (this.zoom || 1)) * 0.5 + margin;
+    const effZoom = (this.zoom || 1) * (1 + (this.zoomBoost || 0));
+    const halfW = (this.viewportWidth / effZoom) * 0.5 + margin;
+    const halfH = (this.viewportHeight / effZoom) * 0.5 + margin;
     const cx = this.pos.x + this.shakeOffset.x;
     const cy = this.pos.y + this.shakeOffset.y;
     const b = this._boundsCache;

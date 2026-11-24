@@ -419,6 +419,10 @@ export class InputManager {
   _bindEvents() {
     // --- 1. Teclado Físico (Estándar de la Industria + Hotkeys Rápidos) ---
     window.addEventListener('keydown', (e) => {
+      // No capturar entradas ni disparar acciones del juego mientras el tutorial guiado pausa la escena
+      if (typeof document !== 'undefined' && document.body && document.body.classList.contains('tutorial-active')) {
+        return;
+      }
       this.keys[e.code] = true;
       // Cualquier interacción con el teclado desactiva el apuntado pasivo del ratón
       this.lastActionSource = 'keyboard';
@@ -562,9 +566,12 @@ export class InputManager {
     });
 
     window.addEventListener('mousedown', (e) => {
+      if (typeof document !== 'undefined' && document.body && document.body.classList.contains('tutorial-active')) {
+        return;
+      }
       // Ignorar clics sobre botones, tarjetas, medallón del HUD o modales de la interfaz DOM
       if (e.target && typeof e.target.closest === 'function') {
-        if (e.target.closest('button, .modal-box, .menu-card, .radial-sector, .cinematic-overlay, .rpg-crest-module, .touch-action-btn, .touch-mini-btn')) {
+        if (e.target.closest('button, .modal-box, .menu-card, .radial-sector, .cinematic-overlay, .tutorial-guide-overlay, .tutorial-guide-card, .tutorial-scrim, .dialogue-card, .hud-interact-prompt, .rpg-crest-module, .touch-action-btn, .touch-mini-btn')) {
           return;
         }
       }

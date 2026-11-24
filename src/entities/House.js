@@ -1,23 +1,32 @@
 import { Entity } from './Entity.js';
+import { CelSpriteAtlas } from '../render/CelSpriteAtlas.js';
 
 /**
  * @module House
- * @description Entidad de cabaña/casa de madera estilo 32-bit indie moderno con Y-Sorting estricto.
- * Tejado a dos aguas naranja vibrante, paredes de madera pastel y cimientos de piedra.
- * La hitbox sólida está configurada ÚNICAMENTE en los cimientos, permitiendo al
- * jugador caminar por la parte trasera (quedando tapado por el tejado) o por el frente.
+ * @description Entidad arquitectónica regional con 4 estilos por bioma × 4 oficios
+ * (`cottage`, `forge`, `alchemist`, `civic`), animaciones ambientales vivas Zero-GC
+ * (humo ascendente de chimeneas, brasas de herrería, burbujas alquímicas, estandartes
+ * y cristales estelares) y Y-Sorting estricto restringido a los cimientos.
  * @author Be a Legend Team
- * @version 1.2.0
+ * @version 2.0.0
  */
 export class House extends Entity {
   /**
    * @param {number} x - Posición X de la esquina superior izquierda
    * @param {number} y - Posición Y de la esquina superior izquierda
-   * @param {HTMLImageElement|HTMLCanvasElement} [sprite] - Sprite de la casa
+   * @param {HTMLImageElement|HTMLCanvasElement|Object|null} [spriteOrConfig=null]
    */
-  constructor(x, y, sprite = null) {
-    super(x, y, 160, 144);
-    this.sprite = sprite;
+  constructor(x, y, spriteOrConfig = null) {
+    super(x, y, 168, 152);
+    const isCfg = spriteOrConfig && typeof spriteOrConfig === 'object'
+      && typeof spriteOrConfig.getContext !== 'function'
+      && !('naturalWidth' in spriteOrConfig);
+
+    this.sprite = isCfg ? (spriteOrConfig.sprite || null) : spriteOrConfig;
+    this.biome = isCfg ? (spriteOrConfig.biome || 'cave_exit_intro') : 'cave_exit_intro';
+    this.buildingType = isCfg ? (spriteOrConfig.buildingType || 'cottage') : 'cottage';
+    this.label = isCfg ? (spriteOrConfig.label || null) : null;
+    this._phase = ((Math.abs(x) * 13 + Math.abs(y) * 7) % 100) * 0.0628;
 
     this.tags.push('solid');
     this.tags.push('prop');
@@ -27,9 +36,9 @@ export class House extends Entity {
      * Hitbox restringida ÚNICAMENTE a los cimientos y muros de la base.
      */
     this.hitbox = {
-      offsetX: 12,
-      offsetY: 86,
-      width: 136,
+      offsetX: 14,
+      offsetY: 92,
+      width: 140,
       height: 54
     };
 
@@ -38,76 +47,114 @@ export class House extends Entity {
   }
 
   /**
-   * Asigna la textura del sprite.
-   * @param {HTMLImageElement|HTMLCanvasElement} sprite
+   * Asigna textura o configuración de bioma/tipo arquitectónico.
+   * @param {HTMLImageElement|HTMLCanvasElement|Object|null} spriteOrConfig
    */
-  setSprite(sprite) {
-    this.sprite = sprite;
+  setSprite(spriteOrConfig) {
+    if (
+      spriteOrConfig &&
+      typeof spriteOrConfig === 'object' &&
+      typeof spriteOrConfig.getContext !== 'function' &&
+      !('naturalWidth' in spriteOrConfig)
+    ) {
+      if (spriteOrConfig.biome) this.biome = spriteOrConfig.biome;
+      if (spriteOrConfig.buildingType) this.buildingType = spriteOrConfig.buildingType;
+      this.sprite = spriteOrConfig.sprite || null;
+      return;
+    }
+    this.sprite = spriteOrConfig;
   }
 
   /**
-   * Renderiza el sprite de la casa moderna o el fallback vectorial pastel.
+   * Renderiza el edificio regional horneado y anima chimeneas, fraguas, calderos y estandartes.
    * @param {CanvasRenderingContext2D} ctx
    */
   draw(ctx) {
     const x = Math.round(this.pos.x);
     const y = Math.round(this.pos.y);
+    const nowSec = (typeof performance !== 'undefined' ? performance.now() : 0) * 0.001;
+    const t = nowSec + this._phase;
 
-    if (this.sprite) {
-      ctx.drawImage(this.sprite, x, y, this.width, this.height);
-      return;
+    const img = this.sprite || CelSpriteAtlas.getHouseSprite(this.biome, this.buildingType);
+    if (img) {
+      ctx.drawImage(img, x, y, this.width, this.height);
     }
 
-    // 1. Sombra suave
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-    ctx.fillRect(x + 10, y + 132, 140, 12);
+    // 1. Calidez pulsante en ventanas y cristales interiores (Zero-GC hex + globalAlpha)
+    const winAlpha = 0.14 + Math.sin(t * 2.6) * 0.08;
+    ctx.fillStyle = this.biome === 'marsh_of_spores'
+      ? '#5eead4'
+      : this.biome === 'astral_citadel'
+        ? '#e879f9'
+        : '#fde047';
+    ctx.globalAlpha = winAlpha;
+    ctx.fillRect(x + 98, y + 82, 28, 22);
 
-    // 2. Cimientos de piedra redondeada
-    ctx.fillStyle = '#64748b';
-    ctx.fillRect(x + 12, y + 116, 136, 24);
-
-    // 3. Paredes de madera pastel celeste / cyan (estilo Animal Crossing / Eastward)
-    ctx.fillStyle = '#7dd3fc';
-    ctx.fillRect(x + 16, y + 68, 128, 50);
-
-    // Líneas de tablones suaves
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 2;
-    for (let ly = y + 80; ly < y + 116; ly += 12) {
-      ctx.beginPath();
-      ctx.moveTo(x + 16, ly);
-      ctx.lineTo(x + 144, ly);
-      ctx.stroke();
+    // 2. Volutas de humo o vapor alquímico desde chimeneas / torres
+    if (this.buildingType === 'cottage' || this.buildingType === 'forge' || this.buildingType === 'alchemist') {
+      const chimX = this.buildingType === 'forge' ? x + 124 : x + 125;
+      const chimY = this.buildingType === 'forge' ? y + 6 : y + 11;
+      for (let i = 0; i < 3; i++) {
+        const cycle = (t * 0.55 + i * 0.33) % 1;
+        const px = Math.round(chimX + Math.sin(cycle * 6.28 + i) * 3.2);
+        const py = Math.round(chimY - cycle * 18);
+        const size = cycle < 0.4 ? 4 : cycle < 0.75 ? 5 : 3;
+        ctx.globalAlpha = (1 - cycle) * 0.52;
+        if (this.buildingType === 'alchemist') {
+          ctx.fillStyle = this.biome === 'ash_caldera' ? '#fb923c' : '#5eead4';
+        } else {
+          ctx.fillStyle = '#e2e8f0';
+        }
+        ctx.fillRect(px, py, size, size);
+      }
     }
 
-    // 4. Puerta redondeada de madera
-    ctx.fillStyle = '#78350f';
-    ctx.fillRect(x + 36, y + 82, 28, 42);
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillRect(x + 56, y + 102, 4, 4); // Pomo dorado
+    // 3. Animaciones vivas específicas de oficio o bioma
+    if (this.buildingType === 'forge') {
+      const sparkOn = Math.floor(t * 5) % 2 === 0;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = sparkOn ? '#fde047' : '#f97316';
+      ctx.fillRect(x + 123, y + 10, 8, 3);
+      for (let s = 0; s < 2; s++) {
+        const sc = (t * 1.4 + s * 0.5) % 1;
+        const sx = Math.round(x + 135 + Math.cos(s * 2 + sc * 3) * 7 * sc);
+        const sy = Math.round(y + 112 - sc * 11);
+        ctx.globalAlpha = 1 - sc;
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+    } else if (this.buildingType === 'alchemist') {
+      const swing = Math.round(Math.sin(t * 3.1) * 1.5);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = this.biome === 'astral_citadel' ? '#e879f9' : '#4ade80';
+      ctx.fillRect(x + 81 + swing, y + 83, 6, 4);
+      const bub = (t * 0.9) % 1;
+      ctx.globalAlpha = 1 - bub;
+      ctx.fillStyle = '#a855f7';
+      ctx.fillRect(x + 83, Math.round(y + 76 - bub * 10), 2, 2);
+    } else if (this.buildingType === 'civic') {
+      const wave = Math.round(Math.sin(t * 3.6) * 1.5);
+      const bannerColor = this.biome === 'ash_caldera' ? '#f97316'
+        : this.biome === 'marsh_of_spores' ? '#2dd4bf'
+          : this.biome === 'astral_citadel' ? '#a855f7' : '#b45309';
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = bannerColor;
+      ctx.fillRect(x + 30 + wave, y + 72, 6, 16);
+      ctx.fillRect(x + 132 + wave, y + 72, 6, 16);
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(x + 31 + wave, y + 86, 4, 2);
+      ctx.fillRect(x + 133 + wave, y + 86, 4, 2);
+    }
 
-    // Ventana luminosa
-    ctx.fillStyle = '#fef08a';
-    ctx.fillRect(x + 88, y + 82, 28, 24);
-    ctx.strokeStyle = '#ca8a04';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x + 88, y + 82, 28, 24);
+    if (this.biome === 'astral_citadel') {
+      const floatY = Math.round(Math.sin(t * 2.4) * 2.2);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#e879f9';
+      ctx.fillRect(x + 82, y + 8 + floatY, 4, 7);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + 83, y + 10 + floatY, 2, 3);
+    }
 
-    // 5. Chimenea de ladrillos
-    ctx.fillStyle = '#b45309';
-    ctx.fillRect(x + 112, y + 14, 22, 38);
-
-    // 6. Tejado a dos aguas naranja teja vibrante
-    ctx.fillStyle = '#f97316';
-    ctx.beginPath();
-    ctx.moveTo(x + 6, y + 70);
-    ctx.lineTo(x + 80, y + 18);
-    ctx.lineTo(x + 154, y + 70);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = '#ea580c';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }

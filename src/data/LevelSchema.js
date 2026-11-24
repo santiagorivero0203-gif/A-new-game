@@ -158,6 +158,7 @@ export function createBlankLevel(options = {}) {
     terrainGrid,
     solidColliders: [],
     stealthZones: [],
+    corridorZones: [],
     lights: [],
     props: [],
     entities: [],
@@ -218,6 +219,7 @@ export function normalizeLevel(raw, { generateMissingGrid = null } = {}) {
   const solidColliders = rawColliders.map(c => ({ ...c }));
 
   const stealthZones = Array.isArray(raw.stealthZones) ? raw.stealthZones.map(z => ({ ...z })) : [];
+  const corridorZones = Array.isArray(raw.corridorZones) ? raw.corridorZones.map(z => ({ ...z })) : [];
   const lights = Array.isArray(raw.lights) ? raw.lights.map(l => ({ ...l })) : [];
   const props = Array.isArray(raw.props)
     ? raw.props.map((p) => ({
@@ -291,6 +293,7 @@ export function normalizeLevel(raw, { generateMissingGrid = null } = {}) {
     terrainGrid,
     solidColliders,
     stealthZones,
+    corridorZones,
     lights,
     props,
     entities,

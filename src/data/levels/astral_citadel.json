@@ -6,33 +6,38 @@
   "zoneOrder": 4,
   "isRootZone": true,
   "name": "Ciudadela Astral",
-  "worldTitle": "Capítulo Final · Observatorio del Cenit y Éter Magnético",
+  "worldTitle": "Capítulo Final · Enclave del Prisma y Cenit",
   "biome": "astral_citadel",
   "layoutPreset": "astral_citadel",
   "weather": "stardust",
-  "cols": 60,
-  "rows": 40,
+  "cols": 84,
+  "rows": 50,
   "tileSize": 32,
   "startDormant": false,
   "enableStealth": false,
   "ambientColor": "rgba(19, 14, 48, 0.34)",
-  "initialObjective": "Despierta el Éter Magnético al norte, rescata a la Custodia al sur y sincroniza los 3 sellos elementales para enfrentar al Arconte",
-  "playerSpawn": { "x": 224, "y": 620 },
+  "initialObjective": "Cruza al Enclave del Prisma, despierta el Éter Magnético al norte y rescata a la Custodia al sur",
+  "playerSpawn": { "x": 224, "y": 680 },
   "spawnPoints": [
-    { "id": "default", "label": "Terraza del Umbral", "x": 224, "y": 620 },
-    { "id": "zenith_plaza", "label": "Plaza del Cenit", "x": 1412, "y": 620 }
+    { "id": "default", "label": "Terraza del Umbral", "x": 224, "y": 680 },
+    { "id": "zenith_plaza", "label": "Plaza del Cenit", "x": 2128, "y": 680 }
   ],
-  "arenaCenter": { "x": 1520, "y": 624 },
+  "arenaCenter": { "x": 2288, "y": 688 },
   "perimeterConfig": null,
+  "corridorZones": [
+    { "id": "m4_west_bridge_corridor", "x": 416, "y": 656, "width": 144, "height": 96, "label": "Pasarela del Prisma" },
+    { "id": "m4_void_walkway", "x": 1120, "y": 656, "width": 320, "height": 96, "label": "Pasarela del Vacío" }
+  ],
   "solidColliders": [],
   "stealthZones": [],
   "lights": [
-    { "x": 224, "y": 620, "radius": 190, "color": "#c084fc", "intensity": 0.72, "flickerSpeed": 1.8 },
-    { "x": 752, "y": 624, "radius": 235, "color": "#38bdf8", "intensity": 0.75, "flickerSpeed": 1.9 },
-    { "x": 784, "y": 272, "radius": 255, "color": "#e879f9", "intensity": 0.84, "flickerSpeed": 2.2 },
-    { "x": 784, "y": 1008, "radius": 235, "color": "#fde047", "intensity": 0.74, "flickerSpeed": 1.7 },
-    { "x": 1520, "y": 624, "radius": 320, "color": "#a855f7", "intensity": 0.85, "flickerSpeed": 2.1 },
-    { "x": 1740, "y": 624, "radius": 210, "color": "#fde047", "intensity": 0.80, "flickerSpeed": 1.9 }
+    { "x": 224, "y": 680, "radius": 190, "color": "#c084fc", "intensity": 0.72, "flickerSpeed": 1.8 },
+    { "x": 832, "y": 688, "radius": 320, "color": "#38bdf8", "intensity": 0.76, "flickerSpeed": 1.9 },
+    { "x": 832, "y": 240, "radius": 255, "color": "#e879f9", "intensity": 0.84, "flickerSpeed": 2.2 },
+    { "x": 832, "y": 1184, "radius": 255, "color": "#fde047", "intensity": 0.74, "flickerSpeed": 1.7 },
+    { "x": 1632, "y": 688, "radius": 255, "color": "#e879f9", "intensity": 0.80, "flickerSpeed": 2.3 },
+    { "x": 2288, "y": 688, "radius": 340, "color": "#a855f7", "intensity": 0.85, "flickerSpeed": 2.1 },
+    { "x": 2520, "y": 688, "radius": 210, "color": "#fde047", "intensity": 0.80, "flickerSpeed": 1.9 }
   ],
   "props": [
     {
@@ -43,122 +48,122 @@
       "worldLabel": "Caldera de Ceniza",
       "portalColor": "#f97316",
       "x": 140,
-      "y": 544
+      "y": 608
     },
     {
       "id": "m4_broken_statue",
       "propType": "broken_statue",
-      "x": 564,
-      "y": 512,
+      "x": 740,
+      "y": 532,
       "biomeTint": "forest",
       "loreTitle": "Efigie del Primer Portador",
-      "loreText": "En el umbral celeste yacen los ecos de quien forjó la Reliquia con estrellas y acero.",
-      "essenceReward": 32
-    },
-    {
-      "id": "m4_rusted_greatsword",
-      "propType": "rusted_greatsword",
-      "x": 896,
-      "y": 704,
-      "loreTitle": "Reliquia de los Vientos Altos",
-      "loreText": "Una hoja ceremonial que sobrevivió mil eclipses protegiendo la Gran Plaza.",
-      "essenceReward": 28
+      "loreText": "En el Enclave del Prisma yacen los ecos de quien forjó la Reliquia con estrellas y acero.",
+      "essenceReward": 12
     },
     {
       "id": "m4_runic_obelisk",
       "propType": "runic_obelisk",
-      "x": 884,
-      "y": 500,
+      "x": 920,
+      "y": 732,
       "runeColor": "#e879f9",
       "loreTitle": "Obelisco del Cenit",
       "loreText": "Las cuatro afinidades convergen aquí: Fuego, Raíces, Embestida y Éter Magnético vibran al unísono.",
-      "essenceReward": 45
+      "essenceReward": 14
     },
-    { "id": "m4_north_bridge_cry_l", "propType": "crystal_rock", "x": 696, "y": 396 },
-    { "id": "m4_north_bridge_vines", "propType": "burnable_vines", "x": 732, "y": 376 },
-    { "id": "m4_north_bridge_cry_r", "propType": "crystal_rock", "x": 776, "y": 396 },
-    { "id": "m4_south_bridge_cry_l", "propType": "crystal_rock", "x": 696, "y": 798 },
+    {
+      "id": "m4_rusted_greatsword",
+      "propType": "rusted_greatsword",
+      "x": 984,
+      "y": 620,
+      "loreTitle": "Reliquia de los Vientos Altos",
+      "loreText": "Una hoja ceremonial que sobrevivió mil eclipses protegiendo la Gran Plaza.",
+      "essenceReward": 10
+    },
+    { "id": "m4_north_bridge_cry_l", "propType": "crystal_rock", "x": 776, "y": 388 },
+    { "id": "m4_north_bridge_vines", "propType": "burnable_vines", "x": 812, "y": 368 },
+    { "id": "m4_north_bridge_cry_r", "propType": "crystal_rock", "x": 856, "y": 388 },
+    { "id": "m4_south_bridge_cry_l", "propType": "crystal_rock", "x": 776, "y": 954 },
     {
       "id": "m4_south_bridge_barrier",
       "propType": "kinetic_barrier",
       "label": "Bloque Astral de Basalto",
-      "x": 736,
-      "y": 798
+      "x": 816,
+      "y": 950
     },
-    { "id": "m4_south_bridge_cry_r", "propType": "crystal_rock", "x": 776, "y": 798 },
+    { "id": "m4_south_bridge_cry_r", "propType": "crystal_rock", "x": 856, "y": 954 },
     {
       "id": "m4_relic_eter",
       "propType": "relic_pedestal",
       "grantsElement": "Éter",
-      "essenceReward": 60,
+      "essenceReward": 25,
       "label": "Núcleo de Éter Magnético",
-      "x": 756,
-      "y": 236
+      "x": 812,
+      "y": 204
     },
     {
       "id": "astral_pylon_a",
       "propType": "ether_pylon",
       "label": "Pilón Voltaico Norte",
       "runeColor": "#c084fc",
-      "x": 944,
-      "y": 240
+      "x": 984,
+      "y": 204
     },
     {
       "id": "astral_pylon_b",
       "propType": "ether_pylon",
       "label": "Pilón Voltaico Sur",
       "runeColor": "#c084fc",
-      "x": 944,
-      "y": 976
+      "x": 984,
+      "y": 1140
     },
     {
       "id": "astral_root_totem",
       "propType": "root_totem",
       "label": "Tótem de Convergencia Silvestre",
       "runeColor": "#4ade80",
-      "x": 576,
-      "y": 716
+      "x": 584,
+      "y": 616
     },
     {
       "id": "m4_shrine_relic_blade",
       "propType": "weapon_shrine",
       "grantsWeapon": "relic_blade",
       "label": "Cenit Astral del Alba",
-      "x": 608,
-      "y": 976
+      "x": 644,
+      "y": 1140
     },
     {
       "id": "m4_zenith_gate",
       "propType": "runic_gate",
-      "sealedBy": ["astral_pylon_a", "astral_pylon_b", "astral_root_totem"],
+      "sealedBy": ["astral_pylon_a", "astral_pylon_b", "astral_root_totem", "miniboss_m4"],
       "runeColor": "#c084fc",
       "label": "Sello del Cenit",
-      "sealedHint": "Ancla el Tótem Silvestre del Vestíbulo [Raíces] y energiza ambos Pilones Voltaicos (Norte y Sur) [Éter].",
-      "x": 1088,
-      "y": 604
+      "sealedHint": "Ancla el Tótem Silvestre, energiza ambos Pilones Voltaicos y derrota al Segador Astral.",
+      "x": 1884,
+      "y": 666
     },
-    { "id": "m4_sanctuary_altar", "propType": "sanctuary_altar", "x": 1352, "y": 448 },
+    { "id": "m4_sanctuary_altar", "propType": "sanctuary_altar", "x": 2080, "y": 500 },
     {
       "id": "m4_zenith_obelisk",
       "propType": "runic_obelisk",
-      "x": 1636,
-      "y": 428,
+      "x": 2404,
+      "y": 468,
       "runeColor": "#fde047",
       "loreTitle": "Estela de la Convergencia",
       "loreText": "Solo quien domina los cuatro engarces y unifica el Cenit despierta el verdadero legado de la Reliquia.",
-      "essenceReward": 45
+      "essenceReward": 15
     },
-    { "id": "m4_horde_totem", "propType": "horde_totem", "x": 1356, "y": 768 },
+    { "id": "m4_horde_totem", "propType": "horde_totem", "x": 2080, "y": 824 },
     {
       "id": "m4_storm_coil_1",
       "propType": "hazard_vent",
       "hazardKind": "storm_coil",
       "cycleTime": 4.0,
       "activeTime": 0.70,
-      "hazardRadius": 48,
+      "hazardRadius": 46,
       "phaseOffset": 0.0,
-      "x": 1448,
-      "y": 512
+      "x": 2180,
+      "y": 564
     },
     {
       "id": "m4_storm_coil_2",
@@ -166,10 +171,10 @@
       "hazardKind": "storm_coil",
       "cycleTime": 4.0,
       "activeTime": 0.70,
-      "hazardRadius": 48,
+      "hazardRadius": 46,
       "phaseOffset": 2.0,
-      "x": 1576,
-      "y": 716
+      "x": 2348,
+      "y": 780
     },
     {
       "id": "m4_portal_master",
@@ -181,25 +186,101 @@
       "portalColor": "#fde047",
       "sealedBy": ["boss_m4"],
       "sealedHint": "Derrota al Arconte del Eclipse para unificar los cuatro núcleos de la Reliquia.",
-      "x": 1712,
-      "y": 584
+      "x": 2496,
+      "y": 650
     }
   ],
   "entities": [
+    { "type": "house", "biome": "astral_citadel", "buildingType": "cottage", "label": "Pabellón del Alba", "x": 560, "y": 416 },
+    { "type": "house", "biome": "astral_citadel", "buildingType": "forge", "label": "Forja Estelar", "x": 912, "y": 416 },
+    { "type": "house", "biome": "astral_citadel", "buildingType": "alchemist", "label": "Botica del Cenit", "x": 560, "y": 740 },
+    { "type": "house", "biome": "astral_citadel", "buildingType": "civic", "label": "Observatorio Cívico", "x": 912, "y": 740 },
     {
       "type": "npc",
       "id": "tarak_m4_npc",
       "name": "Sabio Tarak",
       "variant": "tarak",
+      "role": "sage",
       "x": 304,
+      "y": 624,
+      "dialogues": {
+        "highKarma": "Tu compasión en cada bioma ha forjado un portador digno del Cuarto Núcleo, Santi.",
+        "lowKarma": "Has llegado al Cenit por puro ímpetu, Santi. Aquí los guardianes astrales castigarán cada error.",
+        "lines": [
+          "El Enclave del Prisma reúne a nuestros últimos artesanos estelares antes del Atrio del Segador.",
+          "Combina Éter con Fuego o Raíces para desatar Sobrecarga de Plasma o Tormenta Bioeléctrica."
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "orion_m4_npc",
+      "name": "Forjador Estelar Orión",
+      "variant": "blacksmith",
+      "role": "blacksmith",
+      "biome": "astral_citadel",
+      "shopTitle": "Forja Estelar del Prisma",
+      "shopSubtitle": "«Templo polvo estelar sobre la Espada del Alba para el duelo final.»",
+      "x": 992,
       "y": 576,
       "dialogues": {
-        "highKarma": "Tu compasión en cada bioma ha forjado un portador digno del Cuarto Núcleo. La Reliquia se alinea sin reservas contigo, Santi.",
-        "lowKarma": "Has llegado al Cenit por puro ímpetu, Santi. Aquí los Centinelas Astrales castigarán cada golpe impulsivo.",
         "lines": [
-          "El Vestíbulo exige Fuego al norte, Embestida al sur, Raíces en el tótem occidental y Éter Magnético en ambos pilones.",
-          "Combina Éter con Fuego o Raíces para desatar Sobrecarga de Plasma o Tormenta Bioeléctrica sobre el Arconte."
+          "El Arconte del Eclipse posee un escudo arcano colosal. Deja tu espada en su máximo esplendor."
         ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "lyra_m4_npc",
+      "name": "Archimaga Lyra",
+      "variant": "alchemist",
+      "role": "alchemist",
+      "biome": "astral_citadel",
+      "shopTitle": "Botica del Cenit",
+      "shopSubtitle": "«Elixires de néctar cósmico para sostener tu energía durante el Eclipse.»",
+      "x": 640,
+      "y": 896,
+      "dialogues": {
+        "lines": [
+          "Prepara tus reservas vitales y bebe un frasco de Furia Arcana antes de desafiar al Arconte."
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "guard_m4_npc",
+      "name": "Custodio Vael",
+      "variant": "guard",
+      "role": "guard",
+      "biome": "astral_citadel",
+      "x": 864,
+      "y": 592,
+      "patrolPoints": [
+        { "x": 864, "y": 592 },
+        { "x": 864, "y": 720 }
+      ],
+      "dialogues": {
+        "lines": [
+          "Tras la Pasarela del Vacío aguarda el Segador Astral. No bajes la guardia al cruzar el puente estrecho."
+        ],
+        "liberated": "¡El Eclipse ha terminado! ¡El Enclave del Prisma saluda al Portador de la Leyenda!"
+      }
+    },
+    {
+      "type": "npc",
+      "id": "villager_m4_npc",
+      "name": "Erudita Selen",
+      "variant": "villager",
+      "role": "villager",
+      "biome": "astral_citadel",
+      "wanderRadius": 44,
+      "x": 736,
+      "y": 756,
+      "dialogues": {
+        "lines": [
+          "Las constelaciones vibran con fuerza alrededor del Tótem de Convergencia."
+        ],
+        "liberated": "¡La luz celeste brilla pura otra vez sobre la Ciudadela Astral!"
       }
     },
     {
@@ -207,20 +288,20 @@
       "id": "aurelia_m4_npc",
       "name": "Aurelia, Custodia del Cenit",
       "variant": "valerio",
+      "role": "rescue",
       "rescueTag": "ambush_astral_guard",
       "karmaEventId": "astral_guard_m4",
       "rewardShield": "astral_crest",
       "rewardEssence": 35,
-      "x": 768,
-      "y": 1064,
+      "x": 820,
+      "y": 1220,
       "dialogues": {
         "underThreat": "¡Ayúdame, portador! Los guardianes corruptos de la Galería Sur me mantienen acorralada.",
         "rescueComplete": "¡Mi gratitud eterna, Santi! Recibe el Blasón del Cenit Astral en tu Arsenal [I]: disipa los impactos del Arconte.",
         "highKarma": "Incluso en la cima del mundo no abandonas a nadie. Ese Blasón del Cenit brilla con tu nobleza.",
         "lowKarma": "Gracias por liberar el paso. Usa el Blasón del Cenit si quieres sobrevivir al Arconte del Eclipse.",
         "lines": [
-          "Energiza el Pilón Voltaico del este con Éter Magnético y consagra el Cenit Astral de tu Espada del Alba en el relicario cercano.",
-          "Cuando caiga el Arconte del Eclipse, cruza el Altar de la Unificación para sellar la leyenda."
+          "Energiza el Pilón Voltaico cercano con Éter Magnético y consagra el Cenit Astral de tu Espada del Alba."
         ]
       }
     },
@@ -230,26 +311,7 @@
       "archetype": "sentinel_ether",
       "element": "astral",
       "name": "Centinela de Éter",
-      "x": 700,
-      "y": 588
-    },
-    {
-      "type": "enemy",
-      "id": "m4_tank_vestibule",
-      "archetype": "tank",
-      "element": "fuego",
-      "name": "Gólem de Basalto",
-      "hasMetalArmor": true,
-      "x": 816,
-      "y": 644
-    },
-    {
-      "type": "enemy",
-      "id": "m4_duelist_vestibule",
-      "archetype": "duelist",
-      "element": "kinetic",
-      "name": "Hoja Estelar",
-      "x": 636,
+      "x": 1084,
       "y": 644
     },
     {
@@ -258,8 +320,8 @@
       "archetype": "sentinel_ether",
       "element": "astral",
       "name": "Guardián del Observatorio",
-      "x": 632,
-      "y": 248
+      "x": 664,
+      "y": 240
     },
     {
       "type": "enemy",
@@ -268,8 +330,8 @@
       "element": "astral",
       "name": "Vigía de la Galería",
       "customTags": ["ambush_astral_guard"],
-      "x": 700,
-      "y": 984
+      "x": 740,
+      "y": 1152
     },
     {
       "type": "enemy",
@@ -278,8 +340,39 @@
       "element": "kinetic",
       "name": "Caballero de Cuarzo",
       "customTags": ["ambush_astral_guard"],
-      "x": 836,
-      "y": 984
+      "x": 896,
+      "y": 1152
+    },
+    {
+      "type": "enemy",
+      "id": "m4_void_blinker",
+      "archetype": "void_blinker",
+      "element": "astral",
+      "name": "Errante del Vacío",
+      "x": 1524,
+      "y": 616
+    },
+    {
+      "type": "enemy",
+      "id": "m4_tank_atrium",
+      "archetype": "tank",
+      "element": "fuego",
+      "name": "Gólem de Basalto",
+      "hasMetalArmor": true,
+      "x": 1552,
+      "y": 744
+    },
+    {
+      "type": "enemy",
+      "id": "m4_miniboss_reaver",
+      "archetype": "miniboss_reaver",
+      "element": "astral",
+      "name": "Segador Astral",
+      "isMiniBoss": true,
+      "bossId": "miniboss_m4",
+      "noRespawn": true,
+      "x": 1632,
+      "y": 680
     },
     {
       "type": "enemy",
@@ -287,8 +380,8 @@
       "archetype": "duelist",
       "element": "kinetic",
       "name": "Custodio del Eclipse",
-      "x": 1412,
-      "y": 548
+      "x": 2168,
+      "y": 608
     },
     {
       "type": "enemy",
@@ -296,8 +389,8 @@
       "archetype": "sentinel_ether",
       "element": "astral",
       "name": "Oráculo Astral",
-      "x": 1416,
-      "y": 692
+      "x": 2168,
+      "y": 736
     },
     {
       "type": "enemy",
@@ -309,16 +402,15 @@
       "worldSeal": true,
       "noRespawn": true,
       "scaleWithRelicTier": true,
-      "x": 1520,
-      "y": 620
+      "x": 2288,
+      "y": 672
     }
   ],
   "clearingTrees": [],
   "foliage": [
-    { "x": 284, "y": 524 },
-    { "x": 604, "y": 512 },
-    { "x": 884, "y": 524 },
-    { "x": 1412, "y": 484 },
-    { "x": 1620, "y": 736 }
+    { "x": 284, "y": 584 },
+    { "x": 1500, "y": 544 },
+    { "x": 2140, "y": 544 },
+    { "x": 2380, "y": 808 }
   ]
 }

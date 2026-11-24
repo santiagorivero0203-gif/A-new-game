@@ -6,40 +6,46 @@
   "zoneOrder": 2,
   "isRootZone": true,
   "name": "Pantano de Esporas",
-  "worldTitle": "Capítulo II · Islas Druídicas y Sombra Silvestre",
+  "worldTitle": "Capítulo II · Poblado Velo Hongar",
   "biome": "marsh_of_spores",
   "layoutPreset": "marsh_of_spores",
   "weather": "spores",
-  "cols": 58,
-  "rows": 40,
+  "cols": 78,
+  "rows": 48,
   "tileSize": 32,
   "startDormant": false,
   "enableStealth": true,
   "ambientColor": "rgba(7, 22, 18, 0.30)",
-  "initialObjective": "Incinera las zarzas del puente oeste [Fuego] y explora las Islas Norte y Sur para despertar Raíces",
+  "initialObjective": "Incinera las zarzas del puente oeste [Fuego], explora Poblado Velo Hongar y despierta Raíces en la Isla Norte",
   "playerSpawn": { "x": 224, "y": 620 },
   "spawnPoints": [
     { "id": "default", "label": "Embarcadero Oeste", "x": 224, "y": 620 },
-    { "id": "east_sanctuary", "label": "Santuario Inundado", "x": 1408, "y": 620 }
+    { "id": "east_sanctuary", "label": "Santuario Inundado", "x": 2096, "y": 620 }
   ],
-  "arenaCenter": { "x": 1472, "y": 640 },
+  "arenaCenter": { "x": 2176, "y": 640 },
   "perimeterConfig": {
     "enabled": true,
     "step": 108,
     "hasOpenRoad": true,
-    "roadGapY": [540, 720]
+    "roadGapY": [540, 740]
   },
+  "corridorZones": [
+    { "id": "m2_west_bridge_corridor", "x": 416, "y": 576, "width": 144, "height": 128, "label": "Puente de Zarzas" },
+    { "id": "m2_root_corridor", "x": 1248, "y": 592, "width": 176, "height": 96, "label": "Paso de Raíces Oscuras" }
+  ],
   "solidColliders": [],
   "stealthZones": [
-    { "x": 544, "y": 176, "width": 512, "height": 240 }
+    { "x": 544, "y": 128, "width": 576, "height": 208 }
   ],
   "lights": [
     { "x": 224, "y": 620, "radius": 185, "color": "#2dd4bf", "intensity": 0.65, "flickerSpeed": 1.6 },
-    { "x": 784, "y": 256, "radius": 240, "color": "#4ade80", "intensity": 0.76, "flickerSpeed": 1.9 },
-    { "x": 920, "y": 264, "radius": 155, "color": "#4ade80", "intensity": 0.62, "flickerSpeed": 2.1 },
-    { "x": 784, "y": 992, "radius": 220, "color": "#2dd4bf", "intensity": 0.64, "flickerSpeed": 1.5 },
-    { "x": 1472, "y": 640, "radius": 280, "color": "#5eead4", "intensity": 0.74, "flickerSpeed": 1.8 },
-    { "x": 1660, "y": 620, "radius": 195, "color": "#f97316", "intensity": 0.75, "flickerSpeed": 2.4 }
+    { "x": 800, "y": 624, "radius": 290, "color": "#5eead4", "intensity": 0.72, "flickerSpeed": 1.7 },
+    { "x": 784, "y": 224, "radius": 240, "color": "#4ade80", "intensity": 0.76, "flickerSpeed": 1.9 },
+    { "x": 960, "y": 224, "radius": 155, "color": "#4ade80", "intensity": 0.62, "flickerSpeed": 2.1 },
+    { "x": 784, "y": 1088, "radius": 240, "color": "#2dd4bf", "intensity": 0.66, "flickerSpeed": 1.5 },
+    { "x": 1568, "y": 624, "radius": 240, "color": "#a855f7", "intensity": 0.66, "flickerSpeed": 2.1 },
+    { "x": 2176, "y": 640, "radius": 300, "color": "#5eead4", "intensity": 0.76, "flickerSpeed": 1.8 },
+    { "x": 2360, "y": 620, "radius": 195, "color": "#f97316", "intensity": 0.75, "flickerSpeed": 2.4 }
   ],
   "props": [
     {
@@ -47,7 +53,7 @@
       "propType": "world_portal",
       "targetWorld": "cave_exit_intro",
       "targetSpawnId": "east_sanctuary",
-      "worldLabel": "Claro de la Reliquia",
+      "worldLabel": "Aldea del Alba",
       "portalColor": "#fde047",
       "x": 140,
       "y": 548
@@ -59,91 +65,83 @@
       "y": 664,
       "biomeTint": "marsh",
       "loreTitle": "Efigie Sumergida de las Esporas",
-      "loreText": "El musgo bioluminiscente conserva la memoria de antiguos druidas que sellaron estas marismas.",
-      "essenceReward": 22
-    },
-    {
-      "id": "m2_rusted_greatsword",
-      "propType": "rusted_greatsword",
-      "x": 608,
-      "y": 212,
-      "loreTitle": "Espada del Vigía del Cieno",
-      "loreText": "La hoja absorbió la humedad cenagosa, pero su empuñadura aún retiene calor rúnico.",
-      "essenceReward": 18
-    },
-    {
-      "id": "m2_runic_obelisk",
-      "propType": "runic_obelisk",
-      "x": 584,
-      "y": 684,
-      "runeColor": "#2dd4bf",
-      "loreTitle": "Obelisco de las Aguas Brillantes",
-      "loreText": "Las esporas retroceden ante el pulso silvestre de la Reliquia.",
-      "essenceReward": 30
+      "loreText": "El musgo bioluminiscente conserva la memoria de antiguos druidas que erigieron el Poblado Velo Hongar.",
+      "essenceReward": 8
     },
     { "id": "m2_west_bridge_rock_n", "propType": "cliff_rock", "x": 452, "y": 554 },
     { "id": "m2_west_bridge_vines", "propType": "burnable_vines", "x": 448, "y": 592 },
     { "id": "m2_west_bridge_rock_s", "propType": "cliff_rock", "x": 452, "y": 652 },
     {
-      "id": "m2_spore_pool_west",
-      "propType": "hazard_vent",
-      "hazardKind": "spore_pool",
-      "hazardRadius": 42,
-      "x": 628,
-      "y": 612
-    },
-    {
-      "id": "m2_spore_pool_center",
-      "propType": "hazard_vent",
-      "hazardKind": "spore_pool",
-      "hazardRadius": 42,
-      "x": 916,
-      "y": 612
+      "id": "m2_rusted_greatsword",
+      "propType": "rusted_greatsword",
+      "x": 608,
+      "y": 200,
+      "loreTitle": "Espada del Vigía del Cieno",
+      "loreText": "La hoja absorbió la humedad cenagosa, pero su empuñadura aún retiene calor rúnico.",
+      "essenceReward": 7
     },
     {
       "id": "m2_relic_raices",
       "propType": "relic_pedestal",
       "grantsElement": "Raíces",
-      "essenceReward": 40,
+      "essenceReward": 16,
       "label": "Núcleo de Raíces",
-      "x": 756,
-      "y": 224
+      "x": 776,
+      "y": 192
     },
     {
       "id": "marsh_root_totem_a",
       "propType": "root_totem",
       "label": "Tótem Norte del Pantano",
       "runeColor": "#4ade80",
-      "x": 912,
-      "y": 240
+      "x": 960,
+      "y": 212
+    },
+    {
+      "id": "m2_runic_obelisk",
+      "propType": "runic_obelisk",
+      "x": 780,
+      "y": 552,
+      "runeColor": "#2dd4bf",
+      "loreTitle": "Obelisco de Velo Hongar",
+      "loreText": "Las esporas retroceden ante el pulso silvestre de la Reliquia.",
+      "essenceReward": 10
+    },
+    {
+      "id": "m2_spore_pool_west",
+      "propType": "hazard_vent",
+      "hazardKind": "spore_pool",
+      "hazardRadius": 40,
+      "x": 1044,
+      "y": 608
     },
     {
       "id": "marsh_root_totem_b",
       "propType": "root_totem",
       "label": "Tótem Sur del Pantano",
       "runeColor": "#4ade80",
-      "x": 904,
-      "y": 964
+      "x": 960,
+      "y": 1068
     },
     {
       "id": "m2_east_gate",
       "propType": "runic_gate",
-      "sealedBy": ["marsh_root_totem_a", "marsh_root_totem_b"],
+      "sealedBy": ["marsh_root_totem_a", "marsh_root_totem_b", "miniboss_m2"],
       "runeColor": "#4ade80",
       "label": "Compuerta de Esporas",
-      "sealedHint": "Ancla los 2 Tótems Silvestres (Isla Norte e Isla Sur) con el poder de Raíces [Clic Der / K].",
-      "x": 1120,
-      "y": 604
+      "sealedHint": "Ancla los 2 Tótems Silvestres (Norte y Sur) y derrota a la Tejedora del Cieno.",
+      "x": 1784,
+      "y": 602
     },
-    { "id": "m2_sanctuary_altar", "propType": "sanctuary_altar", "x": 1356, "y": 484 },
-    { "id": "m2_horde_totem", "propType": "horde_totem", "x": 1344, "y": 768 },
+    { "id": "m2_sanctuary_altar", "propType": "sanctuary_altar", "x": 2016, "y": 468 },
+    { "id": "m2_horde_totem", "propType": "horde_totem", "x": 2016, "y": 780 },
     {
       "id": "m2_spore_pool_arena",
       "propType": "hazard_vent",
       "hazardKind": "spore_pool",
       "hazardRadius": 40,
-      "x": 1468,
-      "y": 544
+      "x": 2168,
+      "y": 532
     },
     {
       "id": "m2_portal_to_ash",
@@ -154,25 +152,101 @@
       "portalColor": "#f97316",
       "sealedBy": ["boss_m2"],
       "sealedHint": "La Matriarca Esporífera retiene la energía del portal hacia la Caldera de Ceniza.",
-      "x": 1640,
-      "y": 596
+      "x": 2340,
+      "y": 598
     }
   ],
   "entities": [
+    { "type": "house", "biome": "marsh_of_spores", "buildingType": "cottage", "label": "Choza Palafito", "x": 564, "y": 396 },
+    { "type": "house", "biome": "marsh_of_spores", "buildingType": "forge", "label": "Forja del Pantano", "x": 888, "y": 396 },
+    { "type": "house", "biome": "marsh_of_spores", "buildingType": "alchemist", "label": "Destilería de Esporas", "x": 564, "y": 660 },
+    { "type": "house", "biome": "marsh_of_spores", "buildingType": "civic", "label": "Salón Druídico", "x": 888, "y": 660 },
     {
       "type": "npc",
       "id": "tarak_m2_npc",
       "name": "Sabio Tarak",
       "variant": "tarak",
+      "role": "sage",
       "x": 272,
       "y": 564,
       "dialogues": {
-        "highKarma": "Tu senda brilla entre la niebla de esporas. Usa los arbustos altos del norte [Ctrl / C] para acechar sin alertar al pantano.",
-        "lowKarma": "No subestimes el sigilo ni la paciencia en estas ciénagas, Santi. Las esporas frenan a quien embiste a ciegas.",
+        "highKarma": "Tu senda brilla entre la niebla de esporas. Usa los arbustos altos del norte [Ctrl / C] para acechar.",
+        "lowKarma": "No subestimes el sigilo ni la paciencia en estas ciénagas, Santi.",
         "lines": [
-          "El puente oeste conserva zarzas secas sensibles a tu Fuego. En la isla norte duerme el Núcleo de Raíces.",
-          "Combina Raíces + Fuego sobre los enemigos enredados para desatar Llamas Vegetales."
+          "El puente oeste conserva zarzas secas sensibles a tu Fuego. Tras él se alza Poblado Velo Hongar.",
+          "En la isla norte duerme el Núcleo de Raíces; combina Raíces + Fuego sobre los enredados."
         ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "kael_m2_npc",
+      "name": "Herrero Kael",
+      "variant": "blacksmith",
+      "role": "blacksmith",
+      "biome": "marsh_of_spores",
+      "shopTitle": "Forja Palafito de Velo Hongar",
+      "shopSubtitle": "«Acero tratado contra la corrosión cenagosa y golpe letal contra corazas.»",
+      "x": 960,
+      "y": 556,
+      "dialogues": {
+        "lines": [
+          "Los artesanos del pantano templamos el filo con savia luminosa. ¿Mejoras tu espada?"
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "zeph_m2_npc",
+      "name": "Boticario Zeph",
+      "variant": "alchemist",
+      "role": "alchemist",
+      "biome": "marsh_of_spores",
+      "shopTitle": "Destilería Bioluminiscente",
+      "shopSubtitle": "«Esporas purificadas en tónicos de vitalidad, agilidad y éter puro.»",
+      "x": 644,
+      "y": 816,
+      "dialogues": {
+        "lines": [
+          "Mis mezclas contrarrestan la fatiga de las marismas antes de enfrentar a la Tejedora."
+        ]
+      }
+    },
+    {
+      "type": "npc",
+      "id": "guard_m2_npc",
+      "name": "Vigía Fen",
+      "variant": "guard",
+      "role": "guard",
+      "biome": "marsh_of_spores",
+      "x": 800,
+      "y": 656,
+      "patrolPoints": [
+        { "x": 800, "y": 656 },
+        { "x": 864, "y": 656 }
+      ],
+      "dialogues": {
+        "lines": [
+          "Más allá del Paso de Raíces Oscuras acecha la Tejedora del Cieno. Ten listo tu escudo."
+        ],
+        "liberated": "¡Las esporas tóxicas se disipan al fin sobre Poblado Velo Hongar!"
+      }
+    },
+    {
+      "type": "npc",
+      "id": "villager_m2_npc",
+      "name": "Aldeana Brisa",
+      "variant": "villager",
+      "role": "villager",
+      "biome": "marsh_of_spores",
+      "wanderRadius": 44,
+      "x": 716,
+      "y": 692,
+      "dialogues": {
+        "lines": [
+          "Lira la Herbolaria quedó atrapada en la isla del sur intentando sellar el tótem silvestre."
+        ],
+        "liberated": "¡Gracias a ti los palafitos vuelven a florecer con luz serena!"
       }
     },
     {
@@ -180,20 +254,20 @@
       "id": "lira_m2_npc",
       "name": "Lira la Herbolaria",
       "variant": "valerio",
+      "role": "rescue",
       "rescueTag": "ambush_marsh",
       "karmaEventId": "marsh_survivor_m2",
       "rewardWeapon": "thorn_saber",
       "rewardEssence": 22,
-      "x": 636,
-      "y": 976,
+      "x": 640,
+      "y": 1068,
       "dialogues": {
         "underThreat": "¡Cuidado! ¡Esas babas se dividen al morir y las esporas bloquean mi retirada!",
-        "rescueComplete": "¡Me salvaste de quedar sepultada en esporas! He imbuido tu Espada del Alba con el Encantamiento de Zarza Viva: su tercer tajo desangra a tus enemigos.",
-        "highKarma": "Nadie en la ciénaga olvidará tu auxilio. El Encantamiento de Zarza en tu Espada del Alba corta incluso entre raíces espesas.",
-        "lowKarma": "Salí viva por tu intervención. Tu Espada del Alba lleva ahora mi Encantamiento de Zarza; sigue hacia el tótem sur.",
+        "rescueComplete": "¡Me salvaste de quedar sepultada en esporas! He imbuido tu Espada del Alba con el Encantamiento de Zarza Viva.",
+        "highKarma": "Nadie en Velo Hongar olvidará tu auxilio. Ese Encantamiento de Zarza corta incluso entre raíces espesas.",
+        "lowKarma": "Salí viva por tu intervención. Usa el Encantamiento de Zarza y sella el tótem sur.",
         "lines": [
-          "Dispara el poder de Raíces sobre el tótem oriental de esta isla para abrir el sello hacia la Matriarca.",
-          "Evita pisar los charcos de esporas en el cruce central: agotan tu estamina si no usas Dash."
+          "Dispara el poder de Raíces sobre el tótem oriental de esta isla para abrir el sello tras la Tejedora."
         ]
       }
     },
@@ -204,27 +278,8 @@
       "element": "plantas",
       "name": "Baba Mitótica",
       "canSplit": true,
-      "x": 700,
-      "y": 604
-    },
-    {
-      "type": "enemy",
-      "id": "m2_slime_cross_2",
-      "archetype": "slime",
-      "element": "plantas",
-      "name": "Baba Mitótica",
-      "canSplit": true,
-      "x": 844,
-      "y": 632
-    },
-    {
-      "type": "enemy",
-      "id": "m2_artillery_cross",
-      "archetype": "artillery",
-      "element": "plantas",
-      "name": "Esporífero de Bruma",
-      "x": 968,
-      "y": 584
+      "x": 1092,
+      "y": 616
     },
     {
       "type": "enemy",
@@ -232,8 +287,8 @@
       "archetype": "hound",
       "element": "plantas",
       "name": "Vigilante del Musgo",
-      "x": 664,
-      "y": 292
+      "x": 688,
+      "y": 268
     },
     {
       "type": "enemy",
@@ -241,8 +296,8 @@
       "archetype": "artillery",
       "element": "plantas",
       "name": "Centinela de Esporas",
-      "x": 864,
-      "y": 212
+      "x": 884,
+      "y": 196
     },
     {
       "type": "enemy",
@@ -252,8 +307,8 @@
       "name": "Baba Voraz",
       "canSplit": true,
       "customTags": ["ambush_marsh"],
-      "x": 692,
-      "y": 964
+      "x": 724,
+      "y": 1052
     },
     {
       "type": "enemy",
@@ -263,8 +318,8 @@
       "name": "Baba Voraz",
       "canSplit": true,
       "customTags": ["ambush_marsh"],
-      "x": 768,
-      "y": 1020
+      "x": 808,
+      "y": 1108
     },
     {
       "type": "enemy",
@@ -273,8 +328,29 @@
       "element": "plantas",
       "name": "Acechador Fúngico",
       "customTags": ["ambush_marsh"],
-      "x": 620,
-      "y": 1044
+      "x": 680,
+      "y": 1136
+    },
+    {
+      "type": "enemy",
+      "id": "m2_spore_alchemist",
+      "archetype": "spore_alchemist",
+      "element": "plantas",
+      "name": "Alquimista Fúngico",
+      "x": 1468,
+      "y": 564
+    },
+    {
+      "type": "enemy",
+      "id": "m2_miniboss_weaver",
+      "archetype": "miniboss_weaver",
+      "element": "plantas",
+      "name": "Tejedora del Cieno",
+      "isMiniBoss": true,
+      "bossId": "miniboss_m2",
+      "noRespawn": true,
+      "x": 1560,
+      "y": 616
     },
     {
       "type": "enemy",
@@ -286,29 +362,27 @@
       "worldSeal": true,
       "noRespawn": true,
       "scaleWithRelicTier": true,
-      "x": 1488,
-      "y": 644
+      "x": 2176,
+      "y": 624
     }
   ],
   "clearingTrees": [
     { "x": 168, "y": 468 },
     { "x": 176, "y": 732 },
-    { "x": 544, "y": 176 },
-    { "x": 1004, "y": 172 },
-    { "x": 548, "y": 852 },
-    { "x": 1000, "y": 1068 },
-    { "x": 1560, "y": 420 },
-    { "x": 1568, "y": 824 }
+    { "x": 548, "y": 148 },
+    { "x": 1036, "y": 148 },
+    { "x": 548, "y": 952 },
+    { "x": 1036, "y": 1140 },
+    { "x": 2256, "y": 400 },
+    { "x": 2256, "y": 824 }
   ],
   "foliage": [
-    { "x": 608, "y": 288 },
-    { "x": 648, "y": 244 },
-    { "x": 700, "y": 312 },
-    { "x": 828, "y": 324 },
-    { "x": 884, "y": 200 },
-    { "x": 584, "y": 548 },
-    { "x": 968, "y": 688 },
-    { "x": 816, "y": 900 },
-    { "x": 1300, "y": 588 }
+    { "x": 608, "y": 268 },
+    { "x": 656, "y": 224 },
+    { "x": 724, "y": 284 },
+    { "x": 852, "y": 276 },
+    { "x": 920, "y": 168 },
+    { "x": 1484, "y": 700 },
+    { "x": 1968, "y": 588 }
   ]
 }

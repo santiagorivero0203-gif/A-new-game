@@ -600,7 +600,8 @@ export class CombatManager {
 
             const ironRank = skillTree ? skillTree.getSkillRank('iron_posture') : 0;
             const ironMult = Math.max(0.55, 1.0 - ironRank * 0.13);
-            const postureDamage = (attack.postureDamage || attack.damage || 22) * drainRate * elementalMultiplier * ironMult;
+            const artisanGuardMult = (context && context.artisanSystem) ? context.artisanSystem.getGuardDrainMultiplier() : 1.0;
+            const postureDamage = (attack.postureDamage || attack.damage || 22) * drainRate * elementalMultiplier * ironMult * artisanGuardMult;
             entity.guard_meter -= postureDamage;
 
             const siphonRank = skillTree ? skillTree.getSkillRank('siphon_guard') : 0;
@@ -723,6 +724,14 @@ export class CombatManager {
     const isPlayerAttack = (attack.owner && attack.owner.hasTag('player')) || attack.isFriendlySynergy;
     if (isPlayerAttack) {
       let finalDamage = attack.damage || 12;
+      const artisan = context ? context.artisanSystem : null;
+      if (artisan) {
+        finalDamage *= artisan.getTotalDamageMultiplier();
+        const temperMult = artisan.getPostureDamageMultiplier();
+        if (temperMult > 1 && (entity.hasWoodenShield || entity.hasMetalArmor || entity.isBoss || entity.isMiniBoss)) {
+          finalDamage *= (1 + (temperMult - 1) * 0.45);
+        }
+      }
       let hitSoundType = attack.isFinisher ? 'finisher' : 'normal';
 
       if (!attack.isMagmaZone) {

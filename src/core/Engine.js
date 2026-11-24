@@ -35,8 +35,20 @@ export class Engine {
     /** @type {number|null} Identificador del rAF programado para evitar bucles duplicados o en reposo */
     this._rafId = null;
 
+    /** @type {number} Escala temporal dinámica para cámara lenta dramática y KO estilo Smash Bros */
+    this.timeScale = 1.0;
+
     // BUG-02 FIX: Pre-cachear el bind para no crear un closure nuevo cada frame
     this._boundLoop = this.loop.bind(this);
+  }
+
+  /**
+   * Ajusta la escala temporal de simulación lógica conservando dt positivo.
+   * @param {number} [scale=1.0]
+   */
+  setTimeScale(scale = 1.0) {
+    const num = Number(scale);
+    this.timeScale = Number.isFinite(num) ? Math.max(0.02, Math.min(2.0, num)) : 1.0;
   }
 
   /** Inicia el bucle de juego si no estaba ya activo */
@@ -150,8 +162,9 @@ export class Engine {
       }
       this.renderFn(0);
     } else {
-      // Orquestar: lógica primero, luego renderizado
-      this.updateFn(this.deltaTime);
+      // Orquestar: lógica escalada por timeScale + dt real como 2do argumento para directores cinemáticos
+      const scaledDt = this.deltaTime * Math.max(0.02, this.timeScale || 1.0);
+      this.updateFn(scaledDt, this.deltaTime);
       this.renderFn(this.deltaTime);
     }
 

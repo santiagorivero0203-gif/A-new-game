@@ -337,6 +337,18 @@ export class MinimapRenderer {
       if (!m) continue;
       const mx = (m.x * invTile - camMinTileX) * scaleX;
       const my = (m.y * invTile - camMinTileY) * scaleY;
+
+      if (m.kind === 'objective') {
+        // Sujetar al borde interior del radar cuando el objetivo activo queda fuera de alcance visual
+        const ox = Math.max(3, Math.min(cw - 4, Math.round(mx)));
+        const oy = Math.max(3, Math.min(ch - 4, Math.round(my)));
+        ctx.fillStyle = '#050811';
+        ctx.fillRect(ox - 3, oy - 3, 6, 6);
+        ctx.fillStyle = m.color || '#fde047';
+        ctx.fillRect(ox - 2, oy - 2, 4, 4);
+        continue;
+      }
+
       if (mx < -2 || mx > cw + 2 || my < -2 || my > ch + 2) continue;
 
       if (m.kind === 'boss') {

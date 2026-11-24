@@ -733,4 +733,138 @@ export class AudioManager {
       this._ambienceNodes.push(osc, lfo, lfoGain, droneFilter);
     } catch (_) {}
   }
+
+  /**
+   * Síntesis épica multicapa para el remate estilo Super Smash Bros al derrotar a un Jefe o Mini-Jefe.
+   * @param {boolean} [isMajorBoss=true]
+   */
+  playSmashKOFinish(isMajorBoss = true) {
+    if (!this.ctx) this.init();
+    if (!this.ctx || !this.masterGain || this.muted) return;
+    try {
+      const now = this.ctx.currentTime;
+      const subOsc = this.ctx.createOscillator();
+      const subGain = this.ctx.createGain();
+      subOsc.type = 'triangle';
+      subOsc.frequency.setValueAtTime(isMajorBoss ? 128 : 148, now);
+      subOsc.frequency.exponentialRampToValueAtTime(30, now + 0.55);
+      subGain.gain.setValueAtTime(0.45, now);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.62);
+      subOsc.connect(subGain);
+      subGain.connect(this.masterGain);
+      subOsc.start(now);
+      subOsc.stop(now + 0.65);
+
+      if (this.noiseBuffer) {
+        const slash = this.ctx.createBufferSource();
+        slash.buffer = this.noiseBuffer;
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(2200, now);
+        bp.frequency.exponentialRampToValueAtTime(420, now + 0.38);
+        bp.Q.setValueAtTime(2.0, now);
+        const sGain = this.ctx.createGain();
+        sGain.gain.setValueAtTime(0.35, now);
+        sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.40);
+        slash.connect(bp);
+        bp.connect(sGain);
+        sGain.connect(this.masterGain);
+        slash.start(now);
+        slash.stop(now + 0.42);
+      }
+
+      const chord = isMajorBoss ? [329.63, 440, 659.25] : [392, 523.25];
+      chord.forEach((freq, idx) => {
+        const chime = this.ctx.createOscillator();
+        const cGain = this.ctx.createGain();
+        chime.type = 'sine';
+        chime.frequency.setValueAtTime(freq, now + 0.08 + idx * 0.04);
+        cGain.gain.setValueAtTime(0.001, now);
+        cGain.gain.linearRampToValueAtTime(0.14, now + 0.14 + idx * 0.04);
+        cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+        chime.connect(cGain);
+        cGain.connect(this.masterGain);
+        chime.start(now + 0.08 + idx * 0.04);
+        chime.stop(now + 0.98);
+      });
+    } catch (_) {}
+  }
+
+  /**
+   * Rugido armónico grave al iniciar el duelo contra un Mini-Jefe o Guardián Regional.
+   * @param {string} [element='plantas']
+   */
+  playBossIntroRoar(element = 'plantas') {
+    if (!this.ctx) this.init();
+    if (!this.ctx || !this.masterGain || this.muted) return;
+    try {
+      const now = this.ctx.currentTime;
+      const baseFreq = element === 'fuego' ? 82.41 : element === 'astral' ? 110 : element === 'kinetic' ? 98 : 73.42;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(baseFreq * 1.4, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.72, now + 0.65);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(480, now);
+      filter.frequency.exponentialRampToValueAtTime(160, now + 0.65);
+
+      gain.gain.setValueAtTime(0.24, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.68);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.7);
+    } catch (_) {}
+  }
+
+  /**
+   * Golpe metálico resonante de yunque para mejoras en la Herrería.
+   */
+  playForgeHammer() {
+    if (!this.ctx) this.init();
+    if (!this.ctx || !this.masterGain || this.muted) return;
+    try {
+      const now = this.ctx.currentTime;
+      [880, 1320, 2140].forEach((freq, i) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = i === 0 ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(freq * (0.98 + Math.random() * 0.04), now);
+        gain.gain.setValueAtTime(0.16 / (i + 1), now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36 - i * 0.06);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      });
+    } catch (_) {}
+  }
+
+  /**
+   * Burbujeo cristalino ascendente para destilados y pociones del Mago Alquimista.
+   */
+  playPotionBrew() {
+    if (!this.ctx) this.init();
+    if (!this.ctx || !this.masterGain || this.muted) return;
+    try {
+      const now = this.ctx.currentTime;
+      [440, 587.33, 783.99, 1046.5].forEach((freq, i) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        const st = now + i * 0.055;
+        osc.frequency.setValueAtTime(freq, st);
+        gain.gain.setValueAtTime(0.12, st);
+        gain.gain.exponentialRampToValueAtTime(0.001, st + 0.22);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(st);
+        osc.stop(st + 0.24);
+      });
+    } catch (_) {}
+  }
 }

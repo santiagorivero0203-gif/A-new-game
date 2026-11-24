@@ -99,6 +99,9 @@ Los niveles se agrupan en `src/data/worlds.js` (`WORLDS_CATALOG`, `WORLDS_LIST`)
   "lights": [
     { "x": 512, "y": 448, "radius": 190, "color": "#2dd4bf", "intensity": 0.72, "flickerSpeed": 1.6 }
   ],
+  "corridorZones": [
+    { "id": "m2_root_corridor", "x": 1248, "y": 592, "width": 176, "height": 96, "label": "Paso de Raíces Oscuras" }
+  ],
   "solidColliders": [
     { "x": 0, "y": 0, "width": 1728, "height": 118 }
   ],
@@ -110,9 +113,10 @@ Los niveles se agrupan en `src/data/worlds.js` (`WORLDS_CATALOG`, `WORLDS_LIST`)
     { "propType": "brambles_barrier", "x": 580, "y": 480, "weakness": "fuego" }
   ],
   "entities": [
-    { "type": "enemy", "archetype": "slime", "element": "plantas", "x": 540, "y": 640 },
-    { "type": "npc", "variant": "tarak", "name": "Tarak", "x": 310, "y": 605 },
-    { "type": "house", "x": 560, "y": 230 }
+    { "type": "enemy", "archetype": "miniboss_weaver", "isMiniBoss": true, "bossId": "miniboss_m2", "element": "plantas", "x": 1560, "y": 616 },
+    { "type": "npc", "variant": "blacksmith", "role": "blacksmith", "biome": "marsh_of_spores", "name": "Herrero Kael", "shopTitle": "Forja Palafito", "x": 960, "y": 556 },
+    { "type": "npc", "variant": "guard", "role": "guard", "patrolPoints": [{ "x": 800, "y": 656 }, { "x": 864, "y": 656 }], "x": 800, "y": 656 },
+    { "type": "house", "biome": "marsh_of_spores", "buildingType": "forge", "label": "Forja del Pantano", "x": 888, "y": 396 }
   ],
   "foliage": [{ "x": 530, "y": 560 }],
   "clearingTrees": [{ "x": 360, "y": 490 }],
@@ -129,29 +133,34 @@ Los niveles se agrupan en `src/data/worlds.js` (`WORLDS_CATALOG`, `WORLDS_LIST`)
 
 ---
 
-## 5. Esquema de Habilidades Multi-Rango v3 (`SkillTreeManager.js`)
+## 5. Esquema de Habilidades Multi-Rango v4 (`SkillTreeManager.js`)
 
-El Santuario expande el árbol a **36 nodos multi-rango** organizados en **3 Disciplinas × 3 Carriles (`lane: 0..2`) × 4 Niveles (`tier: 0..3`)**:
-1. `aegis`: Égida y Parry (`parry_window`, `vital_surge`, `guardian_stride` y sus derivaciones).
-2. `wrath`: Ira del Acero y Cinética (`blade_tempo`, `dash_cooldown`, `swift_recovery` y derivaciones).
-3. `relic`: Dominio de la Reliquia (`ember_fan`, `thorn_leech`, `energy_regen` y derivaciones).
+El Santuario organiza el árbol simétrico en **36 nodos multi-rango**: **3 Disciplinas × 3 Carriles (`lane: 0..2`) × 4 Tiers (`tier: 0..3`)** con economía calibrada (`essence: 0` al iniciar campaña nueva y curva de coste base `30 → 55 → 90 → 145` con `costScale: 1.5` en Tiers 0–2 y `1.0` en Maestría Tier 3):
+1. `aegis`: Égida y Parry (`parry_window`, `vital_surge`, `guardian_stride` y sus derivaciones verticales).
+2. `wrath`: Ira del Acero y Cinética (`blade_tempo`, `dash_cooldown`, `stamina_mastery` —con alias compatible `swift_recovery`— y derivaciones verticales).
+3. `relic`: Dominio de la Reliquia (`ember_fan`, `thorn_leech`, `energy_regen` y derivaciones verticales).
+
+Cada disciplina exige acumular inversión en su rama (`TIER_POINT_REQUIREMENTS = { 0: 0, 1: 1, 2: 3, 3: 6 }`) además del rango 1 del nodo padre (`dependsOn`), manteniendo los 9 nodos iniciales (`tier: 0`) abiertos a libre elección desde el comienzo.
 
 ```js
-// Estructura canónica de un nodo en SkillTreeManager.skills (v3):
+// Estructura canónica de un nodo en SkillTreeManager.skills (v4):
 {
-  id: 'parry_window',         // ID único (mantiene los 18 IDs heredados + 18 nuevos)
-  name: 'Reflejos de Duelista',
+  id: 'parry_window',         // ID único (36 nodos simétricos)
+  name: 'Reflejos del Guardián',
   tree: 'aegis',              // 'aegis' | 'wrath' | 'relic'
   lane: 0,                    // 0 | 1 | 2 (3 carriles por disciplina)
+  laneTitle: 'GUARDIA',       // Etiqueta superior del carril en el Árbol
   tier: 0,                    // 0..3 (nivel vertical)
   maxRank: 3,                 // Rangos invertibles (1..3); getSkillRank(id) y isMaxRank(id)
-  reqTreePoints: 0,           // Puntos totales requeridos en su disciplina (0, 2, 5, 8)
-  isMastery: false,           // true en nodos Tier 4 de maestría
-  svgType: 'shield',          // Tipo de vector para _getSkillSvgIcon
-  badge: 'Shift · +25 ms/Rango',
+  reqTreePoints: 0,           // Puntos totales requeridos en su disciplina (0, 1, 3, 6)
+  isMastery: false,           // true en nodos Tier 3 de maestría
+  svgType: 'shield_parry',    // 36 claves únicas renderizadas por UIManager._getSkillSvgIcon
+  badge: 'PARRY',
+  inputHint: 'Pulsa [Shift] justo antes del impacto',
   description: 'Descripción narrativa para el inspector.',
-  mechanicsText: '+25 ms de ventana de Parry por rango.',
-  cost: [12, 22, 35],         // Escalar o arreglo por rango leído vía getSkillCost(id)
+  mechanicsText: 'Ventana base 0.16s ➔ hasta 0.28s según rango.',
+  cost: 30,                   // Coste base + escalado dinámico costScale / Karma
+  costScale: 1.5,
   dependsOn: []               // IDs de nodos previos con rango >= 1 requerido
 }
 ```
@@ -160,13 +169,13 @@ El Santuario expande el árbol a **36 nodos multi-rango** organizados en **3 Dis
 
 ## 6. Llaves de Persistencia Local (`localStorage`)
 
-Para evitar migraciones rotas o conflictos de guardado, el motor utiliza llaves versionadas con migración automática de `v2` ➔ `v3`:
+Para evitar migraciones rotas o balances inflados de versiones antiguas, el motor utiliza llaves versionadas limpias en `v4`:
 
 | Llave en `localStorage` | Contenido | Gestor Encargado |
 | :--- | :--- | :--- |
 | `'be_a_legend_campaign_v1'` | Núcleos despertados, mundos visitados/completados, `karmaLevel`, `karmaEvents` idempotentes y `resolvedLinks` (`sealedBy`). | `ProgressionManager.js` (debounce 400ms). |
-| `'be_a_legend_skill_ranks_v3'` | Mapa de rangos por ID (`Record<string, number>`). Migra desde `'be_a_legend_skills_v2'` automáticamente. | `SkillTreeManager.js` (debounce 450ms). |
-| `'be_a_legend_essence_v2'` | Saldo entero de Esencia Ancestral (`number`). | `SkillTreeManager.js` |
+| `'be_a_legend_skill_ranks_v4'` | Mapa de rangos por ID (`Record<string, number>`). | `SkillTreeManager.js` (debounce 450ms). |
+| `'be_a_legend_essence_v3'` | Saldo entero de Esencia Ancestral (`0` al iniciar campaña nueva). | `SkillTreeManager.js` |
 | `'be_a_legend_audio_config'` | Preferencias de volumen y mute (`{ muted: boolean }`). | `AudioManager.js` |
 | `'be_a_legend_equipment'` | Armas/escudos desbloqueados y equipo activo (`{ unlockedWeapons, unlockedShields, weaponId, shieldId }`). | `EquipmentManager.js` |
 

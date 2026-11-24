@@ -919,7 +919,7 @@ export class InteractableProp extends Entity {
         return `El pedestal ya entregó el Núcleo de ${this.grantsElement || 'Fuego'} a tu Guantelete.`;
       }
       this.isConsumed = true;
-      const pedestalEssence = this.essenceReward > 0 ? this.essenceReward : 6;
+      const pedestalEssence = this.essenceReward > 0 ? this.essenceReward : 12;
       if (context && context.skillTreeManager) {
         context.skillTreeManager.addEssence(pedestalEssence);
       } else if (stateManager) {
@@ -1073,7 +1073,7 @@ export class InteractableProp extends Entity {
       let bonusText = '';
       if (!this.isConsumed) {
         this.isConsumed = true;
-        const reward = this.essenceReward > 0 ? this.essenceReward : 18;
+        const reward = this.essenceReward > 0 ? this.essenceReward : 7;
         if (context && context.skillTreeManager) {
           context.skillTreeManager.addEssence(reward);
         }
@@ -1090,7 +1090,7 @@ export class InteractableProp extends Entity {
       let bonusText = '';
       if (!this.isConsumed) {
         this.isConsumed = true;
-        const reward = this.essenceReward > 0 ? this.essenceReward : 15;
+        const reward = this.essenceReward > 0 ? this.essenceReward : 7;
         if (context && context.skillTreeManager) {
           context.skillTreeManager.addEssence(reward);
         }
@@ -1111,7 +1111,7 @@ export class InteractableProp extends Entity {
       }
       if (!this.isConsumed) {
         this.isConsumed = true;
-        const reward = this.essenceReward > 0 ? this.essenceReward : 25;
+        const reward = this.essenceReward > 0 ? this.essenceReward : 10;
         if (context && context.skillTreeManager) {
           context.skillTreeManager.addEssence(reward);
         }

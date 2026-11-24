@@ -36,6 +36,9 @@ export class UIManager {
     this.hudHpText = document.getElementById('hud-hp-text');
     this.hudEnergyFill = document.getElementById('hud-energy-fill');
     this.hudEnergyGhostFill = document.getElementById('hud-energy-ghost-fill');
+    this.hudEnergyChassis = this.hudEnergyFill ? this.hudEnergyFill.parentElement : null;
+    this.hudEnergyHealTick = document.getElementById('hud-energy-heal-tick');
+    this.hudEnergyStrongTick = document.getElementById('hud-energy-strong-tick');
     this.hudEnergyStatIcon = document.getElementById('hud-energy-stat-icon');
     this.gaugePct = document.getElementById('gauge-pct');
     this.gaugePowerAbbr = document.getElementById('gauge-power-abbr');
@@ -52,6 +55,7 @@ export class UIManager {
     // 1.B Botones Rápidos Superiores Derechos (Top-Right)
     this.btnQuickPause = document.getElementById('btn-quick-pause');
     this.btnQuickTalents = document.getElementById('btn-quick-talents');
+    this.hudTalentBadgeDot = document.getElementById('hud-talent-badge-dot');
     this.btnQuickArsenal = document.getElementById('btn-quick-arsenal');
     this.hudEssenceVal = document.getElementById('hud-essence-val');
 
@@ -92,8 +96,13 @@ export class UIManager {
     this.tabOrder = ['skills', 'arsenal', 'codex', 'system'];
 
     this.skillModalEssence = document.getElementById('skill-modal-essence');
+    this.stTopMastery = document.getElementById('st-top-mastery');
     this.stTopVitality = document.getElementById('st-top-vitality');
+    this.stNextUnlockLabel = document.getElementById('st-next-unlock-label');
+    this.stNextUnlockVal = document.getElementById('st-next-unlock-val');
+    this.stNextUnlockFill = document.getElementById('st-next-unlock-fill');
     this.skillTreeList = document.getElementById('skill-tree-list');
+    this._lastPreviewSrc = '';
     this.stDisciplineTitle = document.querySelector('.st-discipline-title');
     this.stDiamondSlots = Array.from(document.querySelectorAll('.st-diamond-slot'));
     this.stInspectorTitle = document.getElementById('st-inspector-title');
@@ -109,19 +118,39 @@ export class UIManager {
     this.selectedSkillId = 'parry_window';
     this._lastUnlockedSkillId = null;
 
-    // 3. Diálogo, Rueda Radial y Gamepad Táctil
+    // 2.B Taller de Oficios RPG (Herrero y Mago de Pociones)
+    this.artisanModal = document.getElementById('artisan-shop-modal');
+    this.artisanRoleBadge = document.getElementById('artisan-role-badge');
+    this.artisanNpcName = document.getElementById('artisan-npc-name');
+    this.artisanNpcQuote = document.getElementById('artisan-npc-quote');
+    this.artisanEssenceVal = document.getElementById('artisan-essence-val');
+    this.artisanBuffStatus = document.getElementById('artisan-buff-status');
+    this.artisanItemsGrid = document.getElementById('artisan-items-grid');
+
+    // 3. Diálogo, Aviso de Interacción, Rueda Radial y Gamepad Táctil
+    this.hudInteractPrompt = document.getElementById('hud-interact-prompt');
+    this.hudInteractKey = document.getElementById('hud-interact-key');
+    this.hudInteractText = document.getElementById('hud-interact-text');
     this.dialogueCard = document.getElementById('dialogue-card');
     this.dialogueBadge = document.getElementById('dialogue-badge');
     this.dialogueSpeaker = document.getElementById('dialogue-speaker');
     this.dialogueText = document.getElementById('dialogue-text');
+    this.dialogueTimerFill = document.getElementById('dialogue-timer-fill');
 
     this.radialWheel = document.getElementById('radial-wheel');
     this.radialSectors = Array.from(document.querySelectorAll('.radial-sector'));
 
     this.virtualGamepad = document.getElementById('virtual-gamepad');
     this.joystickThumb = document.getElementById('touch-joystick-thumb');
+    this.touchAttackBtn = document.getElementById('touch-btn-attack');
+    this.touchSkillBtn = document.getElementById('touch-btn-skill');
+    this.touchSkillStrongBtn = document.getElementById('touch-btn-skill-strong');
     this.touchSkillLabel = document.getElementById('touch-skill-label');
     this.touchSwitchLabel = document.getElementById('touch-switch-label');
+    this.touchHealBtn = document.getElementById('touch-btn-heal');
+    this.touchHealLabel = document.getElementById('touch-heal-label');
+    this.touchInteractBtn = document.getElementById('touch-btn-interact');
+    this.touchInteractLabel = document.getElementById('touch-interact-label');
     this.touchDashBtn = document.getElementById('touch-btn-dash');
     this.touchDashLabel = document.getElementById('touch-dash-label');
     this.touchSwipeHints = Array.from(document.querySelectorAll('#touch-btn-skill .swipe-hint[data-power]'));
@@ -149,6 +178,8 @@ export class UIManager {
     this._lastCritical = null;
     this._lastHealth = -1;
     this._lastEnergy = -1;
+    this._lastMaxEnergy = -1;
+    this._lastHealCost = -1;
     this._lastPosture = -1;
     this._lastDefending = null;
     this._lastStamina = -1;
@@ -165,6 +196,11 @@ export class UIManager {
     this._lastTouchProne = null;
     this._lastTouchHidden = null;
     this._lastSwipeMask = null;
+    this._lastGamepadCombatMask = null;
+    this._lastInteractSig = null;
+    this._lastDialogueTimerPct = -1;
+    this._lastUpgradeReady = null;
+    this._lastSwordTint = null;
     this._lastCompassPct = null;
     this._lastCompassDir = null;
     this._lastCompassDist = null;
@@ -406,13 +442,28 @@ export class UIManager {
       }
     }
 
-    // 2. Barra de Energía Elemental (GPU scaleX libre de Layout Thrashing + Rastro de Gasto / Brillo de Carga)
+    // 2. Barra de Energía Elemental (GPU scaleX libre de Layout Thrashing + Umbrales + Brillo de Carga)
     const energy = stateManager ? (stateManager.get('player_energy') ?? 100) : 100;
-    if (Math.abs(energy - this._lastEnergy) > 0.5) {
+    const maxEnergy = Math.max(1, stateManager ? (stateManager.get('player_max_energy') ?? 100) : 100);
+    const healCost = Math.max(12, stateManager ? (stateManager.get('player_heal_cost') ?? 30) : 30);
+
+    if (maxEnergy !== this._lastMaxEnergy || healCost !== this._lastHealCost) {
+      this._lastMaxEnergy = maxEnergy;
+      this._lastHealCost = healCost;
+      if (this.hudEnergyHealTick) {
+        this.hudEnergyHealTick.style.left = `${Math.min(95, Math.round((healCost / maxEnergy) * 100))}%`;
+      }
+      if (this.hudEnergyStrongTick) {
+        this.hudEnergyStrongTick.style.left = `${Math.min(95, Math.round((38 / maxEnergy) * 100))}%`;
+      }
+      this._lastEnergy = -999; // Forzar actualización de barra cuando cambie el tope máximo (ej. Catalizador Omega)
+    }
+
+    if (Math.abs(energy - this._lastEnergy) > 0.5 || this._lastEnergy < 0) {
       const prevEnergy = this._lastEnergy;
       this._lastEnergy = energy;
-      const clampedEnergy = Math.max(0, Math.min(100, energy));
-      const ratio = clampedEnergy / 100;
+      const clampedEnergy = Math.max(0, Math.min(maxEnergy, energy));
+      const ratio = clampedEnergy / maxEnergy;
       if (this.hudEnergyFill) {
         this.hudEnergyFill.style.transform = `scaleX(${ratio})`;
         if (prevEnergy >= 0 && energy - prevEnergy >= 4) {
@@ -422,6 +473,10 @@ export class UIManager {
             if (this.hudEnergyFill) this.hudEnergyFill.classList.remove('is-gaining');
           }, 320);
         }
+      }
+      if (this.hudEnergyChassis) {
+        this.hudEnergyChassis.classList.toggle('can-heal', !isDormant && clampedEnergy >= healCost);
+        this.hudEnergyChassis.classList.toggle('low-energy', !isDormant && clampedEnergy < 18);
       }
       if (this.hudEnergyGhostFill) {
         if (prevEnergy >= 0 && energy < prevEnergy - 1) {
@@ -433,7 +488,11 @@ export class UIManager {
           this.hudEnergyGhostFill.style.transform = `scaleX(${ratio})`;
         }
       }
-      if (this.gaugePct) this.gaugePct.textContent = `${Math.round(clampedEnergy)}%`;
+      if (this.gaugePct) {
+        this.gaugePct.textContent = maxEnergy > 100
+          ? `${Math.round(clampedEnergy)}/${Math.round(maxEnergy)}`
+          : `${Math.round(clampedEnergy)}%`;
+      }
     }
 
     // 3. Barra de Postura / Égida (GPU scaleX)
@@ -687,9 +746,14 @@ export class UIManager {
       if (this._dialogueVisible || !this.dialogueCard.classList.contains('hidden')) {
         this.dialogueCard.classList.add('hidden');
         this._dialogueVisible = false;
+        this._lastDialogueTimerPct = -1;
         if (document.body) document.body.classList.remove('dialogue-open');
       }
       return;
+    }
+
+    if (!dialogue._maxTimer || dialogue._maxTimer < dialogue.timer) {
+      dialogue._maxTimer = Math.max(0.5, dialogue.timer);
     }
 
     dialogue.timer -= deltaTime;
@@ -697,6 +761,7 @@ export class UIManager {
       stateManager.set('active_dialogue', null);
       this.dialogueCard.classList.add('hidden');
       this._dialogueVisible = false;
+      this._lastDialogueTimerPct = -1;
       if (document.body) document.body.classList.remove('dialogue-open');
       return;
     }
@@ -705,9 +770,27 @@ export class UIManager {
     if (this.dialogueSpeaker && this.dialogueSpeaker.textContent !== speaker) {
       this.dialogueSpeaker.textContent = speaker;
     }
+    const speakerRole = speaker.includes('SANTI')
+      ? 'santi'
+      : speaker.includes('TARAK')
+        ? 'tarak'
+        : speaker.includes('VALERIO')
+          ? 'valerio'
+          : 'reliquia';
+    if (this.dialogueCard.dataset && this.dialogueCard.dataset.speaker !== speakerRole) {
+      this.dialogueCard.dataset.speaker = speakerRole;
+    }
     if (this.dialogueBadge) {
-      const badge = speaker.includes('SANTI') ? 'PORTADOR' : speaker.includes('TARAK') ? 'SABIO' : speaker.includes('VALERIO') ? 'VIAJERO' : 'RELIQUIA';
+      const badge = speakerRole === 'santi' ? 'PORTADOR' : speakerRole === 'tarak' ? 'SABIO' : speakerRole === 'valerio' ? 'VIAJERO' : 'RELIQUIA';
       if (this.dialogueBadge.textContent !== badge) this.dialogueBadge.textContent = badge;
+    }
+
+    if (this.dialogueTimerFill) {
+      const pct = Math.max(0, Math.min(1, dialogue.timer / dialogue._maxTimer));
+      if (Math.abs(pct - this._lastDialogueTimerPct) > 0.015) {
+        this._lastDialogueTimerPct = pct;
+        this.dialogueTimerFill.style.transform = `scaleX(${pct.toFixed(3)})`;
+      }
     }
 
     const isMobile = this._isMobileActive();
@@ -824,6 +907,60 @@ export class UIManager {
       this.touchSkillLabel.textContent = activeName;
     }
 
+    const powerKey = (gauntletTier <= 0 || equippedPower === 'Dormido') ? 'Dormido' : (inputManager.hoveredSwipePower || equippedPower || 'Fuego');
+    const accentHex = this.powerColors[powerKey] || '#facc15';
+    const energy = stateManager ? (stateManager.get('player_energy') ?? 100) : 100;
+    const healCost = stateManager ? (stateManager.get('player_heal_cost') ?? 30) : 30;
+    const health = stateManager ? (stateManager.get('player_health') ?? 3) : 3;
+    const maxHealth = stateManager ? (stateManager.get('player_max_health') ?? 3) : 3;
+    const player = stateManager ? stateManager.get('player') : null;
+    const hasSword = stateManager ? (stateManager.get('player_has_sword') !== false) : true;
+    const hasVitalityShield = Boolean(player && typeof player.hasTag === 'function' && player.hasTag('vitality_shield'));
+    const interactAvail = Boolean(stateManager && stateManager.get('interact_available'));
+    const interactVerb = interactAvail ? (stateManager.get('interact_verb') || 'USAR') : 'USAR';
+
+    const canCastWeak = gauntletTier > 0 && energy >= 18;
+    const canCastStrong = gauntletTier > 0 && energy >= 36;
+    const canHealNow = energy >= healCost;
+    const healUrgent = canHealNow && health <= 1;
+    const healLabelText = health >= maxHealth
+      ? (hasVitalityShield ? 'ACTIVO' : 'ESCUDO')
+      : 'CURAR';
+
+    const combatSig = `${powerKey}|${canCastWeak ? 1 : 0}${canCastStrong ? 1 : 0}${canHealNow ? 1 : 0}${healUrgent ? 1 : 0}${hasSword ? 1 : 0}${interactAvail ? 1 : 0}|${healLabelText}|${interactVerb}`;
+    if (combatSig !== this._lastGamepadCombatMask) {
+      this._lastGamepadCombatMask = combatSig;
+      if (this.touchSkillBtn) {
+        if (this.touchSkillBtn.style && typeof this.touchSkillBtn.style.setProperty === 'function') {
+          this.touchSkillBtn.style.setProperty('--skill-accent', accentHex);
+        }
+        this.touchSkillBtn.classList.toggle('is-insufficient', !canCastWeak);
+      }
+      if (this.touchSkillStrongBtn) {
+        if (this.touchSkillStrongBtn.style && typeof this.touchSkillStrongBtn.style.setProperty === 'function') {
+          this.touchSkillStrongBtn.style.setProperty('--skill-accent', accentHex);
+        }
+        this.touchSkillStrongBtn.classList.toggle('is-insufficient', !canCastStrong);
+      }
+      if (this.touchAttackBtn) {
+        this.touchAttackBtn.classList.toggle('is-locked', !hasSword);
+      }
+      if (this.touchHealBtn) {
+        this.touchHealBtn.classList.toggle('is-insufficient', !canHealNow);
+        this.touchHealBtn.classList.toggle('is-urgent', healUrgent);
+      }
+      if (this.touchHealLabel) {
+        this.touchHealLabel.textContent = healLabelText;
+      }
+      if (this.touchInteractBtn) {
+        this.touchInteractBtn.classList.toggle('is-available', interactAvail);
+        this.touchInteractBtn.classList.toggle('is-idle', !interactAvail);
+      }
+      if (this.touchInteractLabel) {
+        this.touchInteractLabel.textContent = interactAvail ? interactVerb.slice(0, 8) : 'USAR';
+      }
+    }
+
     if (this.touchSwipeHints && this.touchSwipeHints.length > 0 && stateManager) {
       const player = stateManager.get('player');
       const eqNorm = inputManager && typeof inputManager._normalizeDisplayPower === 'function'
@@ -888,6 +1025,8 @@ export class UIManager {
         this.hordeBanner.classList.remove('banner-slide-in', 'banner-fade-out');
       }
       if (this.bossThreatBar) this.bossThreatBar.classList.add('hidden');
+      if (this.hudInteractPrompt) this.hudInteractPrompt.classList.add('hidden');
+      this._lastInteractSig = null;
       if (this.dialogueCard) this.dialogueCard.classList.add('hidden');
       this._dialogueVisible = false;
       if (document.body) document.body.classList.remove('dialogue-open');
@@ -909,9 +1048,32 @@ export class UIManager {
 
     const essence = stateManager.get('player_essence') ?? 0;
     if (essence !== this._lastEssence) {
+      const prevEssence = this._lastEssence;
       this._lastEssence = essence;
       if (this.hudEssenceVal) this.hudEssenceVal.textContent = String(essence);
       if (this.skillModalEssence) this.skillModalEssence.textContent = String(essence);
+      if (prevEssence >= 0 && essence > prevEssence && this.btnQuickTalents) {
+        this.btnQuickTalents.classList.remove('essence-gain-pop');
+        void this.btnQuickTalents.offsetWidth;
+        this.btnQuickTalents.classList.add('essence-gain-pop');
+        clearTimeout(this._essencePopTimeout);
+        this._essencePopTimeout = setTimeout(() => {
+          if (this.btnQuickTalents) this.btnQuickTalents.classList.remove('essence-gain-pop');
+        }, 280);
+      }
+    }
+
+    const canUpgrade = Boolean(stateManager.get('can_upgrade_skill'));
+    if (canUpgrade !== this._lastUpgradeReady) {
+      this._lastUpgradeReady = canUpgrade;
+      if (this.btnQuickTalents) this.btnQuickTalents.classList.toggle('can-upgrade', canUpgrade);
+      if (this.hudTalentBadgeDot) this.hudTalentBadgeDot.classList.toggle('hidden', !canUpgrade);
+    }
+
+    const swordTint = stateManager.get('sword_enchant_color') || '';
+    if (swordTint !== this._lastSwordTint && this.btnQuickArsenal) {
+      this._lastSwordTint = swordTint;
+      this.btnQuickArsenal.style.borderColor = swordTint || '';
     }
 
     if (!this.comboHud) return;
@@ -974,6 +1136,36 @@ export class UIManager {
       this.bossThreatBar.classList.add('hidden');
       this._bossThreatVisible = false;
     }
+  }
+
+  /**
+   * Muestra el aviso contextual de interacción en mundo cuando hay un NPC, Altar, Estela o Pedestal al alcance.
+   * Se oculta automáticamente mientras hay un diálogo activo para evitar solapamientos.
+   * @param {import('../core/StateManager.js').StateManager} stateManager
+   */
+  updateInteractPrompt(stateManager) {
+    if (!this.hudInteractPrompt || !stateManager) return;
+    const isAvail = Boolean(stateManager.get('interact_available')) && !this._dialogueVisible;
+    const verb = isAvail ? (stateManager.get('interact_verb') || 'USAR') : '';
+    const targetName = isAvail ? (stateManager.get('interact_target_name') || '') : '';
+    const isMobile = this._isMobileActive();
+    const sig = isAvail ? `1|${verb}|${targetName}|${isMobile ? 'M' : 'D'}` : '0';
+
+    if (sig === this._lastInteractSig) return;
+    this._lastInteractSig = sig;
+
+    if (!isAvail) {
+      this.hudInteractPrompt.classList.add('hidden');
+      return;
+    }
+
+    if (this.hudInteractKey) {
+      this.hudInteractKey.textContent = isMobile ? 'TOCAR' : 'E';
+    }
+    if (this.hudInteractText) {
+      this.hudInteractText.textContent = targetName ? `${verb} · ${targetName}` : verb;
+    }
+    this.hudInteractPrompt.classList.remove('hidden');
   }
 
   /**
@@ -1160,7 +1352,13 @@ export class UIManager {
     });
 
     this.sanctuaryPanes.forEach((pane) => {
-      pane.classList.toggle('hidden', pane.dataset.sanctuaryPane !== validTab);
+      const isMatch = pane.dataset.sanctuaryPane === validTab;
+      pane.classList.toggle('hidden', !isMatch);
+      if (isMatch) {
+        pane.classList.remove('st-pane-enter');
+        void pane.offsetWidth;
+        pane.classList.add('st-pane-enter');
+      }
     });
 
     const { skillTreeManager, audioManager } = deps;
@@ -1168,6 +1366,9 @@ export class UIManager {
       const essence = skillTreeManager.getEssence();
       if (this.skillModalEssence) this.skillModalEssence.textContent = String(essence);
       if (this.hudEssenceVal) this.hudEssenceVal.textContent = String(essence);
+      if (this.stTopMastery) {
+        this.stTopMastery.textContent = `NV. ${1 + skillTreeManager.getTotalAllocatedRanks()}`;
+      }
       if (this.stTopVitality) {
         const maxHp = 3 + skillTreeManager.getSkillRank('max_health_up');
         this.stTopVitality.textContent = String(maxHp);
@@ -1298,7 +1499,19 @@ export class UIManager {
       isMobile
     );
 
+    const activeWeapon = equipmentManager?.getWeapon?.() || { damage: 16 };
+    const activeShield = equipmentManager?.getShield?.() || { posture_drain_rate: 1 };
+    const activeShieldMit = Math.round((1 - (activeShield.posture_drain_rate || 1)) * 100);
+    const activeEnergyRegen = (player?.energy_regen_rate ?? 6.5).toFixed(1);
+
     this.arsenalContainer.innerHTML = `
+      <div class="st-arsenal-summary-strip">
+        <div class="st-summary-stat"><span>FILO ACTUAL</span><strong>${hasSword ? `${activeWeapon.damage} DAÑO` : 'SIN ESPADA'}</strong></div>
+        <div class="st-summary-stat"><span>ÉGIDA ACTIVA</span><strong>${activeShieldMit >= 0 ? `+${activeShieldMit}% MIT.` : `${activeShieldMit}%`}</strong></div>
+        <div class="st-summary-stat"><span>PODER ACTIVO</span><strong>${(stateManager?.get('gauntlet_tier') || 0) > 0 ? equippedPower.toUpperCase() : 'LATENTE'}</strong></div>
+        <div class="st-summary-stat"><span>REGENERACIÓN</span><strong>+${activeEnergyRegen}/s</strong></div>
+      </div>
+
       <div class="st-pane-section">
         <div class="st-card-header-eyebrow">ESPADA DEL ALBA & ÉGIDAS</div>
         <h3 class="st-pane-heading">ENCANTAMIENTOS DE FILO Y ESCUDOS</h3>
@@ -1508,16 +1721,32 @@ export class UIManager {
       </div>
     `;
 
+    const bindCodexBtn = (btn, handler) => {
+      let lastTap = -Infinity;
+      const run = (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        const now = performance.now();
+        if (now - lastTap < 220) return;
+        lastTap = now;
+        handler();
+      };
+      btn.addEventListener('click', run);
+      btn.addEventListener('touchend', (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        run(e);
+      }, { passive: false });
+    };
+
     const btnTrigger = this.codexContainer.querySelector('#btn-trigger-horde-ui');
     if (btnTrigger && typeof onTriggerHorde === 'function') {
-      btnTrigger.addEventListener('click', () => {
+      bindCodexBtn(btnTrigger, () => {
         onTriggerHorde();
       });
     }
 
     const travelHook = stateManager?.get('load_world_hook');
     this.codexContainer.querySelectorAll('[data-travel-world]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      bindCodexBtn(btn, () => {
         const targetWorld = btn.dataset.travelWorld;
         if (!targetWorld || typeof travelHook !== 'function') return;
         travelHook(targetWorld, { animated: true });
@@ -1528,68 +1757,95 @@ export class UIManager {
   }
 
   /**
-   * Retorna el icono `<svg>` vectorial limpio (`currentColor`, `viewBox="0 0 24 24"`, `aria-hidden="true"`,
-   * `focusable="false"`, cero colores fijos) para los 18 talentos del Santuario.
+   * Retorna un icono `<svg>` vectorial único y semántico (`currentColor`, `viewBox="0 0 24 24"`,
+   * `aria-hidden="true"`, `focusable="false"`) para cada uno de los 36 talentos del Santuario.
    * @private
    * @param {string} svgType
    * @returns {string}
    */
   _getSkillSvgIcon(svgType) {
+    const o = `xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"`;
     switch (svgType) {
-      case 'shield':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3l8 4v5c0 5.25-3.4 9.74-8 11-4.6-1.26-8-5.75-8-11V7l8-4z" /><path d="M12 7v9" /></svg>`;
-      case 'shield_burst':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3l7 3.5v4.5c0 4.5-3 8.5-7 9.8-4-1.3-7-5.3-7-9.8V6.5L12 3z" /><circle cx="12" cy="11.5" r="2.5" fill="currentColor" /><path d="M3 3l3 3M21 3l-3 3M3 21l3-3M21 21l-3-3" /></svg>`;
-      case 'mirror_prism':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="10,4 16,12 10,20 4,12" /><path d="M16 12h6M14.5 9l6.5-4M14.5 15l6.5 4" /></svg>`;
-      case 'swords':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" /><line x1="13" y1="19" x2="19" y2="13" /><line x1="16" y1="16" x2="20" y2="20" /><polyline points="9.5 17.5 21 6 21 3 18 3 6.5 14.5" /></svg>`;
-      case 'blade_wave':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 19L19 5" /><path d="M14 4c4 1 6 3 6 7" /><path d="M10 2c6 1.5 10 5.5 11.5 11.5" /><path d="M4 15l5 5" /></svg>`;
-      case 'whirlwind_slash':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 12a9 9 0 0 1-14.5 7.1" /><path d="M3 12a9 9 0 0 1 14.5-7.1" /><polyline points="17 2 18 5 15 6" /><polyline points="7 22 6 19 9 18" /><circle cx="12" cy="12" r="2.5" fill="currentColor" /></svg>`;
-      case 'triple_flame':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3c-2.5 3-4 5.5-4 8.5a4 4 0 0 0 8 0C16 8.5 14.5 6 12 3z" /><path d="M5.5 9C4 11 3 12.8 3 14.8a3 3 0 0 0 5.2 2" /><path d="M18.5 9c1.5 2 2.5 3.8 2.5 5.8a3 3 0 0 1-5.2 2" /></svg>`;
-      case 'flame_orb':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2.5c-3.5 3.8-5.5 6.8-5.5 10.5a5.5 5.5 0 0 0 11 0c0-3.7-2-6.7-5.5-10.5z" /><circle cx="12" cy="14" r="2.2" fill="currentColor" /></svg>`;
-      case 'sun_nova':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8" /></svg>`;
-      case 'vine_whip':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 20c3-6 5-12 15-15" /><path d="M9 13l-2.5-1.5M13 9l1.5 2.5M16 5.5L19.5 5l-.5 3.5" /></svg>`;
-      case 'root_snare':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 21c1-5 4-8 8-8s7 3 8 8" /><path d="M7 21c.5-3 2.5-5 5-5s4.5 2 5 5" /><path d="M8 9l4 4 4-4M12 4v9" /></svg>`;
-      case 'oak_crest':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2.5L4.5 6.5v5.5c0 4.8 3.2 9 7.5 10 4.3-1 7.5-5.2 7.5-10V6.5L12 2.5z" /><path d="M12 17V9M9 13l3-3 3 3" /></svg>`;
-      case 'lightning':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="13 2 4 14 12 14 11 22 20 10 12 10 13 2" /></svg>`;
-      case 'meteor_strike':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2v13" /><polyline points="7 11 12 16 17 11" /><path d="M4 20h16" /><path d="M7 17l-3 3M17 17l3 3" /></svg>`;
-      case 'phantom_dash':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 8h8M3 16h6M3 12h14" /><polyline points="14 7 21 12 14 17" /></svg>`;
-      case 'heart_plus':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20.5l-1.3-1.2C5.6 14.7 2.5 11.9 2.5 8.4 2.5 5.6 4.7 3.5 7.5 3.5c1.6 0 3.1.75 4.5 2.1 1.4-1.35 2.9-2.1 4.5-2.1 2.8 0 5 2.1 5 4.9 0 3.5-3.1 6.3-8.2 10.9L12 20.5z" /><path d="M12 8.5v6M9 11.5h6" /></svg>`;
-      case 'relic_star':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="12,2.5 14.8,9.2 21.5,12 14.8,14.8 12,21.5 9.2,14.8 2.5,12 9.2,9.2" /><circle cx="12" cy="12" r="2.2" fill="currentColor" /></svg>`;
+      // --- DISCIPLINA 1: ÉGIDA Y PARRY (12 iconos únicos) ---
+      case 'shield_parry':
+        return `<svg ${o}><path d="M12 3l7 3.5v5c0 4.6-2.9 8.7-7 9.9-4.1-1.2-7-5.3-7-9.9v-5L12 3z" /><path d="M16 4l4-1-1 4M9 12l2.5 2.5L16 9.5" /></svg>`;
+      case 'shield_shockwave':
+        return `<svg ${o}><path d="M12 4.5l5.5 2.8v4c0 3.7-2.2 7-5.5 8-3.3-1-5.5-4.3-5.5-8v-4L12 4.5z" /><path d="M3 12h1.5M19.5 12H21M4.5 5.5l1.5 1.5M18 5.5l1.5-1.5M4.5 18.5l1.5-1.5M18 17l1.5 1.5" /></svg>`;
+      case 'reflect_prism':
+        return `<svg ${o}><polygon points="10,4 16,12 10,20 4,12" /><path d="M2 12h3M16 12h6M14.5 9l6-4M14.5 15l6 4" /></svg>`;
+      case 'bastion_citadel':
+        return `<svg ${o}><path d="M4 9l3-4 5 3 5-3 3 4-2 9c-2 2-4 3-6 3s-4-1-6-3L4 9z" /><path d="M12 11v6M9 14h6" /></svg>`;
+      case 'vital_pulse':
+        return `<svg ${o}><path d="M12 20.5l-1.3-1.2C5.6 14.7 2.5 11.9 2.5 8.4 2.5 5.6 4.7 3.5 7.5 3.5c1.6 0 3.1.75 4.5 2.1 1.4-1.35 2.9-2.1 4.5-2.1 2.8 0 5 2.1 5 4.9 0 3.5-3.1 6.3-8.2 10.9L12 20.5z" /><path d="M12 8.5v5M9.5 11h5" /></svg>`;
+      case 'steel_anvil':
+        return `<svg ${o}><path d="M4 8h16l-2 4h-3v4h4v3H5v-3h4v-4H6z" /><path d="M12 4v3" /></svg>`;
       case 'crystal_heart':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="12,2.5 21,9 18,21 6,21 3,9" /><polygon points="12,7 16.5,10.5 14.8,17.5 9.2,17.5 7.5,10.5" /></svg>`;
-      case 'bastion_crown':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 17h16l-1.5-9-4.5 4-2-6-2 6-4.5-4z" /><path d="M5 20h14" /></svg>`;
-      case 'iron_tower':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 21h12M7 21V8l5-4 5 4v13M9 11h6M10 21v-5h4v5" /></svg>`;
-      case 'undying_phoenix':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4c2 3 4 4 8 3-1 3-3 5-5 6 1 3 0 6-3 7-3-1-4-4-3-7-2-1-4-3-5-6 4 1 6 0 8-3z" /><circle cx="12" cy="11" r="1.5" /></svg>`;
-      case 'execution_cleaver':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 19L19 5M14 4c3 2 5 5 6 9l-5 1-3-3zM4 16l4 4" /></svg>`;
-      case 'tempest_twin':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13 3L5 14h6l-1 7 9-11h-6z" /><path d="M19 6l2-2M3 18l2-2" /></svg>`;
-      case 'omega_rune':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 19h4v-2a6 6 0 1 1 4 0v2h4" /><circle cx="12" cy="11" r="2" /></svg>`;
+        return `<svg ${o}><polygon points="12,2.5 21,9 18,21 6,21 3,9" /><polygon points="12,7 16.5,10.5 14.8,17.5 9.2,17.5 7.5,10.5" /></svg>`;
+      case 'phoenix_rise':
+        return `<svg ${o}><path d="M12 3c2 3 4 4 8 3-1 3-3 5-5 6 1 3 0 6-3 8-3-2-4-5-3-8-2-1-4-3-5-6 4 1 6 0 8-3z" /><path d="M12 10v5" /></svg>`;
+      case 'shield_stride':
+        return `<svg ${o}><path d="M13 3l6 3v4.5c0 4.2-2.6 8-6 9-3.4-1-6-4.8-6-9V6l6-3z" /><path d="M3 9h3M2 13h4M3.5 17h3.5" /></svg>`;
+      case 'shield_siphon':
+        return `<svg ${o}><path d="M12 3l7 3.5v4.5c0 4.4-2.8 8.3-7 9.5-4.2-1.2-7-5.1-7-9.5V6.5L12 3z" /><path d="M13 7.5l-3.5 5h3l-1 4.5 3.5-5h-3z" /></svg>`;
+      case 'seismic_hammer':
+        return `<svg ${o}><path d="M7 4h10v5H7zM12 9v8M5 20h14M4 16l2 2M20 16l-2 2" /></svg>`;
+      case 'eternal_halo':
+        return `<svg ${o}><circle cx="12" cy="12" r="9" /><path d="M12 6.5l4.5 2.2v3.3c0 2.9-1.9 5.6-4.5 6.5-2.6-.9-4.5-3.6-4.5-6.5V8.7L12 6.5z" /></svg>`;
+
+      // --- DISCIPLINA 2: IRA DEL ACERO Y CINÉTICA (12 iconos únicos) ---
+      case 'metronome_blade':
+        return `<svg ${o}><path d="M19 4L8 15M15 4h4v4" /><path d="M5 13l6 6M4 19l3-3M11 6l-5 5" /></svg>`;
+      case 'twin_swords':
+        return `<svg ${o}><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" /><line x1="13" y1="19" x2="19" y2="13" /><line x1="16" y1="16" x2="20" y2="20" /><polyline points="9.5 17.5 21 6 21 3 18 3 6.5 14.5" /></svg>`;
+      case 'whirlwind_slash':
+        return `<svg ${o}><path d="M21 12a9 9 0 0 1-14.5 7.1" /><path d="M3 12a9 9 0 0 1 14.5-7.1" /><polyline points="17 2 18 5 15 6" /><polyline points="7 22 6 19 9 18" /><circle cx="12" cy="12" r="2.2" fill="currentColor" /></svg>`;
+      case 'execution_blade':
+        return `<svg ${o}><path d="M5 19L19 5M14 4c3 2 5 5 6 9l-5 1-3-3zM4 16l4 4" /><circle cx="15" cy="9" r="1.2" fill="currentColor" /></svg>`;
+      case 'winged_dash':
+        return `<svg ${o}><path d="M3 12h15M13 6l7 6-7 6" /><path d="M4 7h6M5 17h5" /></svg>`;
+      case 'kinetic_fist':
+        return `<svg ${o}><polygon points="13 2 5 13 12 13 11 22 19 11 12 11 13 2" /></svg>`;
+      case 'phantom_afterimage':
+        return `<svg ${o}><path d="M4 8h7M4 12h9M4 16h6" /><polygon points="15,5 21,12 15,19 12,15.5 15,12 12,8.5" /></svg>`;
+      case 'storm_twin':
+        return `<svg ${o}><path d="M11 3L5 12h5l-1 8 6-9h-5z" /><path d="M18 5l-3 5h3l-2 6" /></svg>`;
+      case 'titan_breath':
+        return `<svg ${o}><path d="M4 17c3 0 5-2 7-5 2-3 5-5 9-5" /><path d="M4 12c2.5 0 4.5-1.2 6.5-3.5M4 20h10c3 0 5-1.5 6-4" /></svg>`;
+      case 'style_crest':
+        return `<svg ${o}><polygon points="12,3 14.8,8.8 21,9.7 16.5,14.1 17.6,20.3 12,17.3 6.4,20.3 7.5,14.1 3,9.7 9.2,8.8" /></svg>`;
+      case 'chain_slashes':
+        return `<svg ${o}><path d="M4 18L13 5M9 19l9-13M14 19l6-9" /></svg>`;
+      case 'celestial_wave':
+        return `<svg ${o}><path d="M5 19L19 5" /><path d="M14 4c4 1 6 3 6 7" /><path d="M9 2c7 1.5 11 5.5 12.5 12.5" /><path d="M4 15l5 5" /></svg>`;
+
+      // --- DISCIPLINA 3: DOMINIO DE LA RELIQUIA (12 iconos únicos) ---
+      case 'triple_flame':
+        return `<svg ${o}><path d="M12 3c-2.5 3-4 5.5-4 8.5a4 4 0 0 0 8 0C16 8.5 14.5 6 12 3z" /><path d="M5.5 9C4 11 3 12.8 3 14.8a3 3 0 0 0 5.2 2" /><path d="M18.5 9c1.5 2 2.5 3.8 2.5 5.8a3 3 0 0 1-5.2 2" /></svg>`;
+      case 'fusion_rings':
+        return `<svg ${o}><circle cx="9.5" cy="12" r="5" /><circle cx="14.5" cy="12" r="5" /><circle cx="12" cy="12" r="1.4" fill="currentColor" /></svg>`;
+      case 'magma_crater':
+        return `<svg ${o}><path d="M3 19h18l-3-7h-2l-2-3h-4L8 12H6z" /><path d="M12 3c-1.5 1.8-2 3-2 4.2a2 2 0 0 0 4 0c0-1.2-.5-2.4-2-4.2z" /></svg>`;
+      case 'solar_supernova':
+        return `<svg ${o}><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8" /></svg>`;
+      case 'thorn_vine':
+        return `<svg ${o}><path d="M4 20c3-6 5-12 15-15" /><path d="M9 13l-2.5-1.5M13 9l1.5 2.5M16 5.5L19.5 5l-.5 3.5" /></svg>`;
+      case 'root_cage':
+        return `<svg ${o}><path d="M4 21c1-5 4-8 8-8s7 3 8 8" /><path d="M7 21c.5-3 2.5-5 5-5s4.5 2 5 5" /><path d="M8 9l4 4 4-4M12 4v9" /></svg>`;
+      case 'sprout_aura':
+        return `<svg ${o}><path d="M12 20V10" /><path d="M12 13c-4 0-6.5-2.5-6.5-6 3.5 0 6.5 2 6.5 6z" /><path d="M12 11c4 0 6.5-2.5 6.5-6-3.5 0-6.5 2-6.5 6z" /><circle cx="12" cy="12" r="8.5" stroke-dasharray="3 3" /></svg>`;
       case 'bloom_lotus':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4c2.5 3.5 2.5 7 0 10-2.5-3-2.5-6.5 0-10z" /><path d="M12 14c-4-1-7-3.5-8-7 3.5 0 6.5 1.5 8 7zM12 14c4-1 7-3.5 8-7-3.5 0-6.5 1.5-8 7z" /><path d="M6 19h12" /></svg>`;
-      case 'arcane_core':
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="12,3 20,8 20,16 12,21 4,16 4,8" /><circle cx="12" cy="12" r="3" /></svg>`;
+        return `<svg ${o}><path d="M12 4c2.5 3.5 2.5 7 0 10-2.5-3-2.5-6.5 0-10z" /><path d="M12 14c-4-1-7-3.5-8-7 3.5 0 6.5 1.5 8 7zM12 14c4-1 7-3.5 8-7-3.5 0-6.5 1.5-8 7z" /><path d="M6 19h12" /></svg>`;
+      case 'essence_spring':
+        return `<svg ${o}><path d="M12 3c-3 4-5 7-5 10a5 5 0 0 0 10 0c0-3-2-6-5-10z" /><path d="M12 10v6M9.5 13.5h5" /></svg>`;
+      case 'rune_hourglass':
+        return `<svg ${o}><polygon points="12,3 20,8 20,16 12,21 4,16 4,8" /><circle cx="12" cy="12" r="2.8" /></svg>`;
+      case 'charged_spire':
+        return `<svg ${o}><polygon points="12,2 16,12 12,22 8,12" /><path d="M4 12h2M18 12h2M6 6l2 2M16 6l2 2" /></svg>`;
+      case 'omega_gauntlet':
+        return `<svg ${o}><path d="M6 19h4v-2a6 6 0 1 1 4 0v2h4" /><circle cx="12" cy="11" r="2" /></svg>`;
+
       default:
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9" /></svg>`;
+        return `<svg ${o}><polygon points="12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9" /></svg>`;
     }
   }
 
@@ -1603,11 +1859,31 @@ export class UIManager {
     if (!this.skillTreeList || !skillTreeManager) return;
 
     const essence = skillTreeManager.getEssence();
+    const totalAllocated = skillTreeManager.getTotalAllocatedRanks();
     if (this.skillModalEssence) this.skillModalEssence.textContent = String(essence);
     if (this.hudEssenceVal) this.hudEssenceVal.textContent = String(essence);
+    if (this.stTopMastery) this.stTopMastery.textContent = `NV. ${1 + totalAllocated}`;
     if (this.stTopVitality) {
       const maxHp = 3 + skillTreeManager.getSkillRank('max_health_up');
       this.stTopVitality.textContent = String(maxHp);
+    }
+
+    if (typeof skillTreeManager.getNextUnlockProgress === 'function') {
+      const progInfo = skillTreeManager.getNextUnlockProgress();
+      if (this.stNextUnlockLabel) {
+        this.stNextUnlockLabel.textContent = progInfo.ready
+          ? `¡DESPERTAR DISPONIBLE: ${progInfo.targetSkillName.toUpperCase()}!`
+          : `PRÓXIMO DESPERTAR: ${progInfo.targetSkillName.toUpperCase()}`;
+      }
+      if (this.stNextUnlockVal) {
+        this.stNextUnlockVal.textContent = progInfo.nextCost > 0
+          ? `${progInfo.currentEssence} / ${progInfo.nextCost} ✦`
+          : 'MÁXIMO';
+      }
+      if (this.stNextUnlockFill) {
+        this.stNextUnlockFill.style.transform = `scaleX(${progInfo.pct.toFixed(3)})`;
+        this.stNextUnlockFill.classList.toggle('is-ready', Boolean(progInfo.ready));
+      }
     }
 
     const allSkills = Object.values(skillTreeManager.skills);
@@ -1623,13 +1899,14 @@ export class UIManager {
       { key: 'relic', title: 'DOMINIO DE RELIQUIA', headerTitle: 'DISCIPLINA · DOMINIO DE LA RELIQUIA', rootId: 'ember_fan', lanesCount: 3 }
     ];
 
-    // Vincular diamantes superiores para enfocar rápidamente cualquiera de las 3 disciplinas
+    // Vincular diamantes superiores para enfocar rápidamente cualquiera de las 3 disciplinas (Clic + Touch)
     this.stDiamondSlots.forEach((slot, idx) => {
       const cfg = treeConfigs[idx];
       if (!cfg) return;
       slot.dataset.discipline = cfg.key;
       slot.style.cursor = 'pointer';
-      slot.onclick = () => {
+      const focusBranch = (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
         const targetSkill = skillTreeManager.skills[cfg.rootId];
         if (targetSkill) {
           this.selectedSkillId = targetSkill.id;
@@ -1641,7 +1918,50 @@ export class UIManager {
           }
         }
       };
+      slot.onclick = focusBranch;
+      slot.ontouchend = (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        focusBranch(e);
+      };
     });
+
+    // Botón táctico de Reembolso / Respec en cabecera del árbol para redistribuir Esencia libremente
+    const boardHeader = this.skillTreeList.parentElement
+      ? this.skillTreeList.parentElement.querySelector('.st-board-header')
+      : null;
+    if (boardHeader && typeof boardHeader.querySelector === 'function') {
+      let respecBtn = boardHeader.querySelector('.st-respec-btn');
+      if (!respecBtn && typeof document !== 'undefined' && typeof document.createElement === 'function') {
+        respecBtn = document.createElement('button');
+        respecBtn.type = 'button';
+        respecBtn.className = 'st-respec-btn';
+        respecBtn.textContent = 'REEMBOLSAR';
+        respecBtn.title = 'Reinicia todas las habilidades y devuelve toda la Esencia invertida';
+        boardHeader.appendChild(respecBtn);
+      }
+      if (respecBtn) {
+        const allocated = skillTreeManager.getTotalAllocatedRanks();
+        respecBtn.disabled = allocated <= 0;
+        respecBtn.classList.toggle('is-empty', allocated <= 0);
+        let lastRespecMs = -Infinity;
+        const doRespec = (e) => {
+          if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+          const now = performance.now();
+          if (now - lastRespecMs < 240) return;
+          lastRespecMs = now;
+          const refunded = skillTreeManager.reset();
+          if (refunded > 0) {
+            if (audioManager) audioManager.playHeal();
+            this.renderSkillTree(skillTreeManager, audioManager);
+          }
+        };
+        respecBtn.onclick = doRespec;
+        respecBtn.ontouchend = (e) => {
+          if (e && e.cancelable) e.preventDefault();
+          doRespec(e);
+        };
+      }
+    }
 
     for (const tCfg of treeConfigs) {
       const branchCol = document.createElement('div');
@@ -1651,12 +1971,18 @@ export class UIManager {
       const branchSkills = allSkills.filter((s) => s.tree === tCfg.key);
       const branchPoints = skillTreeManager.getTreePoints(tCfg.key);
       const branchMaxPoints = branchSkills.reduce((sum, s) => sum + (s.maxRank || 1), 0);
+      const branchPct = branchMaxPoints > 0 ? Math.min(1, branchPoints / branchMaxPoints) : 0;
 
       const branchHeader = document.createElement('div');
       branchHeader.className = 'st-branch-header';
       branchHeader.innerHTML = `
-        <span class="st-branch-title">${tCfg.title}</span>
-        <span class="st-branch-progress">${branchPoints}/${branchMaxPoints} PTS</span>
+        <div class="st-branch-header-top">
+          <span class="st-branch-title">${tCfg.title}</span>
+          <span class="st-branch-progress">${branchPoints}/${branchMaxPoints} PTS</span>
+        </div>
+        <div class="st-branch-progress-bar">
+          <div class="st-branch-progress-fill" style="transform: scaleX(${branchPct.toFixed(3)});"></div>
+        </div>
       `;
       branchCol.appendChild(branchHeader);
 
@@ -1671,6 +1997,13 @@ export class UIManager {
         const laneEl = document.createElement('div');
         laneEl.className = 'st-vertical-lane';
 
+        if (laneSkills[0]?.laneTitle) {
+          const laneSub = document.createElement('span');
+          laneSub.className = 'st-lane-subtitle';
+          laneSub.textContent = laneSkills[0].laneTitle;
+          laneEl.appendChild(laneSub);
+        }
+
         laneSkills.forEach((skill, idx) => {
           const rank = skillTreeManager.getSkillRank(skill.id);
           const maxRank = skill.maxRank || 1;
@@ -1681,14 +2014,15 @@ export class UIManager {
           const canBuy = skillTreeManager.canUnlock(skill.id);
           const isSelected = skill.id === this.selectedSkillId;
 
+          const isJustUnlocked = skill.id === this._lastUnlockedSkillId;
+
           if (idx > 0) {
             const connector = document.createElement('div');
             const connectorLit = isOwned || depsMet;
-            connector.className = `st-node-connector ${isOwned ? 'owned' : connectorLit ? 'active' : 'locked'}`;
+            connector.className = `st-node-connector ${isOwned ? 'owned' : connectorLit ? 'active' : 'locked'}${isJustUnlocked ? ' just-energized' : ''}`;
             laneEl.appendChild(connector);
           }
 
-          const isJustUnlocked = skill.id === this._lastUnlockedSkillId;
           const nodeWrap = document.createElement('button');
           nodeWrap.type = 'button';
           nodeWrap.className = [
@@ -1702,6 +2036,7 @@ export class UIManager {
           nodeWrap.setAttribute('aria-label', `${skill.name} (${statusDesc})`);
           nodeWrap.title = `${skill.name} · ${statusDesc}`;
           nodeWrap.dataset.skillId = skill.id;
+          nodeWrap.dataset.tier = String(skill.tier || 0);
 
           nodeWrap.innerHTML = `
             <span class="st-node-halo"></span>
@@ -1813,6 +2148,22 @@ export class UIManager {
     if (this.stInspectorTitle) {
       this.stInspectorTitle.textContent = maxRank > 1 ? `${skill.name.toUpperCase()} · R${rank}/${maxRank}` : skill.name.toUpperCase();
     }
+    if (this.stPreviewImg) {
+      const previewMap = {
+        aegis: '/assets/ui/skill_aegis_preview.jpg',
+        wrath: '/assets/ui/skill_wrath_preview.jpg',
+        relic: '/assets/ui/skill_relic_preview.jpg'
+      };
+      const targetSrc = previewMap[skill.tree] || '/assets/ui/skill_wrath_preview.jpg';
+      if (this._lastPreviewSrc !== targetSrc) {
+        this._lastPreviewSrc = targetSrc;
+        this.stPreviewImg.classList.add('is-switching');
+        this.stPreviewImg.setAttribute('src', targetSrc);
+        setTimeout(() => {
+          if (this.stPreviewImg) this.stPreviewImg.classList.remove('is-switching');
+        }, 200);
+      }
+    }
     if (this.stInspectorInputBadge) {
       this.stInspectorInputBadge.textContent = skill.inputHint || skill.badge || 'Técnica del Guantelete';
     }
@@ -1839,10 +2190,13 @@ export class UIManager {
         }
         this.stInspectorReqVal.className = 'st-req-val req-unmet';
       } else {
+        const missing = Math.max(0, nextCost - essence);
         this.stInspectorReqLabel.textContent = rank > 0
           ? `SIGUIENTE RANGO (${rank + 1}/${maxRank})`
           : 'COSTE DE ESENCIA ANCESTRAL';
-        this.stInspectorReqVal.textContent = `${essence} / ${nextCost}`;
+        this.stInspectorReqVal.textContent = missing > 0
+          ? `${essence} / ${nextCost} (FALTAN ${missing})`
+          : `${essence} / ${nextCost} · LISTO`;
         this.stInspectorReqVal.className = essence >= nextCost ? 'st-req-val req-met' : 'st-req-val req-unmet';
       }
     }
@@ -1866,6 +2220,11 @@ export class UIManager {
           lastBuyTap = now;
           if (skillTreeManager.unlockSkill(skill.id)) {
             this._lastUnlockedSkillId = skill.id;
+            if (this.skillModalEssence) {
+              this.skillModalEssence.classList.remove('just-spent');
+              void this.skillModalEssence.offsetWidth;
+              this.skillModalEssence.classList.add('just-spent');
+            }
             if (audioManager) audioManager.playHeal();
             this.renderSkillTree(skillTreeManager, audioManager);
           }
@@ -1908,11 +2267,156 @@ export class UIManager {
     this.updateBossThreat(stateManager);
     this.updateHordeHUD(stateManager);
     this.updateDialogue(stateManager, deltaTime);
+    this.updateInteractPrompt(stateManager);
     this.updateRadialWheel(inputManager, stateManager);
     this.updateVirtualGamepad(inputManager, equipped, stateManager);
 
     if (camera) {
       this.updateDamageNumbers(camera, deltaTime);
     }
+  }
+
+  /**
+   * Genera iconos vectoriales semánticos limpios para el Taller de Herrería y Alquimia.
+   * @private
+   * @param {string} svgType
+   * @returns {string}
+   */
+  _getArtisanSvgIcon(svgType) {
+    const svgStart = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">`;
+    switch (svgType) {
+      case 'sword':
+        return `${svgStart}<path d="M14.5 17.5 3 6V3h3l11.5 11.5" /><path d="m13 19 6-6" /><path d="m16 16 4 4" /><path d="m19 21 2-2" /></svg>`;
+      case 'shield':
+        return `${svgStart}<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 7v10" /></svg>`;
+      case 'hammer':
+        return `${svgStart}<path d="m15 12-8.5 8.5c-.83.83-2.17.83-3 0a2.12 2.12 0 0 1 0-3L12 9" /><path d="M17.64 15 22 10.64" /><path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91" /></svg>`;
+      case 'heart':
+        return `${svgStart}<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>`;
+      case 'wind':
+        return `${svgStart}<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2" /><path d="M9.6 4.6A2 2 0 1 1 11 8H2" /><path d="M12.6 19.4A2 2 0 1 0 14 16H2" /></svg>`;
+      case 'flask':
+        return `${svgStart}<path d="M9 3h6" /><path d="M10 3v5l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3" /><path d="M7.5 15h9" /></svg>`;
+      case 'spark':
+      default:
+        return `${svgStart}<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>`;
+    }
+  }
+
+  /**
+   * Renderiza el Taller Regional del Herrero o Mago Alquimista con tarjetas interactivas.
+   * @param {Object} npc
+   * @param {import('../systems/ArtisanSystem.js').ArtisanSystem} artisanSystem
+   * @param {import('../systems/SkillTreeManager.js').SkillTreeManager} skillTreeManager
+   * @param {Object} [deps={}]
+   */
+  renderArtisanShop(npc, artisanSystem, skillTreeManager, deps = {}) {
+    if (!this.artisanItemsGrid || !npc || !artisanSystem || !skillTreeManager) return;
+
+    const isBlacksmith = npc.role === 'blacksmith';
+    const items = artisanSystem.getCatalogForRole(isBlacksmith ? 'blacksmith' : 'alchemist');
+    const essence = skillTreeManager.getEssence();
+
+    if (this.artisanModal) {
+      this.artisanModal.dataset.artisanRole = isBlacksmith ? 'blacksmith' : 'alchemist';
+    }
+    if (this.artisanRoleBadge) {
+      this.artisanRoleBadge.textContent = npc.shopTitle
+        || (isBlacksmith ? 'HERRERÍA Y TEMPLE DEL GREMIO' : 'BOTICA Y ALQUIMIA ARCANA');
+    }
+    if (this.artisanNpcName) {
+      this.artisanNpcName.textContent = npc.name || (isBlacksmith ? 'Maestro Herrero' : 'Mago Alquimista');
+    }
+    if (this.artisanNpcQuote) {
+      this.artisanNpcQuote.textContent = npc.shopSubtitle
+        || (isBlacksmith
+          ? 'Refuerza tu espada, tu escudo y la contundencia de tu guardia con Esencia Ancestral.'
+          : 'Destila elixires permanentes o frascos instantáneos para potenciar tu aventura.');
+    }
+    if (this.artisanEssenceVal) {
+      this.artisanEssenceVal.textContent = String(essence);
+    }
+
+    if (this.artisanBuffStatus) {
+      if (artisanSystem.furyBuffRemaining > 0) {
+        const secs = Math.ceil(artisanSystem.furyBuffRemaining);
+        this.artisanBuffStatus.textContent = `✦ FURIA ARCANA ACTIVA (+22% DAÑO TOTAL · ${secs}s restantes)`;
+        this.artisanBuffStatus.classList.remove('hidden');
+      } else {
+        this.artisanBuffStatus.classList.add('hidden');
+      }
+    }
+
+    this.artisanItemsGrid.innerHTML = items.map((item) => {
+      const rank = artisanSystem.getRank(item.id);
+      const isMax = !item.consumable && artisanSystem.isMaxRank(item.id);
+      const cost = artisanSystem.getItemCost(item.id);
+      const canBuy = artisanSystem.canPurchase(item.id, skillTreeManager);
+      const rankLabel = item.consumable
+        ? (artisanSystem.furyBuffRemaining > 0 ? 'ACTIVA' : 'LISTA')
+        : `NV. ${rank} / ${item.maxRank}`;
+      const btnText = isMax
+        ? 'MAESTRÍA COMPLETA'
+        : canBuy
+          ? `${isBlacksmith ? 'FORJAR' : item.consumable ? 'BEBER' : 'DESTILAR'} · ${cost} ✦`
+          : `FALTAN ${Math.max(0, cost - essence)} ✦`;
+
+      return `
+        <article class="artisan-item-card ${isMax ? 'is-owned' : ''} ${canBuy ? 'can-buy' : ''}">
+          <div class="artisan-card-top">
+            <span class="artisan-icon-box" aria-hidden="true">${this._getArtisanSvgIcon(item.svgType)}</span>
+            <div class="artisan-card-meta">
+              <span class="artisan-card-badge">${item.badge}</span>
+              <h4>${item.name}</h4>
+            </div>
+            <span class="artisan-rank-pill">${rankLabel}</span>
+          </div>
+          <p class="artisan-card-desc">${item.description}</p>
+          <p class="artisan-card-bonus">${item.bonusPerRank}</p>
+          <button
+            type="button"
+            class="artisan-buy-btn ${isMax ? 'is-owned' : (canBuy ? 'can-buy' : 'is-locked')}"
+            data-artisan-buy="${item.id}"
+            ${(isMax || !canBuy) ? 'disabled' : ''}
+          >${btnText}</button>
+        </article>
+      `;
+    }).join('');
+
+    this.artisanItemsGrid.querySelectorAll('[data-artisan-buy]').forEach((btn) => {
+      let lastTap = -Infinity;
+      const runBuy = (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        const now = performance.now();
+        if (now - lastTap < 220) return;
+        lastTap = now;
+        const id = btn.dataset.artisanBuy;
+        const res = artisanSystem.purchase(
+          id,
+          skillTreeManager,
+          deps.player || null,
+          deps.stateManager || null,
+          deps.audioManager || null
+        );
+        if (res.ok) {
+          this.renderArtisanShop(npc, artisanSystem, skillTreeManager, deps);
+          if (deps.stateManager) {
+            this.updateHUD(deps.stateManager, deps.stateManager.get('equipped_power') || 'Fuego');
+            this.updateComboAndEssence(deps.stateManager);
+          }
+          const updatedBtn = this.artisanItemsGrid.querySelector(`[data-artisan-buy="${id}"]`);
+          const updatedCard = updatedBtn ? updatedBtn.closest('.artisan-item-card') : null;
+          if (updatedCard) {
+            updatedCard.classList.add('artisan-card-purchased');
+            setTimeout(() => updatedCard.classList.remove('artisan-card-purchased'), 420);
+          }
+        }
+      };
+      btn.addEventListener('click', runBuy);
+      btn.addEventListener('touchend', (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        runBuy(e);
+      }, { passive: false });
+    });
   }
 }
