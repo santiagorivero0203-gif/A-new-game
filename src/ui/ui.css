@@ -5671,6 +5671,14 @@ body.tutorial-active #virtual-gamepad * {
   pointer-events: none !important;
 }
 
+body.tutorial-active #dialogue-card {
+  display: none !important;
+}
+
+body.tutorial-active #hud-gameplay-layer *:not(.tutorial-spotlight-active) {
+  animation-play-state: paused !important;
+}
+
 .tutorial-spotlight-host {
   z-index: 65 !important;
 }

@@ -524,6 +524,9 @@ export class InputManager {
 
     // --- 2. Rueda del Ratón (Mouse Wheel) para Ciclar Poderes al Vuelo ---
     window.addEventListener('wheel', (e) => {
+      if (typeof document !== 'undefined' && document.body && document.body.classList.contains('tutorial-active')) {
+        return;
+      }
       const now = performance.now();
       // Throttling de 130ms para evitar saltos múltiples por muesca
       if (now - this._lastWheelTime < 130) return;

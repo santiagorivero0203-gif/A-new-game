@@ -1382,7 +1382,7 @@ function update(deltaTime, rawDeltaTime = deltaTime) {
     }
     return;
   }
-  if (gameState !== 'STATE_PLAYING' || !worldInitialized || !player) {
+  if (gameState !== 'STATE_PLAYING' || !worldInitialized || !player || tutorialGuideState.active) {
     return;
   }
 
@@ -1683,7 +1683,9 @@ if (typeof document !== 'undefined') {
       engine.pause(false);
     } else if (_wasPlayingOnHide && (st === 'STATE_PLAYING' || st === 'STATE_CINEMATIC')) {
       _wasPlayingOnHide = false;
-      engine.resume();
+      if (!tutorialGuideState.active && !isSanctuaryOpen() && !isArtisanShopOpen()) {
+        engine.resume();
+      }
     }
   });
 }
@@ -2626,7 +2628,7 @@ inputManager.setCurrentPowerGetter(() =>
   progressionManager.toDisplayElement((player && player.currentAbility) || stateManager.get('equipped_power') || 'Fuego')
 );
 
-stateManager.subscribe('equipped_power', (power) => {
+stateManager.on('equipped_power_changed', (power) => {
   if (power && power !== 'Dormido') {
     inputManager.currentPower = inputManager._normalizeDisplayPower(power);
   }
@@ -2641,7 +2643,7 @@ inputManager.onSinglePowerHint((onlyPower) => {
   });
 });
 
-stateManager.subscribe('core_awakened', (ev) => {
+stateManager.on('core_awakened', (ev) => {
   if (!ev || !player) return;
   const color = POWER_LIGHT_COLORS[ev.element] || '#fb923c';
   player.awakeningTimer = 1.65;
